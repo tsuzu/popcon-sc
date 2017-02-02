@@ -1,0 +1,37 @@
+{
+    "dependencies": {
+        "github.com/Sirupsen/logrus": {
+            "revision": "cd7d1bbe41066b6c1f19780f895901052150a575"
+        },
+        "github.com/cs3238-tsuzu/popcon-sc": {
+            "branch": "contest"
+        },
+        "github.com/derekdowling/bursa": {
+            "branch": "master"
+        },
+        "github.com/go-sql-driver/mysql": {
+            "branch": "master"
+        },
+        "github.com/gorilla/handlers": {
+            "branch": "master"
+        },
+        "github.com/microcosm-cc/bluemonday": {
+            "branch": "master"
+        },
+        "github.com/naoina/genmai": {
+            "branch": "master"
+        },
+        "github.com/russross/blackfriday": {
+            "branch": "master"
+        },
+        "github.com/satori/go.uuid": {
+            "branch": "master"
+        },
+        "github.com/sebest/xff": {
+            "branch": "master"
+        },
+        "golang.org/x/crypto": {
+            "branch": "master"
+        }
+    }
+}

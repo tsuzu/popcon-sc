@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+echo "Building test server, assumes you are running script from Bursa root"
+go build -o $GOPATH/bin/goconvey github.com/smartystreets/goconvey
+echo "Built test server, starting... on 127.0.0.1:8181"
+open -a "Google Chrome" http://localhost:8181
+goconvey -cover=true -host="127.0.0.1" -port=8181

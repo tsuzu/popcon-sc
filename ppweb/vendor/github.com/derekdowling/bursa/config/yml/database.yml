@@ -1,0 +1,4 @@
+---
+orm:
+    adapter: "postgres"
+    settings: "user=bursa password=securemebaby dbname=bursa sslmode=disable host=localhost"

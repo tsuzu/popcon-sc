@@ -1,0 +1,350 @@
+swagger: '2.0'
+
+info:
+  version: "0.0.1"
+  title: Popcon SC Ranking and Submission Manager
+
+securityDefinitions:
+  auth:
+    type: apiKey
+    name: X-Auth-Token
+    in: header
+
+security:
+  - auth: []
+
+paths:
+  /contests/create/{cid}:
+    post:
+      description: |
+        Create a ranking for the contest
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+        -
+          name: contestInfo
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/ContestInfo"
+
+      # Expected responses for this operation:
+      responses:
+        # Response code
+        200:
+          description: Successful response
+        400:
+          description: Bad request
+          schema:
+            title: error
+            type: string
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+
+  /contests/remove/{cid}:
+    post:
+      description: |
+        Remove the ranking for the contest
+      
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+      
+      responses:
+        200:
+          description: Successful response
+        400:
+          description: Bad request
+          schema:
+            title: error
+            type: string
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+  
+  /contests/{cid}/join/{uid}:
+    get:
+      description: |
+        Get whether the user of 'uid' joins the contest of 'id'.
+
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+        -
+          name: uid
+          in: path
+          description: User ID
+          required: true
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: Succesful response
+          schema:
+            title: isJoining
+            type: boolean
+        403:
+          $ref: "#/responses/Forbidden"
+          
+    post:
+      description: |
+        Join the contest of 'cid'
+        
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+        -
+          name: uid
+          in: path
+          description: User ID
+          required: true
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: Successful response
+        400:
+          description: Invalid Contest ID
+          schema:
+            title: error
+            type: string
+        403:
+          $ref: "#/responses/Forbidden"
+
+  /contests/{cid}/update:
+    post:
+      description: Update the contest
+      
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+        -
+          name: contestInfo
+          in: body
+          schema:
+            $ref: "#/definitions/ContestInfo"
+      
+      responses:
+        200:
+          description: Successful response
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+
+  /contests/{cid}/ranking:
+    get:
+      description: Get ranking
+      
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+      
+      responses:
+        200:
+          description: Successful response
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/RankingRow"
+        400:
+          description: Bad request (Invalid Contest ID)
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+  
+  /contests/{cid}/submission_result:
+    post:
+      description: Post the result of the judgement of a submission
+      parameters:
+        -
+          name: cid
+          in: path
+          description: Contest ID
+          required: true
+          type: integer
+          format: int64
+        - 
+          name: submissionResult
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/SubmissionResult"
+      responses:
+        200:
+          description: Successful response
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+  
+  /shutdown:
+    post:
+      description: Shutdown this server
+    
+      responses:
+        200:
+          description: Request has been accepted. The server will shutdown soon.
+        403:
+          $ref: "#/responses/Forbidden"
+        500:
+          description: Internal server error
+          schema:
+            title: error
+            type: string
+
+responses:
+  Forbidden:
+    description: Access denied. Your authentication is wrong.
+    
+definitions:
+  ContestInfo:
+    required:
+      - startTime
+      - finishTime
+      - contestType
+      - penalty
+    type: object
+    properties:
+      startTime:
+        description: Contest Start Time
+        type: string
+        format: dateTime
+      finishTime:
+        description: Contest Finish Time
+        type: string
+        format: dateTime
+      contestType:
+        description: Contest Type
+        type: string
+        enum:
+          - JOI
+          - PCK
+          - AtCoder
+          - ICPC
+      penalty:
+        description: Penalty for AtCoder and ICPC
+        type: integer
+        format: int64
+        
+  RankingCell:
+    required: [score, time, wrongAnswer]
+    type: object
+    properties:
+      score:
+        type: integer
+        format: int64
+      time:
+        description: The format is hh:mm:ss.
+        type: string
+      wrongAnswer:
+        type: integer
+        format: int64
+
+  RankingRow:
+    required: [uid, problems, all]
+    type: object
+    properties:
+      uid:
+        type: integer
+        format: int64
+      problems:
+        type: array
+        items:
+          $ref: "#/definitions/RankingCell"
+      all:
+        $ref: "#/definitions/RankingCell"
+  SubmissionResult:
+    required:
+      - uid
+      - pid
+      - sid
+      - jid
+      - submitTime
+      - status
+      - score
+    type: object
+    properties:
+      uid:
+        description: User ID
+        type: integer
+        format: int64
+      pid:
+        description: Problem ID
+        type: integer
+        format: int64
+      sid:
+        description: Submission ID
+        type: integer
+        format: int64
+      jid:
+        description: Judgement ID
+        type: integer
+        format: int64
+      submitTime:
+        type: string
+        format: dateTime
+      status:
+        description: "Result of Judgement"
+        type: string
+        enum:
+          - Accepted
+          - WrongAnswer
+          - TimeLimitExceeded
+          - MemoryLimitExceeded
+          - RuntimeError
+          - CompileError
+          - InternalError
+      score:
+        type: integer
+        format: int64
+        description: Score

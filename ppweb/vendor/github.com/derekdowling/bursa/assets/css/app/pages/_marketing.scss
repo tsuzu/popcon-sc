@@ -1,0 +1,132 @@
+@import "../global/var";
+
+// Various styles that are specific to the marketing site.
+$bitcoin-orange: #F69619;
+
+body.marketing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+
+  .main-content {
+    flex: 1;
+  }
+
+  .banner {
+    a {
+      margin: 2.5em;
+    }
+    h1 {
+      /* font-family: $font-family-serif; */
+    }
+  }
+
+  .features {
+    padding-top: 50px;
+    padding-bottom: 0px;
+  }
+
+  // For helping vertically center images
+  .helper {
+    display: inline-block;
+    height: 100%;
+    vertical-align: middle;
+  }
+
+  .detail-img {
+    width: 100%;
+    img {
+      width: 90%;
+    }
+  }
+
+  .cta-desc {
+    text-align:center;
+    margin-bottom: 115px;
+  }
+
+  .bitcoin {
+    color: $bitcoin-orange;
+  }
+
+  .fa-20x {
+    font-size: 20em;
+  }
+
+  .mugshots {
+    margin-bottom: 2em;
+    margin-top: 2em;
+  }
+
+  .footer {
+    background-color: #fff;
+    width:100%;
+    height:90px;
+    position:absolute;
+    bottom:0;
+    left:0;
+  }
+
+  footer {
+    background:  $brand-info;
+    padding: 2em 0em 2em 0em;
+    color: white;
+
+    .row > * {
+      vertical-align: middle;
+      display: inline-block;
+    }
+
+    .fa {
+      color: white;
+      margin: 0.2em;
+      font-size: 1.8em;
+    }
+
+    .copyright {
+      font-size: $font-size-base * 1.2;
+      text-transform:lowercase;
+      font-variant:small-caps;
+      vertical-align:middle;
+    }
+  }
+
+}
+
+// These are all blog specific.
+p.intro {
+  font-size: 1.368em;
+  border-top: 1px;
+  border-bottom: 1px;
+  border-left: 0px;
+  border-right: 0px;
+  padding: 1.154em;
+  text-align: center;
+  border-style: solid;
+  line-height: 1.32em;
+  margin: 1.038em 0px;
+}
+
+p.lead {
+	 text-align: center;
+   font-size: 1.368em;
+	 letter-spacing: 2px;
+   margin-top: 1.5em;
+	 text-transform: uppercase;
+}
+
+p {
+	 font-size: 1em;
+	 line-height: 1.421em;
+	 /* color: rgba(51, 51, 51, 0.80); */
+	 margin: 0px 0px 1.421em 0px;
+	 font-weight: 400;
+	 font-style: normal;
+}
+
+article {
+  max-width: 760px;
+  margin:0 auto;
+  font-size: 18px;
+  padding: 0 7%;
+}

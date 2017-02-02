@@ -57,6 +57,7 @@ func NewCustomizedWriter(cb func([]byte) (int, error)) CustomizedWriter {
 
 func CreateLogger(writer io.Writer) {
 	logrus.SetOutput(writer)
+
 	logrus.SetFormatter(logtext.NewLogtext(new(logrus.TextFormatter), true))
 
 	HttpLog = logrus.WithField("category", "http")

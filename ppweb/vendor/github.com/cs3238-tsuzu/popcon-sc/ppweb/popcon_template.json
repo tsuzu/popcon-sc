@@ -1,0 +1,12 @@
+{
+	"ReCAPTCHASite":"",
+	"ReCAPTCHASecret":"",
+	"CanCreateUser": true,
+	"CanCreateContestByNotAdmin": true,
+	"DB": "root:hoge@/popcon?charset=utf8",
+	"JudgeKey":"popcon_judge_password",
+	"ListeningEndpoint": ":443",
+	"CertFilePath":"ssl/myself.crt",
+	"KeyFilePath":"ssl/myself.key",
+	"FaviconPath":"./static/popcon.ico"
+}

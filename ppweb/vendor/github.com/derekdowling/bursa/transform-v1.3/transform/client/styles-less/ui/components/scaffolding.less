@@ -1,0 +1,68 @@
+
+.bg-style (@background, @color) {
+    background-color: @background;
+    color: @color;
+}
+
+.bg-variant-alt (@color) {
+    background-color: @color;
+    color: @reverse;
+    &:hover {
+        background-color: @color;
+        color: @reverse;
+    }
+}
+
+body {
+    text-rendering: optimizeLegibility !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+}
+
+::selection {
+    background: @brand-primary;
+    color: @reverse;
+}
+::-moz-selection {
+    background: @brand-primary;
+    color: @reverse;
+}
+
+span.block {
+    display: block;
+}
+
+.no-margin {
+    margin: 0;
+}
+.no-border {
+    border: 0;
+}
+
+// background
+// -----------------
+// overrides Bootstrap
+a.bg-primary { .bg-variant-alt (@brand-primary); }
+a.bg-success { .bg-variant-alt (@brand-success); }
+a.bg-info { .bg-variant-alt (@brand-info); }
+a.bg-warning { .bg-variant-alt (@brand-warning); }
+a.bg-danger { .bg-variant-alt (@brand-danger); }
+a.bg-orange { .bg-variant-alt (@color-orange); }
+
+// normal
+.bg-primary { .bg-style(@brand-primary, @reverse) };
+.bg-primary-light { .bg-style(@skin-light, @reverse) };
+.bg-success { .bg-style(@brand-success, @reverse) };
+.bg-info { .bg-style(@brand-info, @reverse) };
+.bg-warning { .bg-style(@brand-warning, @reverse) };
+
+.bg-danger { .bg-style(@brand-danger, @reverse) };
+.bg-orange { .bg-style(@color-orange, @reverse) };
+.bg-violet { .bg-style(@color-violet, @reverse) };
+.bg-dark { .bg-style(@dark, @reverse) };
+.bg-bright { .bg-style(@bright, @text-color) };
+.bg-reverse { .bg-style(@reverse, @text-color) };
+
+.bg-facebook { .bg-style(#335397, @reverse) };
+.bg-twitter { .bg-style(#00c7f7, @reverse) };
+.bg-google-plus { .bg-style(#df4a32, @reverse) };

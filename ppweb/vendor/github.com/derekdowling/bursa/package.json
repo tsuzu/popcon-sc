@@ -1,0 +1,98 @@
+{
+  "name": "bursa",
+  "version": "0.0.1",
+  "description": "Github for Bitcoin",
+  "dependencies": {
+    "backbone": "^1.1.2",
+    "bluebird": "^2.3.11",
+    "bootstrap": "^3.3.0",
+    "chai": "^1.10.0",
+    "coffee-react": "^1.0.3",
+    "coffee-reactify": "^2.0.0",
+    "coffee-script": "^1.8.0",
+    "es6-shim": "^0.20.2",
+    "font-awesome": "^4.2.0",
+    "jquery": "^2.1.1",
+    "js-yaml": "^3.2.2",
+    "okra": "0.0.4",
+    "react": "^0.12.0",
+    "react-bootstrap": "^0.12.0",
+    "react-router": "^0.11.4",
+    "reactify": "^0.15.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/derekdowling/bursa.git"
+  },
+  "devDependencies": {
+    "browser-sync": "^1.6.5",
+    "browserify": "*",
+    "coffeeify": "^1.0.0",
+    "compression": "*",
+    "css-flip": "*",
+    "del": "*",
+    "express": "*",
+    "fluxxor": "*",
+    "gulp": "*",
+    "gulp-autoprefixer": "*",
+    "gulp-bless": "*",
+    "gulp-cjsx": "*",
+    "gulp-clean": "^0.3.1",
+    "gulp-concat": "*",
+    "gulp-cssfont64": "*",
+    "gulp-filter": "^1.0.2",
+    "gulp-if": "^1.2.5",
+    "gulp-insert": "*",
+    "gulp-minify-css": "*",
+    "gulp-notify": "^2.0.1",
+    "gulp-plumber": "^0.6.6",
+    "gulp-postcss": "^3.0.0",
+    "gulp-rename": "*",
+    "gulp-replace": "*",
+    "gulp-ruby-sass": "^0.7.1",
+    "gulp-sass": "*",
+    "gulp-shell": "^0.2.10",
+    "gulp-sourcemaps": "^1.2.8",
+    "gulp-ttf2woff": "*",
+    "gulp-uglifyjs": "*",
+    "gulp-util": "*",
+    "gulp-webpack": "*",
+    "html-minifier": "*",
+    "jest-cli": "^0.1.18",
+    "jsx-loader": "*",
+    "map-stream": "*",
+    "node-notifier": "^4.0.2",
+    "node-sass": "*",
+    "plumber": "^0.4.8",
+    "raw-loader": "*",
+    "run-sequence": "*",
+    "through": "*",
+    "transform-loader": "*",
+    "ua-parser": "*",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.0.0",
+    "vinyl-transform": "*",
+    "watchify": "*",
+    "yargs": "*"
+  },
+  "scripts": {
+    "test": "gulp test"
+  },
+  "jest": {
+    "rootDir": "assets/js/app",
+    "moduleFileExtensions": [
+      "coffee",
+      "js"
+    ],
+    "scriptPreprocessor": "jestcoffee.js",
+    "testFileExtensions": [
+      "coffee",
+      "js"
+    ]
+  },
+  "browser": {
+    "bootstrap": "./node_modules/bootstrap/dist/js/bootstrap.js"
+  },
+  "author": "",
+  "license": "full"
+}

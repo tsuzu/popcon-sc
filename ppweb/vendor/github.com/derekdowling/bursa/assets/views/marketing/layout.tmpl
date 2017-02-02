@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Power your business with Bitcoin">
+        <meta name="author" content="Bursa">
+
+        <title>Bursa</title>
+
+        <link rel="icon" type="image/png" href="/img/favicon.png">
+
+        <!-- CSS -->
+        <link href="/css/fonts.css" rel="stylesheet">
+        <link href="/css/app.css" rel="stylesheet">
+
+        <style>
+          .en-markup-crop-options {
+              top: 18px !important;
+              left: 50% !important;
+              margin-left: -100px !important;
+              width: 200px !important;
+              border: 2px rgba(255,255,255,.38) solid !important;
+              border-radius: 4px !important;
+          }
+
+          .en-markup-crop-options div div:first-of-type {
+              margin-left: 0px !important;
+          }
+        </style>
+    </head>
+
+    <body class="marketing {{ template "bodyclass" }}">
+        <!--[if lt IE 9]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+        <header class="header navbar navbar-default navbar-fixed-top">
+            <div class="container">
+                <div class="row">
+                    <div class="navbar-header">
+                        <button type="button" data-toggle="collapse" data-target="#navbar-collapse-1" class="navbar-toggle">
+                        <span class="icon-bar"></span><span class="icon-bar"></span>
+                        <span class="icon-bar"></span></button>
+                    <a href="/" class="navbar-brand"><img alt="Bursa" src="/img/bursa-full-logo.png" height="28" width="110"></a>
+                    </div>
+                    <div id="navbar-collapse-1" class="collapse navbar-collapse">
+                        <ul class="nav navbar-nav navbar-right">
+                            <li><a href="/">Home</a></li>
+                            <li><a href="/about">About</a></li>
+                            <li><a href="http://blog.bursa.io">Blog</a></li>
+                            <!-- <li><a href="/login">Login</a></li> -->
+                            <li><a href="/signup">Signup</a></li>
+                            <!--<li><a href="/login">Login</a></li>-->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="main-content">
+          {{ template "content" . }}
+        </div>
+         <footer class="text-center">
+            <div class="container">
+                <div class="row">
+                  <span class="copyright">Copyright &copy; Bursa - 2014</span>
+                  <a href="https://www.facebook.com/bursa.io"><i id="social" class="fa fa-facebook fa-3x"></i></a>
+                  <a href="https://twitter.com/bursa_io"><i id="social" class="fa fa-twitter social-tw fa-3x"></i></a>
+                  <!--<a href="https://plus.google.com/+Bootsnipp-page"><i id="social" class="fa fa-google-plus-square fa-3x social-gp fa-4x"></i></a>-->
+                  <a href="mailto:contact@bursa.io"><i id="social" class="fa fa-envelope social-em fa-3x"></i></a>
+                </div>
+            </div>
+        </footer>
+
+        <!-- Analytics -->
+        <script>
+            (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+                m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+                })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+            ga('create', 'UA-55716556-2', 'auto');
+            ga('send', 'pageview');
+
+        </script>
+        <link href='http://fonts.googleapis.com/css?family=Lato:300,400,700,300italic,400italic,700italic' rel='stylesheet' type='text/css'>
+    </body>
+</html>
+
+{{ define "bodyclass" }}{{ end }}

@@ -1,28 +1,22 @@
-# popcon
+# popcon-sc
 
-## What is popcon?
-- popconはオープンソースな競技プログラミング用コンテストサーバです。
+## What is popcon-sc?
+- Programming OPen(source) CONtest Server - SCalable
+- popcon-scはオープンソースな競技プログラミング用コンテストサーバです。
 - 主に部活内でコンテストを開催するために製作しています。
-- メインのコードは全てGo、WebページはBootstrap3を使用。
-- **JOI以外のコンテスト形式の実装が終わっていません**
+- Pure Go、WebはBootstrap3
+- 前プロジェクト[popcon](https://github.com/cs3238-tsuzu/popcon)よりもDockerベースで扱いやすいシステムを目指しています。
 
-## Dependencies
-- [go.uuid](http://github.com/satori/go.uuid)
-- [mysql (go-sql-driver)](http://github.com/go-sql-driver/mysql)
-- [genmai](https://github.com/naoina/genmai)
-- [Blackfriday](https://github.com/russross/blackfriday)
-- [Bluemonday](https://github.com/microcosm-cc/bluemonday)
-- [Gorilla/Handlers](https://github.com/gorilla/handlers)
-- [Gorilla/Websocket](https://github.com/gorilla/websocket)
-- MySQL
+## Features
+- Scalable web server & judging system
+- Easy to launch with Golang & Docker
+- Support of multiple kinds of contests
 
 ## How to install
-- install MySQL and [popcon-judge-go](https://github.com/cs3238-tsuzu/popcon-judge-go)
-- Write settings in "popcon.json" (ex. popcon_template.json, autocommit must be off.)
-- Run "go get github.com/cs3238-tsuzu/popcon"
-- Run "mkdir submissions contest_problems contests"
-- Become root
-- ./popcon
+- install Docker
+- $ git clone https://github.com/cs3238-tsuzu/popcon-sc.git
+- $ cd popcon-sc && dockcer-compose build
+- $ PP_MYSQL_PASSWORD="password" PP_TOKEN="password" docker-compose up
 
 ## License
 - Under the MIT License

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +82,7 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 
 	id, _ := res.LastInsertId()
 
-	err = os.MkdirAll(SubmissionDir+strconv.FormatInt(id, 10), os.ModePerm)
+	err = os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)), os.ModePerm)
 
 	if err != nil {
 		dm.SubmissionRemove(id)
@@ -89,17 +90,7 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 		return 0, err
 	}
 
-	fp, err := os.OpenFile(SubmissionDir+strconv.FormatInt(id, 10)+"/msg", os.O_WRONLY|os.O_CREATE, 0644)
-
-	if err != nil {
-		dm.SubmissionRemove(id)
-
-		return 0, err
-	}
-
-	fp.Close()
-
-	fp, err = os.OpenFile(SubmissionDir+strconv.FormatInt(id, 10)+"/.cases_lock", os.O_WRONLY|os.O_CREATE, 0644)
+	fp, err := os.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)+"/msg"), os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
 		dm.SubmissionRemove(id)
@@ -109,7 +100,7 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 
 	fp.Close()
 
-	err = os.MkdirAll(SubmissionDir+strconv.FormatInt(id, 10)+"/cases", os.ModePerm)
+	fp, err = os.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)+"/.cases_lock"), os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
 		dm.SubmissionRemove(id)
@@ -117,7 +108,9 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 		return 0, err
 	}
 
-	err = os.MkdirAll(SubmissionDir+strconv.FormatInt(id, 10), os.ModePerm)
+	fp.Close()
+
+	err = os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)+"/cases"), os.ModePerm)
 
 	if err != nil {
 		dm.SubmissionRemove(id)
@@ -125,7 +118,15 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 		return 0, err
 	}
 
-	fp, err = os.OpenFile(SubmissionDir+strconv.FormatInt(id, 10)+"/code", os.O_WRONLY|os.O_CREATE, 0644)
+	err = os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)), os.ModePerm)
+
+	if err != nil {
+		dm.SubmissionRemove(id)
+
+		return 0, err
+	}
+
+	fp, err = os.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)+"/code"), os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
 		dm.SubmissionRemove(id)
@@ -152,15 +153,15 @@ func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
 		return err
 	}
 
-	fm1, _ := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/.cases_lock", os.O_RDONLY, true)
-	fm2, _ := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/msg", os.O_RDONLY, true)
+	fm1, _ := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/.cases_lock"), os.O_RDONLY, true)
+	fm2, _ := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/msg"), os.O_RDONLY, true)
 
 	defer func() {
 		fm1.Close()
 		fm2.Close()
 	}()
 
-	return os.RemoveAll(SubmissionDir + strconv.FormatInt(sid, 10))
+	return os.RemoveAll(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)))
 }
 
 func (dm *DatabaseManager) SubmissionRemoveAll(pid int64) error {
@@ -212,7 +213,7 @@ func (dm *DatabaseManager) SubmissionUpdate(sid, time, mem int64, status Submiss
 }
 
 func (dm *DatabaseManager) SubmissionGetCode(sid int64) (*string, error) {
-	fp, err := os.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/code", os.O_RDONLY, 0644)
+	fp, err := os.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/code"), os.O_RDONLY, 0644)
 
 	if err != nil {
 		return nil, err
@@ -233,7 +234,7 @@ func (dm *DatabaseManager) SubmissionGetCode(sid int64) (*string, error) {
 
 func (dm *DatabaseManager) SubmissionGetMsg(sid int64) *string {
 	var res string
-	fm, err := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/msg", os.O_RDONLY, false)
+	fm, err := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/msg"), os.O_RDONLY, false)
 
 	if err != nil {
 		return &res
@@ -253,7 +254,7 @@ func (dm *DatabaseManager) SubmissionGetMsg(sid int64) *string {
 }
 
 func (dm *DatabaseManager) SubmissionSetMsg(sid int64, msg string) error {
-	fm, err := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/msg", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
+	fm, err := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/msg"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
 
 	if err != nil {
 		return err
@@ -276,7 +277,7 @@ type SubmissionTestCase struct {
 func (dm *DatabaseManager) SubmissionGetCase(sid int64) (*map[int]SubmissionTestCase, error) {
 	res := make(map[int]SubmissionTestCase)
 
-	fm, err := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/.cases_lock", os.O_RDONLY, false)
+	fm, err := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/.cases_lock"), os.O_RDONLY, false)
 
 	if err != nil {
 		return nil, err
@@ -284,7 +285,7 @@ func (dm *DatabaseManager) SubmissionGetCase(sid int64) (*map[int]SubmissionTest
 
 	defer fm.Close()
 
-	info, err := ioutil.ReadDir(SubmissionDir + strconv.FormatInt(sid, 10) + "/cases")
+	info, err := ioutil.ReadDir(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases"))
 
 	if err != nil {
 		return nil, err
@@ -298,7 +299,7 @@ func (dm *DatabaseManager) SubmissionGetCase(sid int64) (*map[int]SubmissionTest
 				continue
 			}
 
-			fp, err := os.Open(SubmissionDir + strconv.FormatInt(sid, 10) + "/cases/" + info[i].Name())
+			fp, err := os.Open(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases/"+info[i].Name()))
 
 			if err != nil {
 				continue
@@ -324,7 +325,7 @@ func (dm *DatabaseManager) SubmissionGetCase(sid int64) (*map[int]SubmissionTest
 }
 
 func (dm *DatabaseManager) SubmissionSetCase(sid int64, caseId int, stc SubmissionTestCase) error {
-	fm, err := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/.cases_lock", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
+	fm, err := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/.cases_lock"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
 
 	if err != nil {
 		return err
@@ -332,7 +333,7 @@ func (dm *DatabaseManager) SubmissionSetCase(sid int64, caseId int, stc Submissi
 
 	defer fm.Close()
 
-	fp, err := os.Create(SubmissionDir + strconv.FormatInt(sid, 10) + "/cases/" + strconv.FormatInt(int64(caseId), 10))
+	fp, err := os.Create(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases/"+strconv.FormatInt(int64(caseId), 10)))
 
 	if err != nil {
 		return err
@@ -344,7 +345,7 @@ func (dm *DatabaseManager) SubmissionSetCase(sid int64, caseId int, stc Submissi
 }
 
 func (dm *DatabaseManager) SubmissionClearCase(sid int64) error {
-	fm, err := FileManager.OpenFile(SubmissionDir+strconv.FormatInt(sid, 10)+"/.cases_lock", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
+	fm, err := FileManager.OpenFile(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/.cases_lock"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
 
 	if err != nil {
 		return err
@@ -352,13 +353,13 @@ func (dm *DatabaseManager) SubmissionClearCase(sid int64) error {
 
 	defer fm.Close()
 
-	err = os.RemoveAll(SubmissionDir + strconv.FormatInt(sid, 10) + "/cases/")
+	err = os.RemoveAll(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases/"))
 
 	if err != nil {
 		return err
 	}
 
-	return os.MkdirAll(SubmissionDir+strconv.FormatInt(sid, 10)+"/cases/", os.ModePerm)
+	return os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases/"), os.ModePerm)
 }
 
 func (dm *DatabaseManager) SubmissionList(options ...*genmai.Condition) (*[]Submission, error) {

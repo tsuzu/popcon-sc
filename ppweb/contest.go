@@ -1,11 +1,15 @@
 package main
 
-import "errors"
-import "github.com/naoina/genmai"
-import "github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
-import "strconv"
-import "os"
-import "io/ioutil"
+import (
+	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
+	"github.com/naoina/genmai"
+)
 
 var ContestDir = "contests/"
 
@@ -65,7 +69,7 @@ func (dm *DatabaseManager) ContestAdd(name string, start int64, finish int64, ad
 
 	id, _ := res.LastInsertId()
 
-	fm, err := FileManager.OpenFile(ContestDir+strconv.FormatInt(id, 10), os.O_CREATE|os.O_WRONLY, true)
+	fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(id, 10)), os.O_CREATE|os.O_WRONLY, true)
 
 	if err != nil {
 		dm.ContestDelete(id)
@@ -104,7 +108,7 @@ func (dm *DatabaseManager) ContestDelete(cid int64) error {
 		return err
 	}
 
-	fm, err := FileManager.OpenFile(ContestDir+strconv.FormatInt(cid, 10), os.O_WRONLY, true)
+	fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_WRONLY, true)
 
 	if err != nil {
 		return err
@@ -112,7 +116,7 @@ func (dm *DatabaseManager) ContestDelete(cid int64) error {
 
 	defer fm.Close()
 
-	return os.Remove(ContestDir + strconv.FormatInt(cid, 10))
+	return os.Remove(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)))
 }
 
 func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
@@ -132,7 +136,7 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 }
 
 func (dm *DatabaseManager) ContestDescriptionUpdate(cid int64, desc string) error {
-	fm, err := FileManager.OpenFile(ContestDir+strconv.FormatInt(cid, 10), os.O_WRONLY|os.O_TRUNC, true)
+	fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_WRONLY|os.O_TRUNC, true)
 
 	if err != nil {
 		return err
@@ -146,7 +150,7 @@ func (dm *DatabaseManager) ContestDescriptionUpdate(cid int64, desc string) erro
 }
 
 func (dm *DatabaseManager) ContestDescriptionLoad(cid int64) (string, error) {
-	fm, err := FileManager.OpenFile(ContestDir+strconv.FormatInt(cid, 10), os.O_RDONLY, false)
+	fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_RDONLY, false)
 
 	if err != nil {
 		return "", err

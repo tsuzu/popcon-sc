@@ -1,0 +1,25 @@
+.non-display {
+    display: none;
+}
+
+.page {
+    padding: 15px;
+}
+
+.page-form-ele {
+    h3 {
+        margin: 0;
+    }
+}
+
+// For pages that don't have much content and could use some vertical centering.
+.page-simple {
+  .main-content {
+    display: flex;
+    flex: 1;
+
+    .err-container {
+    }
+  }
+}
+

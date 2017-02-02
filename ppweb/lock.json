@@ -1,0 +1,124 @@
+{
+    "memo": "61520b4c7523133600026e52c70c103af07b26f13f41bca43bf45c9a3ca766b3",
+    "projects": [
+        {
+            "name": "github.com/Sirupsen/logrus",
+            "revision": "cd7d1bbe41066b6c1f19780f895901052150a575",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/cs3238-tsuzu/popcon-sc",
+            "branch": "contest",
+            "revision": "cf3dccd623b87ee0e2a166e97012f8ce30c9c263",
+            "packages": [
+                "types"
+            ]
+        },
+        {
+            "name": "github.com/derekdowling/bursa",
+            "branch": "master",
+            "revision": "ab2eee5c7aaee706ef1e5d758fcefb050c83f832",
+            "packages": [
+                "middleware/logtext"
+            ]
+        },
+        {
+            "name": "github.com/go-sql-driver/mysql",
+            "branch": "master",
+            "revision": "2e00b5cd70399450106cec6431c2e2ce3cae5034",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/gorilla/handlers",
+            "version": "v1.2",
+            "revision": "3a5767ca75ece5f7f1440b1d16975247f8d8b221",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/microcosm-cc/bluemonday",
+            "branch": "master",
+            "revision": "e79763773ab6222ca1d5a7cbd9d62d83c1f77081",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/naoina/genmai",
+            "branch": "master",
+            "revision": "c00e6703a1503c09dca12048bf17961b13511c0f",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/naoina/go-stringutil",
+            "version": "v0.1.0",
+            "revision": "6b638e95a32d0c1131db0e7fe83775cbea4a0d0b",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/russross/blackfriday",
+            "branch": "master",
+            "revision": "5f33e7b7878355cd2b7e6b8eefc48a5472c69f70",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/satori/go.uuid",
+            "branch": "master",
+            "revision": "b061729afc07e77a8aa4fad0a2fd840958f1942a",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/sebest/xff",
+            "branch": "master",
+            "revision": "6c115e0ffa35d6a2e3f7a9e797c9cf07f0da4b9f",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/shurcooL/sanitized_anchor_name",
+            "branch": "master",
+            "revision": "1dba4b3954bc059efc3991ec364f9f9a35f597d2",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "golang.org/x/crypto",
+            "branch": "master",
+            "revision": "dc137beb6cce2043eb6b5f223ab8bf51c32459f4",
+            "packages": [
+                "ssh/terminal"
+            ]
+        },
+        {
+            "name": "golang.org/x/net",
+            "branch": "master",
+            "revision": "007e530097ad7f954752df63046b4036f98ba6a6",
+            "packages": [
+                "html"
+            ]
+        },
+        {
+            "name": "golang.org/x/sys",
+            "branch": "master",
+            "revision": "7a6e5648d140666db5d920909e082ca00a87ba2c",
+            "packages": [
+                "unix"
+            ]
+        }
+    ]
+}

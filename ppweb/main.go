@@ -90,8 +90,17 @@ func main() {
 	dir := settingManager.Get().dataDirectory
 
 	SubmissionDir = filepath.Join(dir, SubmissionDir)
+	if err := os.MkdirAll(SubmissionDir, 0770); err != nil {
+		HttpLog.Fatalf("Creation of SubmissionDir(%s) failed(error: %s)", SubmissionDir, err.Error())
+	}
 	ContestDir = filepath.Join(dir, ContestDir)
+	if err := os.MkdirAll(ContestDir, 0770); err != nil {
+		HttpLog.Fatalf("Creation of ContestDir(%s) failed(error: %s)", ContestDir, err.Error())
+	}
 	ContestProblemDir = filepath.Join(dir, ContestProblemDir)
+	if err := os.MkdirAll(ContestProblemDir, 0770); err != nil {
+		HttpLog.Fatalf("Creation of ContestProblemDir(%s) failed(error: %s)", ContestProblemDir, err.Error())
+	}
 
 	mainDB, err = NewDatabaseManager(os.Getenv("PP_WAIT_MYSQL") != "")
 
@@ -131,7 +140,7 @@ func main() {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	//mux.Handle("/judge", JudgeTransfer{})
 	mux.HandleFunc("/favicon.ico", func(rw http.ResponseWriter, req *http.Request) {
-		rw.Header().Set("Location", "/static/favicon.ico")
+		rw.Header().Set("Location", "/static/popcon.ico")
 		rw.WriteHeader(http.StatusMovedPermanently)
 	})
 

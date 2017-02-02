@@ -1,0 +1,8 @@
+---
+email:
+  mailchimp_key: "4df049b873c7e2d5d08416ecfac6eee4-us9"
+  list_id: "ddb450e3b1"
+  enabled: false
+
+logging:
+  mode: "dev"

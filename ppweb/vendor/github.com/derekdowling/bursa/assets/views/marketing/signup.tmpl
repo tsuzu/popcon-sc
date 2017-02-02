@@ -1,0 +1,34 @@
+{{ define "content" }}
+<div class="page-signup">
+    <div class="signin-header">
+        <section class="logo text-center">
+            <a href="/">Bursa</a>
+        </section>
+    </div>
+
+    <div class="signup-body">
+        <div class="container">
+            <div class="form-container">
+                <section>
+                    <form class="form-horizontal text-center" action="/signup" method="POST">
+                        <div class="form-group">
+                            <span class="glyphicon glyphicon-envelope"></span>
+                            <input type="email"
+                                   name="email"
+                                   class="form-control input-lg input-round text-center"
+                                   placeholder="Your email address"
+                                   >
+                        </div>
+
+                        <div class="form-group">
+                            <!-- <p class="text-muted text-small">By clicking on Create Account, you agree to <a href="javascript:;">terms & conditions</a> and <a href="javascript:;">privacy policy</a></p> -->
+                            <div class="divider"></div>
+                            <input type="submit" class="btn btn-primary btn-block btn-lg btn-round" value="Create Account">
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}
