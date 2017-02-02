@@ -1,8 +1,0 @@
-{
-    "can_create_user": false,
-    "can_create_contest": false,
-    "number_of_news": 5,
-    "log_file": "",
-    "cert_file": "",
-    "key_file": ""
-}

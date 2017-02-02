@@ -1,4 +1,0 @@
----
-orm:
-    adapter: "postgres"
-    settings: "user=postgres dbname=travis_ci_test host=localhost sslmode=disable"

@@ -1,1 +1,0 @@
-(function(){"use strict";$(".navbar-nav a").smoothScroll()}).call(this);

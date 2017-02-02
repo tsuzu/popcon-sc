@@ -10,12 +10,12 @@ import (
 
 var HttpLog, DBLog *logrus.Entry
 
-type MulLog struct {
+type LogMultipleOutput struct {
 	console *os.File
 	fp      *os.File
 }
 
-func (lo MulLog) Write(p []byte) (n int, err error) {
+func (lo LogMultipleOutput) Write(p []byte) (n int, err error) {
 	lo.console.Write(p)
 
 	if lo.fp != nil {
@@ -25,7 +25,7 @@ func (lo MulLog) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func NewLogMultipleOutput(path string) (*MulLog, error) {
+func NewLogMultipleOutput(path string) (*LogMultipleOutput, error) {
 	var fp *os.File
 	var err error
 
@@ -37,7 +37,7 @@ func NewLogMultipleOutput(path string) (*MulLog, error) {
 		}
 	}
 
-	return &MulLog{
+	return &LogMultipleOutput{
 		console: os.NewFile(os.Stdout.Fd(), "stdout"),
 		fp:      fp,
 	}, nil

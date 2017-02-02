@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-echo "Installing build dependecies"
-npm install
-godep restore
-echo "Compiling Assets for dist"
-gulp dist
-echo "Done, launch the server with: 'go run server/server.go'"

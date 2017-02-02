@@ -1,3 +1,0 @@
-FROM golang
-
-MAINTAINER Tsuzu
