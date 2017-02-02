@@ -1,6 +1,0 @@
-[submodule "submodules/popcon-sc-jq"]
-	path = submodules/popcon-sc-jq
-	url = https://github.com/cs3238-tsuzu/popcon-sc-jq.git
-[submodule "submodules/popcon-sc-ranking"]
-	path = submodules/popcon-sc-ranking
-	url = https://github.com/cs3238-tsuzu/popcon-sc-ranking.git
