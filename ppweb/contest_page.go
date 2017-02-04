@@ -1,13 +1,17 @@
 package main
 
-import "net/http"
-import "github.com/naoina/genmai"
-import "time"
-import "text/template"
-import "strconv"
-import "errors"
-import "net/url"
-import "strings"
+import (
+	"errors"
+	"net/http"
+	"net/url"
+	"path"
+	"strconv"
+	"strings"
+	"text/template"
+	"time"
+
+	"github.com/naoina/genmai"
+)
 
 const ContentsPerPage = 50
 
@@ -182,8 +186,17 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	std, err := ParseRequestForSession(req)
 
-	if std == nil || err != nil || !std.IsSignedIn {
-		RespondRedirection(rw, "/login?comeback=/contests"+url.QueryEscape(req.URL.Path))
+	if err != nil {
+		if err == ErrUnknownSession {
+			RespondRedirection(rw, path.Join("/login?comeback=/contests", url.QueryEscape(req.URL.Path)))
+
+			return
+		}
+
+		HttpLog.WithError(err).Error("ParseRequestForSession failed")
+
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(ISE500))
 
 		return
 	}

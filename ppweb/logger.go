@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/derekdowling/bursa/middleware/logtext"
+	"github.com/cs3238-tsuzu/bursa/middleware/logtext"
 )
 
 var HttpLog, DBLog, MailLog *logrus.Entry
@@ -59,9 +59,9 @@ func CreateLogger(writer io.Writer) {
 	logrus.SetOutput(writer)
 
 	lt := &logtext.Logtext{
-		Formatter: new(logrus.TextFormatter),
-		DebugOnly: true,
-		LogDepth:  6,
+		Formatter:  new(logrus.TextFormatter),
+		TargetMask: logtext.NewLogtextTargetMask(logrus.DebugLevel, logrus.ErrorLevel),
+		LogDepth:   6,
 	}
 	logrus.SetFormatter(lt)
 

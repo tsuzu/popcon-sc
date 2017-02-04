@@ -92,7 +92,7 @@ func (dm *DatabaseManager) SessionFind(sessionKey string) (*Session, error) {
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown session")
+		return nil, ErrUnknownSession
 	}
 
 	return &resulsts[0], nil

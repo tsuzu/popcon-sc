@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -586,7 +585,7 @@ func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown problem")
+		return nil, ErrUnknownProblem
 	}
 
 	return &resulsts[0], nil
@@ -602,7 +601,7 @@ func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown problem")
+		return nil, ErrUnknownProblem
 	}
 
 	return &resulsts[0], nil

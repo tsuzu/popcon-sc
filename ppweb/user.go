@@ -98,6 +98,13 @@ func (dm *DatabaseManager) UserUpdateEnabled(iid int64, enabled bool) error {
 	return err
 }
 
+func (dm *DatabaseManager) UserUpdatePassword(iid int64, pass string) error {
+	passHashArr := sha512.Sum512([]byte(pass))
+	_, err := dm.db.DB().Exec("update user set pass_hash=? where iid=?", passHashArr[:], iid)
+
+	return err
+}
+
 // UserFind returns a User object
 func (dm *DatabaseManager) userFind(key string, value string) (*User, error) {
 	var resulsts []User
@@ -108,7 +115,7 @@ func (dm *DatabaseManager) userFind(key string, value string) (*User, error) {
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown user")
+		return nil, ErrUnknownUser
 	}
 
 	return &resulsts[0], nil

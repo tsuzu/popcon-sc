@@ -1,9 +1,5 @@
 package main
 
-import (
-	"errors"
-)
-
 type Language struct {
 	Lid           int64  `db:"pk"`
 	Name          string `default:""`
@@ -54,7 +50,7 @@ func (dm *DatabaseManager) LanguageFind(lid int64) (*Language, error) {
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown language")
+		return nil, ErrUnknownLanguage
 	}
 
 	return &resulsts[0], nil

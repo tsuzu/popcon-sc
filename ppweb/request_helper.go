@@ -1,28 +1,41 @@
 package main
 
 import "net/http"
-import "errors"
 
 // ParseRequestForSession returns a SessionTemplateData object
+// error: ErrUnknownSession or ...
 func ParseRequestForSession(req *http.Request) (*SessionTemplateData, error) {
 	session := ParseSession(req)
 
 	if session == nil {
-		return nil, errors.New("Session Not Found")
+		return nil, ErrUnknownSession
 	}
 
-	return GetSessionTemplateData(*session)
+	t, err := GetSessionTemplateData(*session)
+
+	if err == ErrUnknownUser {
+		return nil, ErrUnknownSession
+	}
+
+	return t, err
 }
 
-//ParseRequestForUseData returns an User object
-func ParseRequestForUseData(req *http.Request) (*User, error) {
+//ParseRequestForUserData returns an User object
+// error: ErrUnknownSession or ...
+func ParseRequestForUserData(req *http.Request) (*User, error) {
 	sessionID := ParseSession(req)
 
 	if sessionID == nil {
-		return nil, errors.New("Unknown user")
+		return nil, ErrUnknownSession
 	}
 
-	return GetSessionUserData(*sessionID)
+	u, err := GetSessionUserData(*sessionID)
+
+	if err == ErrUnknownUser {
+		return nil, ErrUnknownSession
+	}
+
+	return u, err
 }
 
 // ParseSession gets session from Cookie

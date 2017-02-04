@@ -81,8 +81,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if req.URL.Path != "/" && req.URL.Path != "/#" {
 				rw.WriteHeader(http.StatusNotFound)
-
-				fmt.Fprint(rw, NF404)
+				rw.Write([]byte(NF404))
 
 				return
 			}
@@ -104,7 +103,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			if err != nil {
 				news = make([]News, 0)
 
-				fmt.Println(err.Error())
+				DBLog.WithError(err).Error("NewsGet failed")
 			}
 
 			type IndexResp struct {
@@ -161,13 +160,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			return nil, err
 		}
 
-		handler := http.StripPrefix("/contests", *contestsTopHandler)
-
-		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			handler.ServeHTTP(rw, req)
-		})
-
-		return &f, nil
+		return http.StripPrefix("/contests", *contestsTopHandler), nil
 	}()
 
 	if err != nil {
@@ -212,34 +205,30 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 
-				loginID, res := req.Form["loginID"]
-				password, res2 := req.Form["password"]
-				comeback, res3 := req.Form["comeback"]
+				loginID := req.FormValue("loginID")
+				password := req.FormValue("password")
+				comeback := req.FormValue("comeback")
 
-				if !res || !res2 || !res3 || len(loginID) == 0 || len(password) == 0 || len(comeback) == 0 {
+				if len(comeback) == 0 {
+					comeback = "/"
+				}
+
+				if strings.Index(comeback, "//") != -1 || len(comeback) > 128 {
 					rw.WriteHeader(http.StatusBadRequest)
 					fmt.Fprint(rw, BR400)
 
 					return
 				}
-				backurl := comeback[0]
 
-				if strings.Index(backurl, "//") != -1 || len(backurl) > 40 {
-					rw.WriteHeader(http.StatusBadRequest)
-					fmt.Fprint(rw, BR400)
-
-					return
-				}
-
-				user, err := mainDB.UserFindFromUserID(loginID[0])
-				passHash := sha512.Sum512([]byte(password[0]))
+				user, err := mainDB.UserFindFromUserID(loginID)
+				passHash := sha512.Sum512([]byte(password))
 
 				if err != nil || !reflect.DeepEqual(user.PassHash, passHash[:]) {
 					rw.WriteHeader(http.StatusOK)
 
 					tmp.Execute(rw, LoginTemp{
 						Error:         "IDまたはパスワードが間違っています。",
-						BackURL:       backurl,
+						BackURL:       comeback,
 						SignupEnabled: settingManager.Get().CanCreateUser,
 					})
 					return
@@ -248,9 +237,28 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				if !user.Enabled {
 					rw.WriteHeader(http.StatusOK)
 
+					var msg string
+					if user.Email.Valid {
+						err := MailSendConfirmUser(user.Iid, user.UserName, user.Email.String)
+
+						if err != nil {
+							if err != ErrMailWasSent {
+								rw.WriteHeader(http.StatusInternalServerError)
+								rw.Write([]byte(ISE500))
+								return
+							}
+
+							msg = "アカウントが有効化されていません。送信されたメールを確認してください。"
+						} else {
+							msg = "アカウントが有効化されていません。認証メールを再送信しました。確認してください。"
+						}
+					} else {
+						msg = "アカウントが有効化されていません。"
+					}
+
 					tmp.Execute(rw, LoginTemp{
-						Error:         "アカウントが有効化されていません。送信されたメールを確認してください。",
-						BackURL:       backurl,
+						Error:         msg,
+						BackURL:       comeback,
 						SignupEnabled: settingManager.Get().CanCreateUser,
 					})
 					return
@@ -262,11 +270,11 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					rw.WriteHeader(http.StatusInternalServerError)
 					HttpLog.WithError(err).Error("Session addition failed")
 
-					fmt.Fprint(rw, ISE500)
+					rw.Write([]byte(ISE500))
 				} else {
 					SetSession(rw, sessionID)
 
-					RespondRedirection(rw, backurl)
+					RespondRedirection(rw, comeback)
 				}
 			} else {
 				rw.WriteHeader(http.StatusBadRequest)
@@ -315,10 +323,19 @@ func CreateHandlers() (map[string]http.Handler, error) {
 		}
 
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			user, err := ParseRequestForUseData(req)
+			user, err := ParseRequestForUserData(req)
 
 			if err != nil {
-				RespondRedirection(rw, "/login?comeback=/userinfo")
+				if err == ErrUnknownSession {
+					RespondRedirection(rw, "/login?comeback=/userinfo")
+
+					return
+				}
+
+				HttpLog.WithError(err).Error("ParseRequestForSession failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
 
 				return
 			}
@@ -341,17 +358,124 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			return nil, err
 		}
 
+		type UpdatePasswordTemplateType struct {
+			Success, Error string
+			Token          string
+		}
+
+		var UPDATEPASSWORDSERVICE = "update_password"
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			user, err := ParseRequestForUseData(req)
+			user, err := ParseRequestForUserData(req)
 
 			if err != nil {
-				RespondRedirection(rw, "/userinfo")
+				if err == ErrUnknownSession {
+					RespondRedirection(rw, "/login?comeback=/userinfo/update_password")
+
+					return
+				}
+
+				HttpLog.WithError(err).Error("ParseRequestForUserData failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
 
 				return
 			}
 
-			rw.WriteHeader(http.StatusOK)
-			tmp.Execute(rw, user)
+			var val UpdatePasswordTemplateType
+
+			token, err := mainRM.TokenGenerateAndRegisterWithValue(UPDATEPASSWORDSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute, user.Iid)
+
+			if err != nil {
+				DBLog.WithError(err).Error("Token generation and registration failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
+
+				return
+			}
+			val.Token = token
+
+			if req.Method == "GET" {
+				tmp.Execute(rw, UpdatePasswordTemplateType{
+					Token: token,
+				})
+
+				return
+			} else {
+				err := req.ParseForm()
+
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					rw.Write([]byte(BR400))
+
+					return
+				}
+
+				token := req.FormValue("token")
+				pass := req.FormValue("password")
+				pass2 := req.FormValue("password_conf")
+
+				if len(token) == 0 {
+					val.Error = "ワンタイムトークンが無効です。"
+
+					rw.WriteHeader(http.StatusOK)
+					tmp.Execute(rw, val)
+					return
+				}
+				ok, iid, err := mainRM.TokenGetAndRemoveInt64(UPDATEPASSWORDSERVICE, token)
+
+				if err != nil {
+					DBLog.WithError(err).Error("TokenGetAndRemoveInt64 failed")
+
+					rw.WriteHeader(http.StatusInternalServerError)
+					rw.Write([]byte(ISE500))
+					return
+				}
+				if !ok {
+					val.Error = "ワンタイムトークンの有効時間が過ぎました。"
+
+					rw.WriteHeader(http.StatusOK)
+					tmp.Execute(rw, val)
+					return
+				}
+
+				if iid != user.Iid {
+					rw.WriteHeader(http.StatusBadRequest)
+					rw.Write([]byte(BR400))
+
+					return
+				}
+
+				msg := ""
+				if len(pass) > 100 || len(pass2) > 100 {
+					msg = "パスワードが長すぎます。"
+				} else if len(pass) < 5 || len(pass2) < 5 {
+					msg = "パスワードが短すぎます。"
+				} else if pass != pass2 {
+					msg = "パスワードが一致しません。"
+				}
+
+				if len(msg) != 0 {
+					val.Error = msg
+
+					rw.WriteHeader(http.StatusOK)
+					tmp.Execute(rw, val)
+					return
+				}
+
+				err = mainDB.UserUpdatePassword(iid, pass)
+
+				if err != nil {
+					DBLog.WithError(err).Error("UserUpdatePassword failed")
+					rw.WriteHeader(http.StatusInternalServerError)
+					rw.Write([]byte(ISE500))
+
+					return
+				}
+
+				RespondRedirection(rw, "/userinfo")
+			}
 		})
 
 		return f, nil
@@ -372,7 +496,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 		var SIGNUPTOKENSERVICE = "signup"
 		mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
-			u, _ := ParseRequestForUseData(req)
+			u, _ := ParseRequestForUserData(req)
 
 			if u != nil {
 				RespondRedirection(rw, "/")
@@ -694,7 +818,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 			return
 
-			std, err := ParseRequestForUseData(req)
+			std, err := ParseRequestForUserData(req)
 
 			var IsSignedIn bool = false
 			var Name string
@@ -755,7 +879,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				return
 			}
 
-			std, err := ParseRequestForUseData(req)
+			std, err := ParseRequestForUserData(req)
 
 			if err != nil || std.Gid != 0 {
 				RespondRedirection(rw, "/")

@@ -47,7 +47,7 @@ func (dm *DatabaseManager) GroupFind(gid int64) (*Group, error) {
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown group")
+		return nil, ErrUnknownGroup
 	}
 
 	return &resulsts[0], nil

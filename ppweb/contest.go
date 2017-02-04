@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -129,7 +128,7 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 	}
 
 	if len(resulsts) == 0 {
-		return nil, errors.New("Unknown contest")
+		return nil, ErrUnknownContest
 	}
 
 	return &resulsts[0], nil

@@ -1,11 +1,19 @@
 {
-    "memo": "61520b4c7523133600026e52c70c103af07b26f13f41bca43bf45c9a3ca766b3",
+    "memo": "315d7c1e17d586958badabb370e6a3ae740a646847e4b259bf73d12fedc58261",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
             "revision": "cd7d1bbe41066b6c1f19780f895901052150a575",
             "packages": [
                 "."
+            ]
+        },
+        {
+            "name": "github.com/cs3238-tsuzu/bursa",
+            "branch": "master",
+            "revision": "3a814004d95cbdf3f5a02e6c9d176117f90bfb3f",
+            "packages": [
+                "middleware/logtext"
             ]
         },
         {
@@ -17,11 +25,43 @@
             ]
         },
         {
-            "name": "github.com/derekdowling/bursa",
+            "name": "github.com/facebookgo/clock",
             "branch": "master",
-            "revision": "ab2eee5c7aaee706ef1e5d758fcefb050c83f832",
+            "revision": "600d898af40aa09a7a93ecb9265d87b0504b6f03",
             "packages": [
-                "middleware/logtext"
+                "."
+            ]
+        },
+        {
+            "name": "github.com/facebookgo/grace",
+            "branch": "master",
+            "revision": "5729e484473f52048578af1b80d0008c7024089b",
+            "packages": [
+                "gracehttp"
+            ]
+        },
+        {
+            "name": "github.com/facebookgo/httpdown",
+            "branch": "master",
+            "revision": "a3b1354551a26449fbe05f5d855937f6e7acbd71",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/facebookgo/stats",
+            "branch": "master",
+            "revision": "1b76add642e42c6ffba7211ad7b3939ce654526e",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/garyburd/redigo",
+            "version": "v1.0.0",
+            "revision": "8873b2f1995f59d4bcdd2b0dc9858e2cb9bf0c13",
+            "packages": [
+                "redis"
             ]
         },
         {

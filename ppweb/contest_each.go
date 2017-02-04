@@ -623,7 +623,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			prob, err := mainDB.ContestProblemFind2(cid, pid)
 
 			if err != nil {
-				if err.Error() == "Unknown problem" {
+				if err == ErrUnknownProblem {
 					rw.WriteHeader(http.StatusBadRequest)
 					rw.Write([]byte(BR400))
 
@@ -640,7 +640,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			_, err = mainDB.LanguageFind(lid)
 
 			if err != nil {
-				if err.Error() == "Unknown language" {
+				if err == ErrUnknownLanguage {
 					rw.WriteHeader(http.StatusBadRequest)
 					rw.Write([]byte(BR400))
 
@@ -751,7 +751,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					sm, err := mainDB.SubmissionFind(id)
 
 					if err != nil {
-						if err.Error() == "Unknown submission" {
+						if err == ErrUnknownSubmission {
 							respondTemp("該当する提出がありません。")
 						} else {
 							HttpLog.Println(err)
@@ -787,7 +787,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cp, err := mainDB.ContestProblemFind2(cid, id)
 
 					if err != nil {
-						if err.Error() == "Unknown problem" {
+						if err == ErrUnknownProblem {
 							respondTemp("該当する問題がありません。")
 						} else {
 							HttpLog.Println(err)
@@ -1051,7 +1051,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cp, err = mainDB.ContestProblemFind2(cid, upidx)
 
 						if err != nil {
-							if err.Error() == "Unknown problem" {
+							if err == ErrUnknownProblem {
 								rw.WriteHeader(http.StatusNotFound)
 								rw.Write([]byte(NF404))
 
@@ -1128,7 +1128,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						if jtype == int64(JudgeRunningCode) {
 							if _, err := mainDB.LanguageFind(lid); err != nil {
-								if err.Error() == "Unknown language" {
+								if err == ErrUnknownLanguage {
 									rw.WriteHeader(http.StatusBadRequest)
 									rw.Write([]byte(BR400))
 

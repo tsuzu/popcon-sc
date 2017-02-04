@@ -188,7 +188,7 @@ func (dm *DatabaseManager) SubmissionFind(sid int64) (*Submission, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, errors.New("Unknown submission")
+		return nil, ErrUnknownSubmission
 	}
 
 	return &results[0], nil
