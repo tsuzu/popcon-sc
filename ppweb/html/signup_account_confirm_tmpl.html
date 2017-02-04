@@ -5,12 +5,12 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>User Info| popcon</title>
-    <!--Bootstrap CSS-->
+    <title>Account Confirmation| popcon</title>
+    <!-- BootstrapのCSS読み込み -->
     <link href="/static/css/bootstrap.min.css" rel="stylesheet">
-    <!--jQuery-->
+    <!-- jQuery読み込み -->
     <script src="/static/js/jquery-1.12.2.min.js"></script>
-    <!--Bootstrap JS-->
+    <!-- BootstrapのJS読み込み -->
     <script src="/static/js/bootstrap.min.js"></script>
     <!--footerFixed JS-->
     <script src="/static/js/footer-fixed.js"></script>
@@ -18,10 +18,6 @@
         #footer {
             text-align: center;
             padding-bottom: 15px;
-        }
-        
-        .userInfo {
-            font-size: 20px;
         }
     </style>
 </head>
@@ -42,49 +38,35 @@
                 <div class="collapse navbar-collapse" id="navbarEexample">
                     <ul class="nav navbar-nav">
                         <li><a href="/">トップ</a></li>
-                        <li><a href="/onlinejudge">オンラインジャッジ</a></li>
-                        <li><a href="/contests">コンテスト</a></li>
+                        <li><a href="/onlinejudge/">オンラインジャッジ</a></li>
+                        <li><a href="/contests/">コンテスト</a></li>
                         <li><a href="/help">ヘルプ</a></li>
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
-        <div class="page-header">
-            <h1>ユーザ情報</h1>
-        </div>
-        <div class="row">
-            <div class="col-md-8">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Key</th>
-                            <th>Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Login ID</td>
-                            <td>{{html .Uid}}</td>
-                        </tr>
-                        <tr>
-                            <td>User Name</td>
-                            <td>{{html .UserName}}</td>
-                        </tr>
-                        <tr>
-                            <td>E-mail</td>
-                            <td>{{if .Email.Valid}}{{html .Email.String}}{{else}}-{{end}}</td>
-                        </tr>
-                    </tbody>
-                </table>
+    <div class="contents">
+        <div class="container">
+            <div class="col-xs-12 col-md-12">
+                <div class="page-header">
+                    <div class="row">            
+     	                <h1>アカウント登録{{if .OK}}完了{{else}}失敗{{end}}</h1>
+                    </div>
+                </div>
+                <p>
+                    {{html .Message}}
+                </p>
+
+                <button type="button" class="btn btn-default" onclick="location.href='/login'">ログインページに移動</button>
+        
             </div>
         </div>
-        <button type="button" class="btn btn-default" onclick="location.href='/logout'">Sign out</button>
+        <div style="margin-top:10px;" class="container">
+            <footer class="container-fluid" id="footer">
+                <small>© 2016 Tsuzu</small>
+            </footer>
+        </div>
     </div>
-    <footer class="container-fluid" id="footer">
-        <small>© 2016 Tsuzu</small>
-    </footer>
 </body>
-
 </html>

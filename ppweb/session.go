@@ -57,7 +57,7 @@ func GetSessionUserData(sessionID string) (*User, error) {
 }
 
 // SessionAdd adds a new session
-func (dm *DatabaseManager) SessionAdd(internalID int64) (*string, error) {
+func (dm *DatabaseManager) SessionAdd(internalID int64) (string, error) {
 	var err error
 
 	cnt := 0
@@ -69,7 +69,7 @@ func (dm *DatabaseManager) SessionAdd(internalID int64) (*string, error) {
 		_, err = dm.db.Insert(&session)
 
 		if err == nil {
-			return &id, nil
+			return id, nil
 		}
 
 		if cnt > 3 {
@@ -78,7 +78,7 @@ func (dm *DatabaseManager) SessionAdd(internalID int64) (*string, error) {
 		cnt++
 	}
 
-	return nil, errors.New("Failed to insert a new session(" + err.Error() + ")")
+	return "", errors.New("Failed to insert a new session(" + err.Error() + ")")
 }
 
 // SessionFind is to find a session

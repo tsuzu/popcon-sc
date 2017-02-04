@@ -9,6 +9,8 @@ import (
 
 	"math/rand"
 
+	"database/sql"
+
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -37,6 +39,19 @@ func createWrapFormStr(req *http.Request) func(str string) string {
 	}
 }
 
+func NullStringCreate(str string) sql.NullString {
+	if str == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{Valid: true, String: str}
+}
+func NullStringGet(str sql.NullString) string {
+	if str.Valid {
+		return str.String
+	}
+	return ""
+}
+
 func CreateDefaultAdminUser() bool {
 	fmt.Println("No user found in the DB")
 	fmt.Println("You need to create the default admin")
@@ -56,8 +71,12 @@ func CreateDefaultAdminUser() bool {
 		return false
 	}
 
-	fmt.Print("Email: ")
+	fmt.Print("Email(or \"null\"): ")
 	_, err = fmt.Scan(&email)
+
+	if email == "null" {
+		email = ""
+	}
 
 	if len(email) == 0 || err != nil {
 		return false
@@ -88,7 +107,7 @@ func CreateDefaultAdminUser() bool {
 		return false
 	}
 
-	_, err = mainDB.UserAdd(id, name, pass, email, 0)
+	_, err = mainDB.UserAdd(id, name, pass, NullStringCreate(email), 0, true)
 
 	if err != nil {
 		fmt.Println("Failed to create user. (", err.Error(), ")")
@@ -111,13 +130,26 @@ func generateRandomString(strlen int) string {
 
 func CreateAdminUserAutomatically() bool {
 	pass := generateRandomString(8)
-	_, err := mainDB.UserAdd("admin", "admin", pass, "admin_null", 0)
+	_, err := mainDB.UserAdd("admin", "admin", pass, NullStringInvalid, 0, true)
 
 	if err == nil {
-		DBLog.Infof("Default User(ID: admin, Pass: %s)", pass)
+		DBLog.Infof("Default User(ID: admin, Pass: %s) You should change this", pass)
 
 		return true
 	}
+	mainDB.GroupAdd("admin")
+	mainDB.GroupAdd("general")
 
 	return false
+}
+
+func SetSession(rw http.ResponseWriter, session string) {
+	cookie := http.Cookie{
+		Name:     HttpCookieSession,
+		Value:    session,
+		MaxAge:   settingManager.Get().SessionExpirationInMinutes,
+		HttpOnly: true,
+	}
+
+	http.SetCookie(rw, &cookie)
 }

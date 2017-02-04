@@ -8,7 +8,7 @@ import (
 	"github.com/derekdowling/bursa/middleware/logtext"
 )
 
-var HttpLog, DBLog *logrus.Entry
+var HttpLog, DBLog, MailLog *logrus.Entry
 
 type LogMultipleOutput struct {
 	console *os.File
@@ -58,8 +58,14 @@ func NewCustomizedWriter(cb func([]byte) (int, error)) CustomizedWriter {
 func CreateLogger(writer io.Writer) {
 	logrus.SetOutput(writer)
 
-	logrus.SetFormatter(logtext.NewLogtext(new(logrus.TextFormatter), true))
+	lt := &logtext.Logtext{
+		Formatter: new(logrus.TextFormatter),
+		DebugOnly: true,
+		LogDepth:  6,
+	}
+	logrus.SetFormatter(lt)
 
 	HttpLog = logrus.WithField("category", "http")
 	DBLog = logrus.WithField("category", "database")
+	MailLog = logrus.WithField("category", "mail")
 }

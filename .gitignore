@@ -17,3 +17,7 @@ vendor/
 !pojoaque.jpg
 !brown-papersq.png
 !school-book.png
+config.json
+env_exec.sh
+mysql_exec.sh
+redis_exec.sh

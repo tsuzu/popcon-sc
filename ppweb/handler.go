@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
@@ -55,12 +56,12 @@ func TimeToString(t int64) string {
 }
 
 // CreateHandlers is a function to return hadlers
-func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
-	res := make(map[string]*http.HandlerFunc)
+func CreateHandlers() (map[string]http.Handler, error) {
+	res := make(map[string]http.Handler)
 
 	var err error
 
-	res["/"], err = func() (*http.HandlerFunc, error) {
+	res["/"], err = func() (http.Handler, error) {
 		funcs := template.FuncMap{
 			"timeToString": TimeToString,
 		}
@@ -122,14 +123,14 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 			tmp.Execute(rw, *resp)
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/onlinejudge/"], err = func() (*http.HandlerFunc, error) {
+	res["/onlinejudge/"], err = func() (http.Handler, error) {
 		ojh := http.StripPrefix("/onlinejudge/", CreateOnlineJudgeHandler())
 
 		if ojh == nil {
@@ -146,14 +147,14 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 			ojh.ServeHTTP(rw, req)
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/contests/"], err = func() (*http.HandlerFunc, error) {
+	res["/contests/"], err = func() (http.Handler, error) {
 		contestsTopHandler, err := CreateContestsTopHandler()
 
 		if err != nil {
@@ -173,10 +174,11 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 		return nil, err
 	}
 
-	res["/login"], err = func() (*http.HandlerFunc, error) {
+	res["/login"], err = func() (http.HandlerFunc, error) {
 		type LoginTemp struct {
-			IsFailed bool
-			BackURL  string
+			BackURL       string
+			Error         string
+			SignupEnabled bool
 		}
 
 		tmp, err := template.ParseFiles("./html/login_tmpl.html")
@@ -199,7 +201,10 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 					cburl = comeback[0]
 				}
 
-				tmp.Execute(rw, LoginTemp{false, cburl})
+				tmp.Execute(rw, LoginTemp{
+					BackURL:       cburl,
+					SignupEnabled: settingManager.Get().CanCreateUser,
+				})
 			} else if req.Method == "POST" {
 				if err := req.ParseForm(); err != nil {
 					rw.WriteHeader(http.StatusBadRequest)
@@ -217,8 +222,9 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 
 					return
 				}
+				backurl := comeback[0]
 
-				if strings.Index(comeback[0], "//") != -1 || len(loginID[0]) > 40 {
+				if strings.Index(backurl, "//") != -1 || len(backurl) > 40 {
 					rw.WriteHeader(http.StatusBadRequest)
 					fmt.Fprint(rw, BR400)
 
@@ -231,8 +237,22 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 				if err != nil || !reflect.DeepEqual(user.PassHash, passHash[:]) {
 					rw.WriteHeader(http.StatusOK)
 
-					tmp.Execute(rw, LoginTemp{true, comeback[0]})
+					tmp.Execute(rw, LoginTemp{
+						Error:         "IDまたはパスワードが間違っています。",
+						BackURL:       backurl,
+						SignupEnabled: settingManager.Get().CanCreateUser,
+					})
+					return
+				}
 
+				if !user.Enabled {
+					rw.WriteHeader(http.StatusOK)
+
+					tmp.Execute(rw, LoginTemp{
+						Error:         "アカウントが有効化されていません。送信されたメールを確認してください。",
+						BackURL:       backurl,
+						SignupEnabled: settingManager.Get().CanCreateUser,
+					})
 					return
 				}
 
@@ -240,22 +260,13 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 
 				if err != nil {
 					rw.WriteHeader(http.StatusInternalServerError)
-					HttpLog.Println("page.go:261:", err)
+					HttpLog.WithError(err).Error("Session addition failed")
 
 					fmt.Fprint(rw, ISE500)
 				} else {
-					cookie := http.Cookie{
-						Name:     HttpCookieSession,
-						Value:    *sessionID,
-						MaxAge:   2592000,
-						HttpOnly: true,
-					}
+					SetSession(rw, sessionID)
 
-					http.SetCookie(rw, &cookie)
-
-					comeback[0] = /*"http://azure2.wt6.pw:10065" + */ comeback[0] // TODO: Load from setting file
-
-					RespondRedirection(rw, comeback[0])
+					RespondRedirection(rw, backurl)
 				}
 			} else {
 				rw.WriteHeader(http.StatusBadRequest)
@@ -264,14 +275,14 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/logout"], err = func() (*http.HandlerFunc, error) {
+	res["/logout"], err = func() (http.Handler, error) {
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			session := ParseSession(req)
 
@@ -289,14 +300,14 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 			RespondRedirection(rw, "/")
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/userinfo"], err = func() (*http.HandlerFunc, error) {
+	res["/userinfo"], err = func() (http.Handler, error) {
 		tmp, err := template.ParseFiles("./html/userinfo_tmpl.html")
 
 		if err != nil {
@@ -316,14 +327,14 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 			tmp.Execute(rw, user)
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/userinfo/update_password"], err = func() (*http.HandlerFunc, error) {
+	res["/userinfo/update_password"], err = func() (http.Handler, error) {
 		tmp, err := template.ParseFiles("./html/userinfo_update_password_tmpl.html")
 
 		if err != nil {
@@ -343,50 +354,321 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 			tmp.Execute(rw, user)
 		})
 
-		return &f, nil
+		return f, nil
 	}()
 
 	if err != nil {
 		return nil, err
 	}
 
-	res["/signup"], err = func() (*http.HandlerFunc, error) {
-		_, err := template.ParseFiles("./html/signup_tmpl.html")
+	res["/signup/"], err = func() (http.Handler, error) {
+		tmp, err := template.ParseFiles("./html/signup_tmpl.html")
 
 		if err != nil {
 			return nil, err
 		}
 
-		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.WriteHeader(http.StatusNotImplemented)
-			rw.Write([]byte(NI501))
+		mux := http.NewServeMux()
 
-			return
+		var SIGNUPTOKENSERVICE = "signup"
+		mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
+			u, _ := ParseRequestForUseData(req)
 
-			_, err := ParseRequestForUseData(req)
-
-			if err != nil {
+			if u != nil {
 				RespondRedirection(rw, "/")
 
 				return
 			}
 
-			type TeplateVal struct {
-				ReCAPTCHA     bool
-				Msg           string
-				UserID        string
-				UserName      string
-				Email         string
-				Password      string
-				ReCAPTCHASite string
+			if !settingManager.Get().CanCreateUser {
+				RespondRedirection(rw, "/")
+
+				return
 			}
 
-			if req.Method == "GET" {
+			type TemplateVal struct {
+				Success     string
+				Error       string
+				Token       string
+				UserID      string
+				UserName    string
+				Email       string
+				EmailNeeded bool
+			}
+			var val TemplateVal
 
+			val.EmailNeeded = settingManager.Get().CertificationWithEmail
+
+			token, err := mainRM.TokenGenerateAndRegister(SIGNUPTOKENSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute)
+
+			if err != nil {
+				HttpLog.WithError(err).Error("Token generation or registration failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
+
+				return
+			}
+			val.Token = token
+
+			if req.Method == "GET" {
+				rw.WriteHeader(http.StatusOK)
+				if err := tmp.Execute(rw, val); err != nil {
+					HttpLog.WithError(err).Error("text/template execution failed")
+				}
+			} else if req.Method == "POST" {
+				err := req.ParseForm()
+
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					rw.Write([]byte(BR400))
+
+					return
+				}
+				wrapFormStr := createWrapFormStr(req)
+
+				token := wrapFormStr("token")
+				uid := wrapFormStr("userID")
+				userName := wrapFormStr("userName")
+				email := wrapFormStr("email")
+				pass := wrapFormStr("password")
+				pass2 := wrapFormStr("password_conf")
+
+				HttpLog.WithFields(logrus.Fields{
+					"token":    token,
+					"uid":      uid,
+					"userName": userName,
+					"email":    email,
+					"pass":     pass,
+					"pass2":    pass2,
+				}).Debug("debug")
+
+				str := func() string {
+					arr := make([]string, 0, 10)
+
+					if len(token) == 0 {
+						arr = append(arr, "ワンタイムトークンが無効です。")
+					} else {
+						if ok, err := mainRM.TokenCheckAndRemove(SIGNUPTOKENSERVICE, token); err != nil {
+							HttpLog.WithField("token", token).Errorf("Token confirmation failed)")
+						} else if !ok {
+							arr = append(arr, "ワンタイムトークンの有効時間が過ぎました。")
+						}
+					}
+
+					if len(uid) > 128 {
+						arr = append(arr, "ユーザIDが長すぎます。")
+					} else {
+						valid := true
+						for _, c := range uid {
+							if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+								valid = false
+							}
+						}
+
+						if !valid || len(uid) == 0 {
+							arr = append(arr, "ユーザIDが不正です。")
+						} else {
+							val.UserID = uid
+						}
+					}
+
+					if len(userName) > 40 {
+						arr = append(arr, "ユーザ名が長すぎます。")
+					} else if len(userName) == 0 {
+						arr = append(arr, "ユーザ名が短すぎます。")
+					} else {
+						val.UserName = userName
+					}
+
+					if len(pass) > 100 || len(pass2) > 100 {
+						arr = append(arr, "パスワードが長すぎます。")
+					} else if len(pass) < 5 || len(pass2) < 5 {
+						arr = append(arr, "パスワードが短すぎます。")
+					} else if pass != pass2 {
+						arr = append(arr, "パスワードが一致しません。")
+					}
+
+					if len(email) > 128 {
+						arr = append(arr, "メールアドレスが長すぎます。")
+					} else {
+						step := 0
+						for _, c := range email {
+							if step == 0 && c == '@' {
+								step++
+							} else if step == 1 && c == '.' {
+								step++
+							}
+						}
+						if step != 2 {
+							arr = append(arr, "メールアドレスが不正です。")
+						} else {
+							val.Email = email
+						}
+					}
+
+					return strings.Join(arr, "<br>")
+				}()
+
+				if len(str) == 0 {
+					gid, err := mainRM.StandardSignupGroupGet()
+
+					if err != nil {
+						DBLog.WithError(err).Error("StandardSignupGroupGet failed")
+					}
+					iid, err := mainDB.UserAdd(uid, userName, pass, NullStringCreate(email), gid, !settingManager.Get().CertificationWithEmail)
+
+					if err != nil {
+						if strings.Contains(err.Error(), "Duplicate") {
+							arr := make([]string, 0, 2)
+							if strings.Contains(err.Error(), "uid") {
+								arr = append(arr, "ユーザID")
+							}
+							if strings.Contains(err.Error(), "user_name") {
+								arr = append(arr, "ユーザ名")
+							}
+							if strings.Contains(err.Error(), "email") {
+								arr = append(arr, "メールアドレス")
+							}
+
+							val.Error = strings.Join(arr, "と") + "が既に他のアカウントに使用されています。"
+
+							tmp.Execute(rw, val)
+							return
+						} else {
+							DBLog.WithError(err).Error("User addition failed")
+
+							rw.WriteHeader(http.StatusInternalServerError)
+							rw.Write([]byte(ISE500))
+
+							return
+						}
+					}
+
+					if settingManager.Get().CertificationWithEmail {
+						err := MailSendConfirmUser(iid, userName, email)
+
+						if err != nil {
+							MailLog.WithError(err).Error("Sending mail failed")
+							rw.WriteHeader(http.StatusInternalServerError)
+							rw.Write([]byte(ISE500))
+
+							return
+						}
+
+						var val2 TemplateVal
+						val2.Token = val.Token
+						val2.Success = "仮登録が完了しました。登録されたメールアドレスに送信されたメールをご確認ください。"
+
+						tmp.Execute(rw, val2)
+					} else {
+						session, err := mainDB.SessionAdd(iid)
+
+						if err != nil {
+							DBLog.WithError(err).WithField("iid", iid).Error("Session addition failed")
+
+							rw.WriteHeader(http.StatusInternalServerError)
+							rw.Write([]byte(ISE500))
+
+							return
+						}
+						SetSession(rw, session)
+
+						RespondRedirection(rw, "/")
+					}
+				} else {
+					val.Error = str
+
+					tmp.Execute(rw, val)
+					return
+				}
+			} else {
+				rw.WriteHeader(http.StatusNotImplemented)
+				rw.Write([]byte(NI501))
 			}
 		})
 
-		return &f, nil
+		tmpac, err := template.ParseFiles("./html/signup_account_confirm_tmpl.html")
+
+		if err != nil {
+			return nil, err
+		}
+
+		type AccountConfirmTemplateType struct {
+			OK      bool
+			Message string
+		}
+
+		mux.HandleFunc("/account_confirm", func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method != "GET" {
+				rw.WriteHeader(http.StatusMethodNotAllowed)
+
+				return
+			}
+
+			err := req.ParseForm()
+
+			if err != nil {
+				rw.WriteHeader(http.StatusBadRequest)
+				rw.Write([]byte(BR400))
+
+				return
+			}
+
+			token := req.FormValue("token")
+
+			if len(token) == 0 {
+				rw.WriteHeader(http.StatusForbidden)
+
+				return
+			}
+
+			ok, iid, err := mainRM.TokenGetAndRemoveInt64(MAILCONFTOKENSERVICE, token)
+
+			if err != nil {
+				DBLog.WithError(err).Error("TokenGetAndRemoveInt64 failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
+
+				return
+			}
+
+			if !ok {
+				rw.WriteHeader(http.StatusForbidden)
+				if err := tmpac.Execute(rw, AccountConfirmTemplateType{
+					OK:      false,
+					Message: "URLの有効期限が切れています。メールを再送信するにはログインページにてID/パスワードを送信してください。",
+				}); err != nil {
+					HttpLog.WithError(err).Error("Execution failed")
+				}
+
+				return
+			}
+
+			err = mainDB.UserUpdateEnabled(iid, true)
+
+			if err != nil {
+				DBLog.WithError(err).Error("UserUpdateEnabled failed")
+
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte(ISE500))
+
+				return
+			}
+
+			rw.WriteHeader(http.StatusOK)
+			if err := tmpac.Execute(rw, AccountConfirmTemplateType{
+				OK:      true,
+				Message: "メールアドレス認証が完了しました。以下のページよりログインしてください。",
+			}); err != nil {
+				HttpLog.WithError(err).Error("Execution failed")
+			}
+			return
+
+		})
+
+		return http.StripPrefix("/signup", mux), nil
 	}()
 
 	if err != nil {
@@ -507,7 +789,7 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 					return
 				}
 
-				_, err := mainDB.UserAdd(id, name, pass, id+"@hoge.com", 1)
+				_, err := mainDB.UserAdd(id, name, pass, NullStringCreate(id+"@hoge.com"), 1, true)
 
 				if err != nil {
 					rw.WriteHeader(http.StatusBadRequest)
@@ -526,5 +808,5 @@ func CreateHandlers() (*map[string]*http.HandlerFunc, error) {
 		return nil, err
 	}
 
-	return &res, nil
+	return res, nil
 }

@@ -1,8 +1,15 @@
 {
-    "can_create_user": false,
-    "can_create_contest": false,
+    "can_create_user": true,
+    "can_create_contest": true,
     "number_of_news": 5,
     "log_file": "",
+    "cert_with_mail": true,
+    "send_mail": ["/mail/sendmail", "/data/sendmail/config.json", "#{to}", "#{subject}", "#{body}"],
+    "csrf_token_expiration": 30,
+    "mail_conf_token_expiration": 1440,
+    "mail_min_interval": 10,
+    "session_expiration": 1576800,
     "cert_file": "",
-    "key_file": ""
+    "key_file": "",
+    "public_host": "http://localhost:1234"
 }

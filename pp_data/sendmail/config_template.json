@@ -1,0 +1,8 @@
+{
+    "smtp_addr": "",
+    "smtp_port": 0,
+    "from": "",
+    "auth": false,
+    "ID": "",
+    "pass": ""
+}

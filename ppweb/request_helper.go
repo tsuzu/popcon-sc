@@ -4,9 +4,6 @@ import "net/http"
 import "errors"
 
 // ParseRequestForSession returns a SessionTemplateData object
-// Session is not found:  returns (nil, nil)
-// Session is found:  returns (session, nil)
-// An error occured: returns (nil, err)
 func ParseRequestForSession(req *http.Request) (*SessionTemplateData, error) {
 	session := ParseSession(req)
 

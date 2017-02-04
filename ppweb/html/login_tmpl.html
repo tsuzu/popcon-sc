@@ -46,12 +46,17 @@
     </header>
     <div class="container">
         <div class="page-header">
-	           <h1>ログイン</h1>
+	           <h1>
+                   ログイン
+                   {{if .SignupEnabled}}
+                   <button type="button" class="btn btn-primary" onclick="location.href='/signup'">Sign up</button>
+                   {{end}}
+               </h1>
         </div>
-        {{if .IsFailed}}
+        {{with .Error}}
         <div class="alert alert-danger" role="alert">
             <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
-            <string>Failed</strong>: IDまたはパスワードが間違っています。
+            <string>Failed</strong>: {{html .}}
         </div>
         {{end}}
         <form method="post" action="/login" autocomplete="off">

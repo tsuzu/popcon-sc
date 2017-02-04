@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Sirupsen/logrus"
 	loads "github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/swag"
@@ -13,6 +14,8 @@ import (
 )
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	GeneralSetting.RankingRunningTerm = 10
 	GeneralSetting.SavingTerm = 5
 

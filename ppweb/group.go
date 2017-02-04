@@ -59,3 +59,14 @@ func (dm *DatabaseManager) GroupRemove(gid int64) error {
 
 	return err
 }
+
+func (dm *DatabaseManager) GroupList() ([]Group, error) {
+	var results []Group
+	err := dm.db.Select(&results)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}

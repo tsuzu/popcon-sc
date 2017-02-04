@@ -7,17 +7,23 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"time"
 
 	"io/ioutil"
 
 	"path/filepath"
 
+	"crypto/tls"
+
 	"github.com/Sirupsen/logrus"
+	"github.com/facebookgo/grace/gracehttp"
 	gorilla "github.com/gorilla/handlers"
 	"github.com/sebest/xff"
 )
 
 func main() {
+	time.Local = Location
+
 	settingFile := os.Getenv("PP_SETTING")
 	pprof := os.Getenv("PP_PPROF")
 
@@ -68,10 +74,16 @@ func main() {
 	}
 
 	setting.dbAddr = os.Getenv("PP_MYSQL_ADDR")
+	setting.redisAddr = os.Getenv("PP_REDIS_ADDR")
+	setting.redisPass = os.Getenv("PP_REDIS_PASS")
 	setting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
 	setting.internalToken = os.Getenv("PP_TOKEN")
 	setting.listeningEndpoint = os.Getenv("PP_LISTEN")
 	setting.dataDirectory = os.Getenv("PP_DATA_DIR")
+
+	if setting.CertificationWithEmail && (setting.SendmailCommand == nil || len(setting.SendmailCommand) == 0) {
+		logrus.Fatal("SendmailCommand mustn't be empty in the setting")
+	}
 
 	if len(setting.listeningEndpoint) == 0 {
 		setting.listeningEndpoint = ":80"
@@ -102,10 +114,16 @@ func main() {
 		HttpLog.Fatalf("Creation of ContestProblemDir(%s) failed(error: %s)", ContestProblemDir, err.Error())
 	}
 
-	mainDB, err = NewDatabaseManager(os.Getenv("PP_WAIT_MYSQL") != "")
+	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)
 
 	if err != nil {
-		logrus.Fatal(err.Error())
+		DBLog.Fatal(err.Error())
+	}
+
+	mainDB, err = NewDatabaseManager(os.Getenv("PP_WAIT_DB") != "")
+
+	if err != nil {
+		DBLog.Fatal(err.Error())
 	}
 
 	userCnt, err := mainDB.UserCount()
@@ -133,8 +151,8 @@ func main() {
 		HttpLog.Fatal(err)
 	}
 
-	for k, v := range *handlers {
-		mux.HandleFunc(k, *v)
+	for k, v := range handlers {
+		mux.Handle(k, v)
 	}
 
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
@@ -167,18 +185,23 @@ func main() {
 	})
 
 	// Should use TLS
-	server := http.Server{
+	server := &http.Server{
 		Addr:           settingManager.Get().listeningEndpoint,
 		MaxHeaderBytes: 1 << 20,
 		Handler:        xssProtector,
 	}
 
-	setting = settingManager.Get()
 	if len(setting.CertFilePath) != 0 && len(setting.KeyFilePath) != 0 {
-		err = server.ListenAndServeTLS(setting.CertFilePath, setting.KeyFilePath)
-	} else {
-		err = server.ListenAndServe()
+		cer, err := tls.LoadX509KeyPair(setting.CertFilePath, setting.KeyFilePath)
+		if err != nil {
+			HttpLog.Fatal(err)
+		}
+
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		server.TLSConfig = config
 	}
+
+	err = gracehttp.Serve(server)
 
 	if err != nil {
 		HttpLog.Fatal(err)
