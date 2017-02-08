@@ -16,20 +16,21 @@ import (
 )
 
 type ContestEachHandler struct {
-	Top      *template.Template
-	ProbList *template.Template
-	ProbView *template.Template
-	SubList  *template.Template
-	SubView  *template.Template
-	Submit   *template.Template
-	ManTop   *template.Template
-	ManRej   *template.Template
-	ManSet   *template.Template
-	ManPro   *template.Template
-	ManProV  *template.Template
-	ManTc    *template.Template
-	ManTcV   *template.Template
-	Ranking  *template.Template
+	// Template
+	TopPage                      *template.Template
+	ProblemList                  *template.Template
+	ProblemView                  *template.Template
+	SubmissionList               *template.Template
+	SubmissionView               *template.Template
+	SubmitPage                   *template.Template
+	ManagementTopPage            *template.Template
+	ManagementRejudgePage        *template.Template
+	ManagementSettingPage        *template.Template
+	ManagementProblemSettingPage *template.Template
+	ManagementProblemList        *template.Template
+	ManagementTastcaseList       *template.Template
+	ManagementTestcaseSetting    *template.Template
+	RankingPage                  *template.Template
 }
 
 func (ceh *ContestEachHandler) checkAdmin(cont *Contest, std SessionTemplateData) bool {
@@ -118,7 +119,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		}
 
 		rw.WriteHeader(http.StatusOK)
-		ceh.Top.Execute(rw, templateVal)
+		ceh.TopPage.Execute(rw, templateVal)
 	})
 
 	mux.HandleFunc("/problems/", func(rw http.ResponseWriter, req *http.Request) {
@@ -151,7 +152,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				}
 
 				rw.WriteHeader(http.StatusOK)
-				ceh.ProbList.Execute(rw, templateVal)
+				ceh.ProblemList.Execute(rw, templateVal)
 
 				return
 			}
@@ -199,7 +200,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			rw.WriteHeader(http.StatusOK)
 
-			ceh.ProbView.Execute(rw, templateVal)
+			ceh.ProblemView.Execute(rw, templateVal)
 		})).ServeHTTP(rw, req)
 	})
 
@@ -300,7 +301,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 		templateVal.Pagination = NewPaginationHelper(templateVal.Current, templateVal.MaxPage, 3)
 
-		ceh.Ranking.Execute(rw, templateVal)
+		ceh.RankingPage.Execute(rw, templateVal)
 	})))
 
 	mux.Handle("/submissions/", http.StripPrefix("/submissions/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -436,7 +437,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			rw.WriteHeader(200)
 
-			ceh.SubList.Execute(rw, templateVal)
+			ceh.SubmissionList.Execute(rw, templateVal)
 		} else {
 			sid, err := strconv.ParseInt(req.URL.Path, 10, 64)
 
@@ -533,7 +534,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			}
 
 			rw.WriteHeader(http.StatusOK)
-			ceh.SubView.Execute(rw, templateVal)
+			ceh.SubmissionView.Execute(rw, templateVal)
 		}
 	})))
 
@@ -603,7 +604,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			}
 
 			rw.WriteHeader(http.StatusOK)
-			ceh.Submit.Execute(rw, templateVal)
+			ceh.SubmitPage.Execute(rw, templateVal)
 		} else if req.Method == "POST" {
 			wrapForm := createWrapForm(req)
 
@@ -685,7 +686,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				UserName    string
 				ContestName string
 			}
-			ceh.ManTop.Execute(rw, TemplateVal{cid, std.UserName, cont.Name})
+			ceh.ManagementTopPage.Execute(rw, TemplateVal{cid, std.UserName, cont.Name})
 		} else if req.URL.Path == "remove" {
 			list, err := mainDB.ContestProblemList(cid)
 
@@ -726,9 +727,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				}
 
 				if msg == "" {
-					ceh.ManRej.Execute(rw, TemplateVal{cid, std.UserName, nil, cont.Name})
+					ceh.ManagementRejudgePage.Execute(rw, TemplateVal{cid, std.UserName, nil, cont.Name})
 				} else {
-					ceh.ManRej.Execute(rw, TemplateVal{cid, std.UserName, &msg, cont.Name})
+					ceh.ManagementRejudgePage.Execute(rw, TemplateVal{cid, std.UserName, &msg, cont.Name})
 				}
 			}
 
@@ -855,7 +856,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -868,7 +869,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -883,7 +884,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, time.Unix(cont.StartTime, 0).In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -896,7 +897,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -911,7 +912,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -922,7 +923,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 					}
 
-					ceh.ManSet.Execute(rw, templateVal)
+					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
@@ -936,7 +937,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
 						}
 
-						ceh.ManSet.Execute(rw, templateVal)
+						ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 						return
 					} else {
@@ -967,7 +968,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					ContestName: cont.Name,
 					Description: desc,
 				}
-				ceh.ManSet.Execute(rw, templateVal)
+				ceh.ManagementSettingPage.Execute(rw, templateVal)
 			} else {
 				rw.WriteHeader(http.StatusBadRequest)
 				rw.Write([]byte(BR400))
@@ -992,7 +993,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					ceh.ManProV.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, *list})
+					ceh.ManagementProblemList.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, *list})
 				} else if upidx, err := strconv.ParseInt(req.URL.Path, 10, 64); req.URL.Path == "new" || err == nil {
 					if err != nil {
 						upidx = -1
@@ -1101,7 +1102,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						}
 
-						ceh.ManPro.Execute(rw, temp)
+						ceh.ManagementProblemSettingPage.Execute(rw, temp)
 
 						return
 					} else if req.Method == "POST" {
@@ -1121,7 +1122,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							if upidx == -1 {
 								mode = true
 							}
-							ceh.ManPro.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
+							ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
 
 							return
 						}
@@ -1162,7 +1163,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 								if upidx == -1 {
 									mode = true
 								}
-								ceh.ManPro.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
+								ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
 
 								return
 							} else {
@@ -1246,7 +1247,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					ceh.ManTc.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, *cases, *sets, nil})
+					ceh.ManagementTastcaseList.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, *cases, *sets, nil})
 				} else if req.Method == "POST" {
 					caseNames := req.Form["case_name[]"]
 					setScores := req.Form["set_score[]"]
@@ -1307,7 +1308,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					if illegal {
 						msg := "不正なパラメータがあります。"
 
-						ceh.ManTc.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, cases, scores, &msg})
+						ceh.ManagementTastcaseList.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, cases, scores, &msg})
 
 						return
 					}
@@ -1370,7 +1371,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						in, out,
 					}
 
-					ceh.ManTcV.Execute(rw, templateVal)
+					ceh.ManagementTestcaseSetting.Execute(rw, templateVal)
 				} else if len(arr) == 3 {
 					if req.Method == "POST" {
 						err := req.ParseMultipartForm(10 * 1024 * 1024)
