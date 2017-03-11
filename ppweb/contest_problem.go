@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	mgo "gopkg.in/mgo.v2"
+
 	"github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
 	"github.com/naoina/genmai"
 )
@@ -30,40 +32,62 @@ type ContestProblem struct {
 	Mem          int64  `default:""` // MB
 	LastModified int64  `default:""`
 	Score        int    `default:"0"`
-	Type         int    `default:""`
+	Type         int    `default:""`               // int->JudgeType
+	Cases        string `default:"{}" size:"4095"` // json format []TestCase
+	Scores       string `default:"{}" size:"4095"` // json format []ScoreSet
 }
 
+// TODO: テストケースの情報を乗っけるようにする途中でORMの変更が入ったので断念
+// 適当にSQLに乗っけるように変更
+
 func (cp *ContestProblem) UpdateStatement(text string) error {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/prob"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, true)
+	return mainFS.Write(FS_CATEGORY_PROBLEM_STATEMENT, strconv.FormatInt(cp.Pid, 10)+"_prob.txt", []byte(text))
+}
+
+func (cp *ContestProblem) LoadStatement() (string, error) {
+	b, err := mainFS.Read(FS_CATEGORY_PROBLEM_STATEMENT, strconv.FormatInt(cp.Pid, 10)+"_prob.txt")
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
+type CheckerSavedFormat struct {
+	Lid  int64
+	Code string
+}
+
+func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
+	b, err := json.Marshal(CheckerSavedFormat{lid, code})
 
 	if err != nil {
 		return err
 	}
 
-	fm.Write([]byte(text))
-
-	fm.Close()
-
-	return nil
+	return mainFS.Write(FS_CATEGORY_PROBLEM_STATEMENT, strconv.FormatInt(cp.Pid, 10)+"_checker.txt", b)
 }
 
-func (cp *ContestProblem) LoadStatement() (*string, error) {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/prob"), os.O_RDONLY|os.O_CREATE, false)
+func (cp *ContestProblem) LoadChecker() (int64, string, error) {
+	b, err := mainFS.Read(FS_CATEGORY_PROBLEM_STATEMENT, strconv.FormatInt(cp.Pid, 10)+"_checker.txt")
 
 	if err != nil {
-		return nil, err
+		return 0, "", err
 	}
-	defer fm.Close()
 
-	b, err := ioutil.ReadAll(fm)
+	if len(b) == 0 {
+		return 0, "", nil
+	}
+
+	var ci CheckerSavedFormat
+	err = json.Unmarshal(b, &ci)
 
 	if err != nil {
-		return nil, err
+		return 0, "", err
 	}
 
-	str := string(b)
-
-	return &str, nil
+	return ci.Lid, ci.Code, nil
 }
 
 type TestCase struct {
@@ -77,177 +101,175 @@ type ScoreSet struct {
 	Score int   `json:"score"`
 }
 
-type CheckerInterface struct {
-	Lid  int64
-	Code string
+type TestCaseJson struct {
+	CaseNames []TestCase `json:"case_names"`
+	Scores    []ScoreSet `json:"scores"`
 }
 
-func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/checker"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, true)
-
-	if err != nil {
-		return err
-	}
-
-	defer fm.Close()
-
-	b, err := json.Marshal(CheckerInterface{lid, code})
-
-	if err != nil {
-		return err
-	}
-
-	_, err = fm.Write(b)
-
-	return err
-}
-
-func (cp *ContestProblem) LoadChecker() (int64, string, error) {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/checker"), os.O_RDONLY, false)
-
-	if err != nil {
-		return 0, "", err
-	}
-
-	defer fm.Close()
-
-	b, err := ioutil.ReadAll(fm)
-
-	if err != nil {
-		return 0, "", err
-	}
-
-	if len(b) == 0 {
-		return 0, "", nil
-	}
-
-	var ci CheckerInterface
-	err = json.Unmarshal(b, &ci)
-
-	if err != nil {
-		return 0, "", err
-	}
-
-	return ci.Lid, ci.Code, nil
-}
-
-func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ScoreSet) error {
+func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ScoreSet) (resErr error) {
 	scoreSum := 0
 	for i := range scores {
 		scoreSum += scores[i].Score
 	}
 
-	cp.Score = scoreSum
-	err := mainDB.ContestProblemUpdate(*cp)
+	tx, err := mainDB.db.DB().Begin()
 
 	if err != nil {
 		return err
 	}
 
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_CREATE|os.O_WRONLY, true)
-
-	if err != nil {
-		return err
-	}
-
-	defer fm.Close()
-
-	for i := 0; i < len(cases); i++ {
-		os.Rename(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_in"), "/tmp/popcon_"+strconv.FormatInt(cp.Pid, 10)+"_"+strconv.FormatInt(int64(i), 10)+"_in")
-		os.Rename(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_out"), "/tmp/popcon_"+strconv.FormatInt(cp.Pid, 10)+"_"+strconv.FormatInt(int64(i), 10)+"_out")
-	}
-
+	var casesString, scoresString string
 	defer func() {
-		for i := 0; i < len(cases); i++ {
-			os.Rename("/tmp/popcon_"+strconv.FormatInt(cp.Pid, 10)+"_"+strconv.FormatInt(int64(i), 10)+"_in", filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_in"))
-			os.Rename("/tmp/popcon_"+strconv.FormatInt(cp.Pid, 10)+"_"+strconv.FormatInt(int64(i), 10)+"_out", filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_out"))
+		if err := recover(); err != nil {
+			resErr = err.(error)
+			tx.Rollback()
+		} else {
+			tx.Commit()
+			cp.Score = scoreSum
+			cp.Scores = scoresString
+			cp.Cases = casesString
 		}
 	}()
 
-	err = os.RemoveAll(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases"))
+	rows, err := tx.Query("select cases, scores from contest_problem where pid=?", cp.Pid)
 
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases"), os.ModePerm)
+	rows.Next()
+	var oldCases []TestCase
+	var oldScores []ScoreSet
+	err = rows.Scan(&oldCases, &oldScores)
+	rows.Close()
 
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/data"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-
-	if err != nil {
-		return err
-	}
-
-	defer fp.Close()
-
-	type TestCaseJson struct {
-		CaseNames map[string]string `json:"case_names"`
-		Scores    []ScoreSet        `json:"scores"`
-	}
-
-	var tcj TestCaseJson
-
-	tcj.Scores = scores
-	tcj.CaseNames = make(map[string]string)
+	newCases := make([]TestCase, len(cases))
 
 	for i := range cases {
-		tcj.CaseNames[strconv.FormatInt(int64(i), 10)] = cases[i]
+		newCases[i].Name = cases[i]
+
+		if i < len(oldCases) {
+			newCases[i].Input = oldCases[i].Input
+			newCases[i].Output = oldCases[i].Output
+		}
 	}
 
-	b, err := json.Marshal(tcj)
+	for i := len(cases); i < len(oldCases); i++ {
+		// TODO: Remove files
+		/*
+			oldCases[i].Input
+		*/
+	}
+
+	casesBytes, _ := json.Marshal(newCases)
+	casesString = string(casesBytes)
+	scoresBytes, _ := json.Marshal(scores)
+	scoresString = string(scoresBytes)
+
+	_, err = tx.Exec("update contest_problem set cases=?, scores=? where pid=?", string(casesBytes), string(scoresBytes), cp.Pid)
 
 	if err != nil {
-		return err
-	}
-
-	_, err = fp.Write(b)
-
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(cases); i++ {
-		f, _ := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_in"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-
-		f.Close()
-
-		f, _ = os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(i), 10)+"_out"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-
-		f.Close()
+		panic(err)
 	}
 
 	return nil
 }
 
-func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) error {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, true)
+func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
+	id, err := mainRM.TestCaseIDGenerate()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return mainFS.Open(FS_CATEGORY_TESTCASE_INOUT, "testcase_"+mainFS.TestcaseFileBaseTag+"_"+strconv.FormatInt(id, 10))
+}
+
+func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) (retErr error) {
+	fp, err := cp.CreateUniquelyNamedFile()
 
 	if err != nil {
 		return err
 	}
 
-	defer fm.Close()
-
-	fileTag := "_in"
-	if !isInput {
-		fileTag = "_out"
-	}
-
-	fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(caseID), 10)+fileTag), os.O_WRONLY|os.O_TRUNC, 0644)
-
-	if err != nil {
-		return err
-	}
-
-	defer fp.Close()
+	fileName := fp.Name()
 
 	_, err = fp.Write([]byte(str))
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	err = fp.Close()
+
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			mainFS.db.GridFS(FS_CATEGORY_TESTCASE_INOUT).Remove(fileName)
+		}
+	}()
+
+	tx, err := mainDB.db.DB().Begin()
+
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			retErr = err.(error)
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}()
+
+	rows, err := tx.Query("select cases from contest_problem where pid=?", cp.Pid)
+
+	if err != nil {
+		panic(err)
+	}
+
+	rows.Next()
+	var results []string
+	err = rows.Scan(&str)
+	rows.Close()
+
+	if err != nil {
+		panic(err)
+	}
+	if len(results) == 0 {
+		panic(ErrUnknownProblem)
+	}
+
+	result := results[0]
+
+	var cases []TestCase
+	json.Unmarshal([]byte(result), &cases)
+
+	if isInput {
+		cases[caseID].Input = fileName
+	} else {
+		cases[caseID].Output = fileName
+	}
+
+	casesBytes, _ := json.Marshal(cases)
+	casesString := string(casesBytes)
+
+	_, err = tx.Exec("update contest_problem set cases=? where pid=?", casesString, cp.Pid)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
 }
 
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (string, error) {
@@ -281,142 +303,43 @@ func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (string, error)
 	return string(b), err
 }
 
-func (cp *ContestProblem) LoadTestCases() (*[]TestCase, *[]ScoreSet, error) {
+func (cp *ContestProblem) LoadTestCases() ([]TestCase, []ScoreSet, error) {
 	var scores []ScoreSet
 	var cases []TestCase
 
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_RDONLY, false)
+	rows, err := mainDB.db.DB().Query("select cases, scores from contest_problem where pid=?", cp.Pid)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	defer fm.Close()
-
-	fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/data"), os.O_RDONLY, 0644)
-
-	if err != nil {
-		return &cases, &scores, nil
-	}
-
-	type TestCaseJson struct {
-		CaseNames map[string]string `json:"case_names"`
-		Scores    []ScoreSet        `json:"scores"`
-	}
-
-	b, err := ioutil.ReadAll(fp)
-
-	fp.Close()
+	rows.Next()
+	err = rows.Scan(&cases, &scores)
+	rows.Close()
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, ErrUnknownProblem
 	}
 
-	var tcj TestCaseJson
-
-	err = json.Unmarshal(b, &tcj)
-
-	if err != nil {
-		return &cases, &scores, nil
-	}
-
-	scores = tcj.Scores
-
-	cases = make([]TestCase, len(tcj.CaseNames))
-
-	for x := range tcj.CaseNames {
-		i, err := strconv.ParseInt(x, 10, 32)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		var tcase TestCase
-		fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(i, 10)+"_in"), os.O_RDONLY, 0644)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		b, err := ioutil.ReadAll(fp)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		tcase.Input = string(b)
-
-		fp.Close()
-
-		fp, err = os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(i, 10)+"_out"), os.O_RDONLY, 0644)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		b, err = ioutil.ReadAll(fp)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		tcase.Output = string(b)
-
-		tcase.Name = tcj.CaseNames[x]
-
-		fp.Close()
-
-		cases[i] = tcase
-	}
-
-	return &cases, &scores, nil
+	return cases, scores, nil
 }
 
 func (cp *ContestProblem) LoadTestCaseInfo(caseId int) (int64, int64, error) {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_RDONLY, false)
+	var casesString string
+	//var cases []TestCase
+	rows, err := mainDB.db.DB().Query("select cases from contest_problem where pid=?", cp.Pid)
 
 	if err != nil {
 		return 0, 0, err
 	}
 
-	defer fm.Close()
+	rows.Next()
+	err = rows.Scan(&casesString)
 
-	fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(caseId), 10)+"_in"), os.O_RDONLY, 0644)
-
-	if err != nil {
-		return 0, 0, err
-	}
-
-	defer fp.Close()
-
-	fi, err := fp.Stat()
-
-	if err != nil {
-		return 0, 0, err
-	}
-
-	in := fi.Size()
-
-	fp.Close()
-
-	fp, err = os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/"+strconv.FormatInt(int64(caseId), 10)+"_out"), os.O_RDONLY, 0644)
-
-	if err != nil {
-		return 0, 0, err
-	}
-
-	fi, err = fp.Stat()
-
-	if err != nil {
-		return 0, 0, err
-	}
-
-	out := fi.Size()
-
-	return in, out, nil
+	return 0, 0, nil
 }
 
-func (cp *ContestProblem) LoadTestCaseNames() (*[]string, *[]ScoreSet, error) {
+func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ScoreSet, error) {
 	var scores []ScoreSet
 	var cases []string
 
@@ -431,12 +354,7 @@ func (cp *ContestProblem) LoadTestCaseNames() (*[]string, *[]ScoreSet, error) {
 	fp, err := os.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/cases/data"), os.O_RDONLY, 0644)
 
 	if err != nil {
-		return &cases, &scores, nil
-	}
-
-	type TestCaseJson struct {
-		CaseNames map[string]string `json:"case_names"`
-		Scores    []ScoreSet        `json:"scores"`
+		return cases, scores, nil
 	}
 
 	b, err := ioutil.ReadAll(fp)
@@ -452,23 +370,25 @@ func (cp *ContestProblem) LoadTestCaseNames() (*[]string, *[]ScoreSet, error) {
 	err = json.Unmarshal(b, &tcj)
 
 	if err != nil {
-		return &cases, &scores, nil
+		return cases, scores, nil
 	}
 
 	scores = tcj.Scores
 
 	cases = make([]string, len(tcj.CaseNames))
 
-	for x := range tcj.CaseNames {
-		i, err := strconv.ParseInt(x, 10, 32)
+	// for x := range tcj.CaseNames {
+	// 	i, err := strconv.ParseInt(x, 10, 32)
 
-		if err != nil {
-			return nil, nil, err
-		}
+	// 	if err != nil {
+	// 		return nil, nil, err
+	// 	}
 
-		cases[i] = tcj.CaseNames[x]
-	}
-	return &cases, &scores, nil
+	// 	cases[i] = tcj.CaseNames[x]
+	// }
+	// return &cases, &scores, nil
+
+	return nil, nil, nil
 }
 
 func (dm *DatabaseManager) CreateContestProblemTable() error {

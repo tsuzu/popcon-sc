@@ -74,6 +74,7 @@ func main() {
 	}
 
 	setting.dbAddr = os.Getenv("PP_MYSQL_ADDR")
+	setting.mongoAddr = os.Getenv("PP_MONGO_ADDR")
 	setting.redisAddr = os.Getenv("PP_REDIS_ADDR")
 	setting.redisPass = os.Getenv("PP_REDIS_PASS")
 	setting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
@@ -117,13 +118,19 @@ func main() {
 	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)
 
 	if err != nil {
-		DBLog.Fatal(err.Error())
+		DBLog.WithError(err).Fatal("Redis initialization failed")
+	}
+
+	mainFS, err = NewMongoFSManager(setting.mongoAddr)
+
+	if err != nil {
+		FSLog.WithError(err).Fatal("MongoDB FS initialization failed")
 	}
 
 	mainDB, err = NewDatabaseManager(os.Getenv("PP_WAIT_DB") != "")
 
 	if err != nil {
-		DBLog.Fatal(err.Error())
+		DBLog.WithError(err).Fatal("Database initialization failed")
 	}
 
 	userCnt, err := mainDB.UserCount()

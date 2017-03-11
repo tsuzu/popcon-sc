@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/naoina/genmai"
 )
 
@@ -26,7 +27,7 @@ func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 		"add":               func(x, y int) int { return x + y },
 		"timeRangeToString": TimeRangeToString,
 		"contestTypeToString": func(t int64) string {
-			return ContestTypeToString[ContestType(t)]
+			return popconSCTypes.ContestTypeToString[popconSCTypes.ContestType(t)]
 		},
 	}
 

@@ -145,7 +145,7 @@ func CreateAdminUserAutomatically() bool {
 
 func SetSession(rw http.ResponseWriter, session string) {
 	cookie := http.Cookie{
-		Name:     HttpCookieSession,
+		Name:     HTTPCookieSession,
 		Value:    session,
 		MaxAge:   settingManager.Get().SessionExpirationInMinutes,
 		HttpOnly: true,

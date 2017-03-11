@@ -7,24 +7,11 @@ import (
 	"strconv"
 
 	"github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
+	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/naoina/genmai"
 )
 
 var ContestDir = "contests/"
-
-type ContestType int
-
-const (
-	ContestJOI ContestType = 0
-
-//    ContestICPC ContestType = 1
-//    ContestAtCoder ContestType = 2
-//    ContestPCK ContestType = 3
-)
-
-var ContestTypeToString = map[ContestType]string{
-	ContestJOI: "JOI",
-}
 
 type Contest struct {
 	Cid        int64  `db:"pk" default:""`
@@ -59,7 +46,7 @@ func (dm *DatabaseManager) CreateContestTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start int64, finish int64, admin int64, ctype ContestType) (int64, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start int64, finish int64, admin int64, ctype popconSCTypes.ContestType) (int64, error) {
 	res, err := dm.db.DB().Exec("insert into contest (name, start_time, finish_time, admin, type) values (?, ?, ?, ?, ?)", name, start, finish, admin, int64(ctype))
 
 	if err != nil {
@@ -81,7 +68,7 @@ func (dm *DatabaseManager) ContestAdd(name string, start int64, finish int64, ad
 	return id, nil
 }
 
-func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start int64, finish int64, admin int64, ctype ContestType) error {
+func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start int64, finish int64, admin int64, ctype popconSCTypes.ContestType) error {
 	cont := Contest{
 		Cid:        cid,
 		Name:       name,

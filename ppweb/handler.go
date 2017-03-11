@@ -299,7 +299,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			}
 
 			cookie := http.Cookie{
-				Name:   HttpCookieSession,
+				Name:   HTTPCookieSession,
 				Value:  *session,
 				MaxAge: 0,
 			}

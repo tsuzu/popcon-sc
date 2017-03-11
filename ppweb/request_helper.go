@@ -44,7 +44,7 @@ func ParseSession(req *http.Request) *string {
 	var session *string
 
 	for idx := range cookies {
-		if cookies[idx].Name == HttpCookieSession {
+		if cookies[idx].Name == HTTPCookieSession {
 			session = &cookies[idx].Value
 		}
 	}

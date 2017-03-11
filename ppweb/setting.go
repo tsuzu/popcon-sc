@@ -23,6 +23,7 @@ type Setting struct {
 
 	// Environmental Variables
 	dbAddr              string
+	mongoAddr           string
 	redisAddr           string
 	redisPass           string
 	judgeControllerAddr string

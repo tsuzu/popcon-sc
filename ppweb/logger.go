@@ -8,7 +8,7 @@ import (
 	"github.com/cs3238-tsuzu/bursa/middleware/logtext"
 )
 
-var HttpLog, DBLog, MailLog *logrus.Entry
+var HttpLog, DBLog, MailLog, FSLog *logrus.Entry
 
 type LogMultipleOutput struct {
 	console *os.File
@@ -67,5 +67,6 @@ func CreateLogger(writer io.Writer) {
 
 	HttpLog = logrus.WithField("category", "http")
 	DBLog = logrus.WithField("category", "database")
+	FSLog = logrus.WithField("category", "mongofs")
 	MailLog = logrus.WithField("category", "mail")
 }

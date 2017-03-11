@@ -107,16 +107,3 @@ func (dm *DatabaseManager) SessionRemove(sessionKey string) error {
 }
 
 //TODO implement caches of sessions
-/*
-type SessionTmplDataChan chan *SessionTemplateData
-func getSession(c chan struct {SessionTmplDataChan; string}) {
-
-}
-
-func InitSessionManager() {
-    go func() {
-
-    }
-}
-
-*/

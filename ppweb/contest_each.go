@@ -186,7 +186,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				return
 			}
 
-			unsafe := blackfriday.MarkdownCommon([]byte(*stat))
+			unsafe := blackfriday.MarkdownCommon([]byte(stat))
 			html := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
 
 			type TemplateVal struct {
@@ -1098,7 +1098,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							temp.Type = int64(cp.Type)
 							temp.Lang = lid
 							temp.Code = checker
-							temp.Prob = *stat
+							temp.Prob = stat
 
 						}
 
@@ -1247,7 +1247,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					ceh.ManagementTastcaseList.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, *cases, *sets, nil})
+					ceh.ManagementTastcaseList.Execute(rw, TemplateVal{cid, pidx, cont.Name, std.UserName, cases, sets, nil})
 				} else if req.Method == "POST" {
 					caseNames := req.Form["case_name[]"]
 					setScores := req.Form["set_score[]"]

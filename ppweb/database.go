@@ -22,7 +22,7 @@ func NewDatabaseManager(wait bool) (*DatabaseManager, error) {
 	dm := &DatabaseManager{}
 	var err error
 	cnt := 0
-	const RetyingMax = 100
+	const RetryingMax = 1000
 
 RETRY:
 	if cnt != 0 {
@@ -35,7 +35,7 @@ RETRY:
 	dm.db, err = genmai.New(&genmai.MySQLDialect{}, settingManager.Get().dbAddr)
 
 	if err != nil {
-		if cnt > RetyingMax {
+		if cnt > RetryingMax {
 			return nil, err
 		}
 
@@ -49,7 +49,7 @@ RETRY:
 	err = dm.db.DB().Ping()
 
 	if err != nil {
-		if cnt > RetyingMax {
+		if cnt > RetryingMax {
 			return nil, err
 		}
 
