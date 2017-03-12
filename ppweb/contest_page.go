@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cs3238-tsuzu/popcon-sc/types"
-	"github.com/naoina/genmai"
 )
 
 const ContentsPerPage = 50
@@ -144,7 +143,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			return
 		}
 
-		cid, err := mainDB.ContestAdd(contestName, start.Unix(), finish.Unix(), std.Iid, 0)
+		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, 0)
 
 		if err != nil {
 			if strings.Index(err.Error(), "Duplicate") != -1 {
@@ -212,20 +211,20 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	var cond *genmai.Condition
-	timeNow := time.Now().Unix()
+	var cond []interface{}
+	timeNow := time.Now()
 	var reqType int
 
 	switch req.URL.Path {
 	case "/":
 		reqType = 0
-		cond = mainDB.db.Where("start_time", "<=", timeNow).And(mainDB.db.Where("finish_time", ">", timeNow))
+		cond = ArgumentsToArray("start_time<=? and finish_time>?", timeNow, timeNow)
 	case "/coming/":
 		reqType = 1
-		cond = mainDB.db.Where("start_time", ">", timeNow)
+		cond = ArgumentsToArray("start_time>?", timeNow)
 	case "/closed/":
 		reqType = 2
-		cond = mainDB.db.Where("finish_time", "<=", timeNow)
+		cond = ArgumentsToArray("finish_time<=?", timeNow)
 	case "/new":
 		ch.newContestHandler(rw, req, std)
 
@@ -315,12 +314,12 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 
 		templateVal.Current = page
 
-		contests, err := mainDB.ContestList(cond, mainDB.db.OrderBy("start_time", genmai.ASC).Offset(int((page-1)*ContentsPerPage)).Limit(ContentsPerPage))
+		contests, err := mainDB.ContestList((page-1)*ContentsPerPage, ContentsPerPage, cond)
 
 		if err == nil {
 			templateVal.Contests = *contests
 		} else {
-			HttpLog.Println(std.Iid, err)
+			HttpLog.WithError(err).WithField("iid", std.Iid).Error("ContestList error")
 		}
 	}
 

@@ -1,69 +1,77 @@
 package main
 
+import (
+	"github.com/jinzhu/gorm"
+)
+
 type Language struct {
-	Lid           int64  `db:"pk"`
-	Name          string `default:""`
-	HighlightType string `default:""`
-	Active        bool   `default:"true"`
+	Lid           int64  `gorm:"primary_key"`
+	Name          string `gorm:"not null"`
+	HighlightType string `gorm:"not null"`
+	Active        bool   `gorm:"not null;default:true;index"`
 }
 
 func (dm *DatabaseManager) CreateLanguageTable() error {
-	err := dm.db.CreateTableIfNotExists(&Language{})
+	err := dm.db.AutoMigrate(&Language{}).Error
 
 	if err != nil {
 		return err
 	}
 
-	dm.db.CreateIndex(&Language{}, "active")
-
 	return nil
 }
 
 func (dm *DatabaseManager) LanguageAdd(name, highlightType string, active bool) (int64, error) {
-	res, err := dm.db.DB().Exec("insert into language (name, highlight_type, active) values (?, ?, ?)", name, highlightType, active)
+	lang := Language{
+		Name:          name,
+		HighlightType: highlightType,
+		Active:        active,
+	}
+
+	err := dm.db.Create(&lang).Error
 
 	if err != nil {
 		return 0, err
 	}
 
-	return res.LastInsertId()
+	return lang.Lid, nil
 }
 
 func (dm *DatabaseManager) LanguageUpdate(lid int64, name, highlightType string, active bool) error {
-	_, err := dm.db.Update(&Language{
+	err := dm.db.Save(&Language{
 		Lid:           lid,
 		Name:          name,
 		HighlightType: highlightType,
 		Active:        active,
-	})
+	}).Error
 
 	return err
 }
 
 func (dm *DatabaseManager) LanguageFind(lid int64) (*Language, error) {
-	var resulsts []Language
+	var resulst Language
 
-	err := dm.db.Select(&resulsts, dm.db.Where("lid", "=", lid))
+	err := dm.db.First(&resulst, lid).Error
 
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resulsts) == 0 {
+	if err == gorm.ErrRecordNotFound {
 		return nil, ErrUnknownLanguage
 	}
 
-	return &resulsts[0], nil
+	if err != nil {
+		return nil, err
+	}
+
+	return &resulst, nil
 }
 
-func (dm *DatabaseManager) LanguageList() (*[]Language, error) {
+func (dm *DatabaseManager) LanguageList() ([]Language, error) {
 	var resulsts []Language
 
-	err := dm.db.Select(&resulsts)
+	err := dm.db.Find(&resulsts).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &resulsts, nil
+	return resulsts, nil
 }

@@ -2,23 +2,21 @@ package main
 
 import "errors"
 import "time"
-import "github.com/naoina/genmai"
 
 // "create table if not exists news (text varchar(256), unixTime int, index uti(unixTime))"
 // News contains news showed on "/"
 type News struct {
-	Text     string `default:""`
-	UnixTime int64  `default:"" size:"1024"`
+	Nid      int64     `gorm:"primary_key"`
+	Text     string    `gorm:"size:4095"`
+	UnixTime time.Time `gorm:"not null;index"`
 }
 
 func (dm *DatabaseManager) CreateNewsTable() error {
-	err := dm.db.CreateTableIfNotExists(&News{})
+	err := dm.db.AutoMigrate(&News{}).Error
 
 	if err != nil {
 		return err
 	}
-
-	dm.db.CreateIndex(&News{}, "unixTime")
 
 	return nil
 }
@@ -26,35 +24,30 @@ func (dm *DatabaseManager) CreateNewsTable() error {
 // NewsAdd adds a news displayed on "/"
 // len(text) <= 256
 func (dm *DatabaseManager) NewsAdd(text string) error {
-	if len(text) > 256 {
-		return errors.New("len(text) > 256")
-	}
-
-	//_, err := dm.db.Insert(&News{text, time.Now().Unix()})
-
-	_, err := dm.db.DB().Exec("insert into news (text, unixTime) values(?, unix_timestamp(now()))", text)
-
-	return err
+	return dm.NewsAddWithTime(text, time.Now())
 }
 
 // NewsAddWithTime adds a news displayed on "/" with unixtime
 // len(text) <= 256
 func (dm *DatabaseManager) NewsAddWithTime(text string, unixTime time.Time) error {
-	if len(text) > 256 {
-		return errors.New("len(text) > 256")
+	if len(text) > 4095 {
+		return errors.New("len(text) > 4095")
 	}
 
-	//_, err := dm.db.Insert(&News{text, unixTime.Unix()})
+	news := News{
+		Text:     text,
+		UnixTime: time.Now(),
+	}
 
-	_, err := dm.db.DB().Exec("insert into news (text, unixTime) values(?, ?))", text, unixTime.Unix())
+	err := dm.db.Create(&news).Error
 
 	return err
 }
 
-// NewsGet returns `showedNewCount`
 func (dm *DatabaseManager) NewsGet(cnt int) ([]News, error) {
 	var resulsts []News
-	err := dm.db.Select(&resulsts, dm.db.OrderBy("unix_time", genmai.DESC).Limit(cnt))
+
+	err := dm.db.Order("unix_time desc").Limit(cnt).Find(&resulsts).Error
 
 	if err != nil {
 		return nil, err

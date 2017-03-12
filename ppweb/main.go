@@ -21,6 +21,10 @@ import (
 	"github.com/sebest/xff"
 )
 
+//TODO: ContestDirを削除しGridFSに完全移行
+
+var ContestDir = "/tmp"
+
 func main() {
 	time.Local = Location
 
@@ -81,6 +85,7 @@ func main() {
 	setting.internalToken = os.Getenv("PP_TOKEN")
 	setting.listeningEndpoint = os.Getenv("PP_LISTEN")
 	setting.dataDirectory = os.Getenv("PP_DATA_DIR")
+	setting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
 
 	if setting.CertificationWithEmail && (setting.SendmailCommand == nil || len(setting.SendmailCommand) == 0) {
 		logrus.Fatal("SendmailCommand mustn't be empty in the setting")
@@ -102,6 +107,7 @@ func main() {
 
 	dir := settingManager.Get().dataDirectory
 
+	// TODO: Change to gridfs
 	SubmissionDir = filepath.Join(dir, SubmissionDir)
 	if err := os.MkdirAll(SubmissionDir, 0770); err != nil {
 		HttpLog.Fatalf("Creation of SubmissionDir(%s) failed(error: %s)", SubmissionDir, err.Error())
@@ -120,18 +126,21 @@ func main() {
 	if err != nil {
 		DBLog.WithError(err).Fatal("Redis initialization failed")
 	}
+	defer mainRM.Close()
 
 	mainFS, err = NewMongoFSManager(setting.mongoAddr)
 
 	if err != nil {
 		FSLog.WithError(err).Fatal("MongoDB FS initialization failed")
 	}
+	defer mainFS.Close()
 
-	mainDB, err = NewDatabaseManager(os.Getenv("PP_WAIT_DB") != "")
+	mainDB, err = NewDatabaseManager(setting.debugMode)
 
 	if err != nil {
 		DBLog.WithError(err).Fatal("Database initialization failed")
 	}
+	defer mainDB.Close()
 
 	userCnt, err := mainDB.UserCount()
 

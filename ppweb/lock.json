@@ -1,5 +1,5 @@
 {
-    "memo": "315d7c1e17d586958badabb370e6a3ae740a646847e4b259bf73d12fedc58261",
+    "memo": "85115e60e4ffcd56113a08ed3e15cbf1620fc8c133a41ec9b8b9c558f05bda79",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
@@ -19,7 +19,7 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "contest",
-            "revision": "cf3dccd623b87ee0e2a166e97012f8ce30c9c263",
+            "revision": "cc90bb6e73355eccfd8975901bd68fdc701a2d45",
             "packages": [
                 "types"
             ]
@@ -35,7 +35,7 @@
         {
             "name": "github.com/facebookgo/grace",
             "branch": "master",
-            "revision": "5729e484473f52048578af1b80d0008c7024089b",
+            "revision": "4afe952a37a495ae4ac0c1d4ce5f66e91058d149",
             "packages": [
                 "gracehttp"
             ]
@@ -74,8 +74,24 @@
         },
         {
             "name": "github.com/gorilla/handlers",
-            "version": "v1.2",
-            "revision": "3a5767ca75ece5f7f1440b1d16975247f8d8b221",
+            "branch": "master",
+            "revision": "13d73096a474cac93275c679c7b8a2dc17ddba82",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/jinzhu/gorm",
+            "version": "v1.0",
+            "revision": "5174cc5c242a728b435ea2be8a2f7f998e15429b",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/jinzhu/inflection",
+            "branch": "master",
+            "revision": "1c35d901db3da928c72a72d8458480cc9ade058f",
             "packages": [
                 "."
             ]
@@ -84,22 +100,6 @@
             "name": "github.com/microcosm-cc/bluemonday",
             "branch": "master",
             "revision": "e79763773ab6222ca1d5a7cbd9d62d83c1f77081",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/naoina/genmai",
-            "branch": "master",
-            "revision": "c00e6703a1503c09dca12048bf17961b13511c0f",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/naoina/go-stringutil",
-            "version": "v0.1.0",
-            "revision": "6b638e95a32d0c1131db0e7fe83775cbea4a0d0b",
             "packages": [
                 "."
             ]
@@ -139,7 +139,7 @@
         {
             "name": "golang.org/x/crypto",
             "branch": "master",
-            "revision": "dc137beb6cce2043eb6b5f223ab8bf51c32459f4",
+            "revision": "728b753d0135da6801d45a38e6f43ff55779c5c2",
             "packages": [
                 "ssh/terminal"
             ]
@@ -147,7 +147,7 @@
         {
             "name": "golang.org/x/net",
             "branch": "master",
-            "revision": "007e530097ad7f954752df63046b4036f98ba6a6",
+            "revision": "a6577fac2d73be281a500b310739095313165611",
             "packages": [
                 "html"
             ]
@@ -155,9 +155,17 @@
         {
             "name": "golang.org/x/sys",
             "branch": "master",
-            "revision": "7a6e5648d140666db5d920909e082ca00a87ba2c",
+            "revision": "99f16d856c9836c42d24e7ab64ea72916925fa97",
             "packages": [
                 "unix"
+            ]
+        },
+        {
+            "name": "gopkg.in/mgo.v2",
+            "branch": "v2",
+            "revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+            "packages": [
+                "."
             ]
         }
     ]

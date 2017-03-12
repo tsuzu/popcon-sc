@@ -60,7 +60,7 @@ func CreateLogger(writer io.Writer) {
 
 	lt := &logtext.Logtext{
 		Formatter:  new(logrus.TextFormatter),
-		TargetMask: logtext.NewLogtextTargetMask(logrus.DebugLevel, logrus.ErrorLevel),
+		TargetMask: logtext.NewLogtextTargetMask(logrus.DebugLevel, logrus.ErrorLevel, logrus.FatalLevel),
 		LogDepth:   6,
 	}
 	logrus.SetFormatter(lt)

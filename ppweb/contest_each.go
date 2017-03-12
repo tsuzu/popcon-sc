@@ -58,8 +58,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		return nil, err
 	}
 
-	isStarted := (cont.StartTime <= time.Now().Unix())
-	isFinished := (cont.FinishTime <= time.Now().Unix())
+	isStarted := (cont.StartTime.Unix() <= time.Now().Unix())
+	isFinished := (cont.FinishTime.Unix() <= time.Now().Unix())
 
 	free := (check && isStarted) || isFinished
 
@@ -112,8 +112,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ContestName:            cont.Name,
 			Description:            htmlTemplate.HTML(html),
 			JoinButtonActive:       !(isFinished || check || isAdmin),
-			StartTime:              cont.StartTime,
-			FinishTime:             cont.FinishTime,
+			StartTime:              cont.StartTime.Unix(),
+			FinishTime:             cont.FinishTime.Unix(),
 			Enabled:                free,
 			ManagementButtonActive: isAdmin,
 		}
@@ -250,7 +250,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		templateVal.Cid = cid
 		templateVal.ContestName = cont.Name
 		templateVal.UserName = std.UserName
-		templateVal.BeginTime = cont.StartTime
+		templateVal.BeginTime = cont.StartTime.Unix()
 		probs, err := mainDB.ContestProblemList(cid)
 
 		if err != nil {
@@ -290,10 +290,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				return
 			}
 
-			ranks2 := make([]RankingRow2, len(*ranks))
+			ranks2 := make([]RankingRow2, len(ranks))
 
-			for i := range *ranks {
-				ranks2[i] = RankingRow2{(*ranks)[i], (page-1)*ContentsPerPage + i + 1}
+			for i := range ranks {
+				ranks2[i] = RankingRow2{ranks[i], (page-1)*ContentsPerPage + i + 1}
 			}
 
 			templateVal.Ranking = ranks2
@@ -396,7 +396,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				HttpLog.Println(std.Iid, err)
 			} else {
-				templateVal.Languages = *langs
+				templateVal.Languages = langs
 			}
 
 			probs, err := mainDB.ContestProblemListLight(cid)
@@ -404,7 +404,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				HttpLog.Println(std.Iid, err)
 			} else {
-				templateVal.Problems = *probs
+				templateVal.Problems = probs
 			}
 
 			templateVal.Current = 1
@@ -569,7 +569,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			list, err := mainDB.ContestProblemListLight(cid)
 
 			if err != nil {
-				list = &[]ContestProblemLight{}
+				list = []ContestProblemLight{}
 
 				HttpLog.Println(std.Iid, err)
 			}
@@ -577,7 +577,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			lang, err := mainDB.LanguageList()
 
 			if err != nil {
-				lang = &[]Language{}
+				lang = []Language{}
 
 				HttpLog.Println(std.Iid, err)
 			}
@@ -598,8 +598,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				cont.Name,
 				std.UserName,
 				cid,
-				*list,
-				*lang,
+				list,
+				lang,
 				prob,
 			}
 
@@ -799,7 +799,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					sml, err := mainDB.SubmissionList(mainDB.db.Where("pid", "=", cp.Pid))
+					sml, err := mainDB.SubmissionList(ArgumentsToArray("pid=?", cp.Pid))
 
 					if err != nil {
 						HttpLog.Println(err)
@@ -874,14 +874,14 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					return
 				}
 
-				if cont.StartTime <= time.Now().Add(2*time.Minute).Unix() && cont.StartTime != start.Unix() {
+				if cont.StartTime.Unix() <= time.Now().Add(2*time.Minute).Unix() && cont.StartTime.Unix() != start.Unix() {
 					msg := "開始日時は2分前を切ると変更できません。"
 
-					startDate = time.Unix(cont.StartTime, 0).In(Location).Format("2006/01/02")
-					startTime = time.Unix(cont.StartTime, 0).In(Location).Format("15:04")
+					startDate = cont.StartTime.In(Location).Format("2006/01/02")
+					startTime = cont.StartTime.In(Location).Format("15:04")
 
 					templateVal := TemplateVal{
-						cid, std.UserID, &msg, startDate, time.Unix(cont.StartTime, 0).In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName,
+						cid, std.UserID, &msg, startDate, cont.StartTime.In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -902,11 +902,11 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					return
 				}
 
-				if cont.FinishTime <= time.Now().Add(2*time.Minute).Unix() && cont.FinishTime != finish.Unix() {
+				if cont.FinishTime.Unix() <= time.Now().Add(2*time.Minute).Unix() && cont.FinishTime.Unix() != finish.Unix() {
 					msg := "終了日時は2分前を切ると変更できません。"
 
-					finishDate = time.Unix(cont.FinishTime, 0).In(Location).Format("2006/01/02")
-					finishTime = time.Unix(cont.FinishTime, 0).In(Location).Format("15:04")
+					finishDate = cont.FinishTime.In(Location).Format("2006/01/02")
+					finishTime = cont.FinishTime.In(Location).Format("15:04")
 
 					templateVal := TemplateVal{
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
@@ -917,7 +917,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					return
 				}
 
-				if start.Unix() >= finish.Unix() || (cont.StartTime != start.Unix() && start.Unix() < time.Now().Unix()) || (cont.FinishTime != finish.Unix() && finish.Unix() < time.Now().Unix()) {
+				if start.Unix() >= finish.Unix() || (cont.StartTime.Unix() != start.Unix() && start.Unix() < time.Now().Unix()) || (cont.FinishTime.Unix() != finish.Unix() && finish.Unix() < time.Now().Unix()) {
 					msg := "開始日時及び終了日時の値が不正です。"
 					templateVal := TemplateVal{
 						cid, std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
@@ -928,7 +928,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					return
 				}
 
-				err = mainDB.ContestUpdate(cid, contestName, start.Unix(), finish.Unix(), cont.Admin, 0)
+				err = mainDB.ContestUpdate(cid, contestName, start, finish, cont.Admin, 0)
 
 				if err != nil {
 					if strings.Index(err.Error(), "Duplicate") != -1 {
@@ -961,10 +961,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				templateVal := TemplateVal{
 					Cid:         cid,
 					UserName:    std.UserID,
-					StartDate:   time.Unix(cont.StartTime, 0).In(Location).Format("2006/01/02"),
-					StartTime:   time.Unix(cont.StartTime, 0).In(Location).Format("15:04"),
-					FinishDate:  time.Unix(cont.FinishTime, 0).In(Location).Format("2006/01/02"),
-					FinishTime:  time.Unix(cont.FinishTime, 0).In(Location).Format("15:04"),
+					StartDate:   cont.StartTime.In(Location).Format("2006/01/02"),
+					StartTime:   cont.StartTime.In(Location).Format("15:04"),
+					FinishDate:  cont.FinishTime.In(Location).Format("2006/01/02"),
+					FinishTime:  cont.FinishTime.In(Location).Format("15:04"),
 					ContestName: cont.Name,
 					Description: desc,
 				}
@@ -1068,7 +1068,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					}
 
 					if req.Method == "GET" {
-						temp := TemplateVal{Cid: cid, ContestName: cont.Name, Time: 1, Mem: 32, UserName: std.UserName, Mode: true, Languages: *languages}
+						temp := TemplateVal{Cid: cid, ContestName: cont.Name, Time: 1, Mem: 32, UserName: std.UserName, Mode: true, Languages: languages}
 
 						if upidx != -1 {
 							lid, checker, err := cp.LoadChecker()
@@ -1122,12 +1122,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							if upidx == -1 {
 								mode = true
 							}
-							ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
+							ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, languages, code})
 
 							return
 						}
 
-						if jtype == int64(JudgeRunningCode) {
+						if JudgeType(jtype) == JudgeRunningCode {
 							if _, err := mainDB.LanguageFind(lid); err != nil {
 								if err == ErrUnknownLanguage {
 									rw.WriteHeader(http.StatusBadRequest)
@@ -1149,7 +1149,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							cp.Name = name
 							cp.Time = time
 							cp.Mem = mem
-							cp.Type = int(jtype)
+							cp.Type = JudgeType(jtype)
 
 							err = mainDB.ContestProblemUpdate(*cp)
 						} else {
@@ -1163,7 +1163,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 								if upidx == -1 {
 									mode = true
 								}
-								ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, *languages, code})
+								ceh.ManagementProblemSettingPage.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, &msg, mode, pidx, name, time, mem, jtype, prob, lid, languages, code})
 
 								return
 							} else {
@@ -1232,7 +1232,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					ContestName string
 					UserName    string
 					Testcases   []string
-					Scoresets   []ScoreSet
+					Scoresets   []ContestProblemScoreSet
 					Msg         *string
 				}
 
@@ -1273,7 +1273,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					}
 					illegal := false
 
-					scores := make([]ScoreSet, len(setScores))
+					scores := make([]ContestProblemScoreSet, len(setScores))
 					for i := range scores {
 						caseIds := make([]int, 0, 50)
 						for _, str := range strings.Split(setCases[i], ",") {
@@ -1302,7 +1302,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							illegal = true
 						}
 
-						scores[i] = ScoreSet{caseIds, int(score)}
+						scores[i] = ContestProblemScoreSet{
+							Cases: caseIds,
+							Score: int(score),
+						}
 					}
 
 					if illegal {

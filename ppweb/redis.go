@@ -218,3 +218,7 @@ func (rm *RedisManager) Ping() error {
 
 	return nil
 }
+
+func (rm *RedisManager) Close() {
+	// Do nothing
+}

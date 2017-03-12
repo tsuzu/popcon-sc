@@ -1,6 +1,5 @@
 package main
 
-import "errors"
 import "encoding/hex"
 import "github.com/satori/go.uuid"
 import "time"
@@ -8,9 +7,9 @@ import "time"
 // SessionTemplateData contains data in SQL DB
 //"create table if not exists sessions (sessionKey varchar(50) primary key, internalID int(11), unixTimeLimit int(11), index iid(internalID), index idx(unixTimeLimit))"
 type Session struct {
-	SessionKey string `db:"pk" default:"" size:"50"`
-	Iid        int64  `default:""`
-	TimeLimit  int64  `default:""`
+	SessionKey string `gorm:"primary_key;size:50"`
+	Iid        int64  `gorm:"not null;index"`
+	TimeLimit  int64  `gorm:"not null;index"`
 }
 
 type SessionTemplateData struct {
@@ -22,14 +21,11 @@ type SessionTemplateData struct {
 }
 
 func (dm *DatabaseManager) CreateSessionTable() error {
-	err := dm.db.CreateTableIfNotExists(&Session{})
+	err := dm.db.AutoMigrate(&Session{}).Error
 
 	if err != nil {
 		return err
 	}
-
-	dm.db.CreateIndex(&Session{}, "iid")
-	dm.db.CreateIndex(&Session{}, "timeLimit")
 
 	return nil
 }
@@ -66,7 +62,7 @@ func (dm *DatabaseManager) SessionAdd(internalID int64) (string, error) {
 		id := hex.EncodeToString(u[:])
 		session := Session{id, internalID, time.Now().Unix() + int64(720*time.Hour)}
 
-		_, err = dm.db.Insert(&session)
+		err = dm.db.Create(&session).Error
 
 		if err == nil {
 			return id, nil
@@ -78,32 +74,30 @@ func (dm *DatabaseManager) SessionAdd(internalID int64) (string, error) {
 		cnt++
 	}
 
-	return "", errors.New("Failed to insert a new session(" + err.Error() + ")")
+	return "", err
 }
 
 // SessionFind is to find a session
 // len(sessionID) = 32
 func (dm *DatabaseManager) SessionFind(sessionKey string) (*Session, error) {
-	var resulsts []Session
-	err := dm.db.Select(&resulsts, dm.db.Where("session_key", "=", sessionKey))
+	var results []Session
+	err := dm.db.Where("session_key=?", sessionKey).Find(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resulsts) == 0 {
+	if len(results) == 0 {
 		return nil, ErrUnknownSession
 	}
 
-	return &resulsts[0], nil
+	return &results[0], nil
 }
 
 // SessionRemove is to remove session
 // len(sessionKey) = 32
 func (dm *DatabaseManager) SessionRemove(sessionKey string) error {
-	_, err := dm.db.Delete(&Session{SessionKey: sessionKey})
-
-	return err
+	return dm.db.Delete(&Session{SessionKey: sessionKey}).Error
 }
 
 //TODO implement caches of sessions

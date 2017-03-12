@@ -224,6 +224,11 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				passHash := sha512.Sum512([]byte(password))
 
 				if err != nil || !reflect.DeepEqual(user.PassHash, passHash[:]) {
+					if err != ErrUnknownUser {
+						DBLog.WithError(err).Error("UserFindFromUserID failed")
+					}
+					DBLog.Info(err)
+
 					rw.WriteHeader(http.StatusOK)
 
 					tmp.Execute(rw, LoginTemp{

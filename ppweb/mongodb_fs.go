@@ -58,6 +58,10 @@ RETRY:
 	}, err
 }
 
+func (mfs *MongoFSManager) Close() {
+	mfs.session.Close()
+}
+
 func (mfs *MongoFSManager) Open(category, path string) (*mgo.GridFile, error) {
 	gf, err := mfs.db.GridFS(category).Create(path)
 

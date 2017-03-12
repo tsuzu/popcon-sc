@@ -4,35 +4,31 @@ import "errors"
 import "crypto/sha512"
 import "strconv"
 import "database/sql"
+import "github.com/jinzhu/gorm"
 
 // User is a struct to save UserData
-// "create table if not exists users (internalID int(11) auto_increment primary key, uid varchar(20) unique, userName varchar(256) unique, passHash varbinary(64), email varchar(50), groupID int(11))"
 type User struct {
-	Iid      int64  `db:"pk"`
-	Uid      string `default:"" size:"128"`
-	UserName string `default:"" size:"256"`
-	PassHash []byte
-	Email    sql.NullString `default:"" size:"128"`
-	Gid      int64          `default:""`
-	Enabled  bool           `default:"true"`
+	Iid      int64          `gorm:"primary_key"`
+	Uid      string         `gorm:"not null;size:128;unique_index"`
+	UserName string         `gorm:"not null;size:256;unique_index"`
+	PassHash []byte         `gorm:"not null"`
+	Email    sql.NullString `gorm:"size:128;unique_index"`
+	Gid      int64
+	Enabled  bool `gorm:"not null;default:true"`
 }
 
 func (dm *DatabaseManager) CreateUserTable() error {
-	err := dm.db.CreateTableIfNotExists(&User{})
+	err := dm.db.AutoMigrate(&User{}).Error
 
 	if err != nil {
 		return err
 	}
 
-	dm.db.CreateUniqueIndex(&User{}, "uid")
-	dm.db.CreateUniqueIndex(&User{}, "user_name")
-	dm.db.CreateUniqueIndex(&User{}, "email")
-
 	return err
 }
 
 // UserAdd adds a new user
-func (dm *DatabaseManager) UserAdd(uid string, userName string, pass string, email sql.NullString, groupID int64, enabled bool) (int64, error) {
+func (dm *DatabaseManager) UserAdd(uid string, userName string, pass string, email sql.NullString, gid int64, enabled bool) (int64, error) {
 	if len(uid) > 128 {
 		return 0, errors.New("error: len(uid) > 128")
 	}
@@ -51,18 +47,26 @@ func (dm *DatabaseManager) UserAdd(uid string, userName string, pass string, ema
 		return 0, errors.New("error: len(email) > 128")
 	}
 
-	res, err := dm.db.DB().Exec("insert into user (uid, user_name, pass_hash, email, gid, enabled) values (?, ?, ?, ?, ?, ?)", uid, userName, passHashArr[:], email, groupID, enabled)
+	user := User{
+		Uid:      uid,
+		UserName: userName,
+		PassHash: passHashArr[:],
+		Email:    email,
+		Gid:      gid,
+		Enabled:  enabled,
+	}
+
+	err := dm.db.Create(&user).Error
 
 	if err != nil {
 		return 0, err
 	}
 
-	return res.LastInsertId()
+	return user.Iid, nil
 }
 
-// UserUpdate is a function to add a new user
-// len(uid) <= 20, len(userName) <= 256 len(pass) <= 50, len(email) <= 50
-func (dm *DatabaseManager) UserUpdate(internalID int, uid string, userName string, pass string, email string, groupID int64, enabled bool) error {
+// UserUpdate updates the user with iid
+func (dm *DatabaseManager) UserUpdate(iid int64, uid string, userName string, pass string, email string, groupID int64, enabled bool) error {
 	if len(uid) > 128 {
 		return errors.New("error: len(uid) > 128")
 	}
@@ -72,7 +76,7 @@ func (dm *DatabaseManager) UserUpdate(internalID int, uid string, userName strin
 	}
 
 	if len(pass) > 100 {
-		return errors.New("error: len(pass) > 50")
+		return errors.New("error: len(pass) > 100")
 	}
 	passHashArr := sha512.Sum512([]byte(pass))
 
@@ -80,66 +84,62 @@ func (dm *DatabaseManager) UserUpdate(internalID int, uid string, userName strin
 		return errors.New("error: len(email) > 128")
 	}
 
-	_, err := dm.db.Update(&User{
+	err := dm.db.Save(&User{
 		Uid:      uid,
 		UserName: userName,
 		PassHash: passHashArr[:],
 		Email:    NullStringCreate(email),
 		Gid:      groupID,
 		Enabled:  enabled,
-	})
+	}).Error
 
 	return err
 }
 
 func (dm *DatabaseManager) UserUpdateEnabled(iid int64, enabled bool) error {
-	_, err := dm.db.DB().Exec("update user set enabled=? where iid=?", enabled, iid)
+	err := dm.db.Model(&User{Iid: iid}).Update("enabled", enabled).Error
 
 	return err
 }
 
 func (dm *DatabaseManager) UserUpdatePassword(iid int64, pass string) error {
 	passHashArr := sha512.Sum512([]byte(pass))
-	_, err := dm.db.DB().Exec("update user set pass_hash=? where iid=?", passHashArr[:], iid)
+	err := dm.db.Model(&User{Iid: iid}).Update("pass_hash", passHashArr[:]).Error
 
 	return err
 }
 
 // UserFind returns a User object
 func (dm *DatabaseManager) userFind(key string, value string) (*User, error) {
-	var resulsts []User
-	err := dm.db.Select(&resulsts, dm.db.Where(key, "=", value))
+	var result User
+
+	err := dm.db.Where(key+"=?", value).First(&result).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, ErrUnknownUser
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resulsts) == 0 {
-		return nil, ErrUnknownUser
-	}
-
-	return &resulsts[0], nil
+	return &result, nil
 }
 
-// UserFindFromIID returns a User object
-func (dm *DatabaseManager) UserFindFromIID(internalID int64) (*User, error) {
-	return dm.userFind("iid", strconv.FormatInt(internalID, 10))
+// UserFindFromIID finds an User with iid
+func (dm *DatabaseManager) UserFindFromIID(iid int64) (*User, error) {
+	return dm.userFind("iid", strconv.FormatInt(iid, 10))
 }
 
-// UserFindFromuid returns a User object
+// UserFindFromUserID finds an User with Uid
 func (dm *DatabaseManager) UserFindFromUserID(uid string) (*User, error) {
-	if len(uid) > 20 {
-		return nil, errors.New("error: len(uid) > 20")
-	}
-
 	return dm.userFind("uid", uid)
-
 }
 
 func (dm *DatabaseManager) UserCount() (int64, error) {
 	var count int64
 
-	err := dm.db.Select(&count, dm.db.Count("iid"), dm.db.From(&User{}))
+	err := dm.db.Model(&User{}).Count(&count).Error
 
 	return count, err
 }

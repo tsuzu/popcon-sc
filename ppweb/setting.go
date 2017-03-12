@@ -30,6 +30,7 @@ type Setting struct {
 	internalToken       string
 	listeningEndpoint   string
 	dataDirectory       string
+	debugMode           bool
 }
 
 type SettingManager struct {

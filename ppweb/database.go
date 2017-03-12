@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/naoina/genmai"
-	//	"os"
+	// genmaiのサポートが危うくなっているため規模の大きいgormに移行
+
+	"github.com/jinzhu/gorm"
 )
 
 // Shared in all codes
@@ -13,12 +15,20 @@ var mainDB *DatabaseManager
 
 // DatabaseManager is a connector to this database
 type DatabaseManager struct {
-	db *genmai.DB
+	db *gorm.DB
+}
+
+func (dm *DatabaseManager) Close() {
+	dm.db.Close()
 }
 
 // NewDatabaseManager is a function to initialize database connections
 // static function
-func NewDatabaseManager(wait bool) (*DatabaseManager, error) {
+func NewDatabaseManager(debugMode bool) (*DatabaseManager, error) {
+	specifyError := func(cat string, err error) error {
+		return errors.New("In " + cat + ", " + err.Error())
+	}
+
 	dm := &DatabaseManager{}
 	var err error
 	cnt := 0
@@ -32,11 +42,11 @@ RETRY:
 	cnt++
 
 	// Database
-	dm.db, err = genmai.New(&genmai.MySQLDialect{}, settingManager.Get().dbAddr)
+	dm.db, err = gorm.Open("mysql", settingManager.Get().dbAddr)
 
 	if err != nil {
 		if cnt > RetryingMax {
-			return nil, err
+			return nil, specifyError("connection", err)
 		}
 
 		goto RETRY
@@ -45,14 +55,17 @@ RETRY:
 	dm.db.DB().SetConnMaxLifetime(3 * time.Minute)
 	dm.db.DB().SetMaxIdleConns(150)
 	dm.db.DB().SetMaxOpenConns(150)
-
+	if debugMode {
+		dm.db.LogMode(true)
+	}
 	err = dm.db.DB().Ping()
 
 	if err != nil {
 		if cnt > RetryingMax {
-			return nil, err
+			return nil, specifyError("connection", err)
 		}
 
+		dm.db.Close()
 		goto RETRY
 	}
 
@@ -61,7 +74,7 @@ RETRY:
 	err = dm.CreateUserTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("user", err)
 	}
 
 	// session.go
@@ -69,51 +82,51 @@ RETRY:
 	err = dm.CreateSessionTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("session", err)
 	}
 
-	// user_and_group.go
+	// group.go
 	err = dm.CreateGroupTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("group", err)
 	}
 
 	// news.go
 	err = dm.CreateNewsTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("news", err)
 	}
 
 	err = dm.CreateContestTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("contest", err)
 	}
 
 	err = dm.CreateContestProblemTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("contest_problem", err)
 	}
 
 	err = dm.CreateSubmissionTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("submission", err)
 	}
 
 	err = dm.CreateContestParticipationTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("contest_participation", err)
 	}
 
 	err = dm.CreateLanguageTable()
 
 	if err != nil {
-		return nil, err
+		return nil, specifyError("language", err)
 	}
 
 	return dm, nil

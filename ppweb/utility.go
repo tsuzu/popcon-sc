@@ -14,6 +14,10 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+func ArgumentsToArray(vals ...interface{}) []interface{} {
+	return vals
+}
+
 func createWrapForm(req *http.Request) func(str string) int64 {
 	return func(str string) int64 {
 		arr, has := req.Form[str]

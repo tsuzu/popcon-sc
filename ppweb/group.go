@@ -4,18 +4,16 @@ import "errors"
 
 // Group is a struct to save GroupData
 type Group struct {
-	Gid  int64  `db:"pk"`
-	Name string `default:""`
+	Gid  int64  `gorm:"primary_key"`
+	Name string `gorm:"not null;unique_index"`
 }
 
 func (dm *DatabaseManager) CreateGroupTable() error {
-	err := dm.db.CreateTableIfNotExists(&Group{})
+	err := dm.db.AutoMigrate(&Group{}).Error
 
 	if err != nil {
 		return err
 	}
-
-	dm.db.CreateUniqueIndex(&User{}, "name")
 
 	return nil
 }
@@ -40,7 +38,8 @@ func (dm *DatabaseManager) GroupAdd(name string) (int64, error) {
 func (dm *DatabaseManager) GroupFind(gid int64) (*Group, error) {
 	var resulsts []Group
 
-	err := dm.db.Select(&resulsts, dm.db.Where("gid", "=", gid))
+	//err := dm.db.Select(&resulsts, dm.db.Where("gid", "=", gid))
+	err := error(nil)
 
 	if err != nil {
 		return nil, err
@@ -55,14 +54,15 @@ func (dm *DatabaseManager) GroupFind(gid int64) (*Group, error) {
 
 // GroupRemove removes from groups
 func (dm *DatabaseManager) GroupRemove(gid int64) error {
-	_, err := dm.db.Delete(&Group{Gid: gid})
+	//	_, err := dm.db.Delete(&Group{Gid: gid})
+	err := error(nil)
 
 	return err
 }
 
 func (dm *DatabaseManager) GroupList() ([]Group, error) {
 	var results []Group
-	err := dm.db.Select(&results)
+	err := dm.db.Select(&results).Error
 
 	if err != nil {
 		return nil, err

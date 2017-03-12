@@ -22,6 +22,10 @@ services:
             - --requirepass
             - ${PP_DB_PASSWORD}
 
+    mongo:
+        restart: always
+        image: mongo
+
     ppdata:
         image: busybox
         volumes: 
@@ -47,15 +51,15 @@ services:
         ports: 
             - 1234:80
         environment:
-            PP_MYSQL_ADDR: "root:${PP_DB_PASSWORD}@tcp(mysql:3306)/popcon?charset=utf8mb4"
+            PP_MYSQL_ADDR: "root:${PP_DB_PASSWORD}@tcp(mysql:3306)/popcon?charset=utf8mb4&parseTime=True"
             PP_REDIS_ADDR: "redis:6379"
             PP_REDIS_PASS: "${PP_DB_PASSWORD}"
+            PP_MONGO_ADDR: "mongo:27017"
             PP_JC_ADDR: "http://ppcj:80"
             PP_TOKEN: ${PP_TOKEN}
             PP_LISTEN: ":80"
             PP_DATA_DIR: "/data"
             PP_SETTING: "/data/ppweb/setting.json"
-            PP_WAIT_DB: 1 # MySQL/Redisの起動完了を待機
 
 volumes:
     mysql-volume:

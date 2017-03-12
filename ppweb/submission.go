@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
-	"github.com/naoina/genmai"
+	"github.com/jinzhu/gorm"
 )
 
 // Database manager for Contest and Onlinejudge
@@ -23,16 +23,24 @@ var SubmissionDir = "submissions/"
 type SubmissionStatus int64
 
 const (
-	InQueue             SubmissionStatus = 0
-	Judging             SubmissionStatus = 1
-	Accepted            SubmissionStatus = 2
-	WrongAnswer         SubmissionStatus = 3
-	TimeLimitExceeded   SubmissionStatus = 4
-	MemoryLimitExceeded SubmissionStatus = 5
-	RuntimeError        SubmissionStatus = 6
-	CompileError        SubmissionStatus = 7
-	InternalError       SubmissionStatus = 8
+	InQueue SubmissionStatus = iota
+	Judging
+	Accepted
+	WrongAnswer
+	TimeLimitExceeded
+	MemoryLimitExceeded
+	RuntimeError
+	CompileError
+	InternalError
 )
+
+func (ss SubmissionStatus) String() string {
+	if v, ok := SubmissionStatusToString[ss]; ok {
+		return v
+	}
+
+	return "<NA>"
+}
 
 var SubmissionStatusToString = map[SubmissionStatus]string{
 	InQueue:             "WJ",
@@ -47,40 +55,44 @@ var SubmissionStatusToString = map[SubmissionStatus]string{
 }
 
 type Submission struct {
-	Sid        int64  `db:"pk" default:""`
-	Pid        int64  `default:""` //index
-	Iid        int64  `default:""` //index
-	Lang       int64  `default:""`
-	Time       int64  `default:""` //ms
-	Mem        int64  `default:""` //KB
-	Score      int64  `default:""`
-	SubmitTime int64  `default:""` //提出日時
-	Status     int64  `default:""` //index
-	Prog       uint64 `default:""` //テストケースの進捗状況(完了数<<32 & 全体数)
+	Sid        int64            `gorm:"primary_key"`
+	Pid        int64            `gorm:"not null;index"` //index
+	Iid        int64            `gorm:"not null;index"` //index
+	Lang       int64            `gorm:"not null"`
+	Time       int64            `gorm:"not null"` //ms
+	Mem        int64            `gorm:"not null"` //KB
+	Score      int64            `gorm:"not null"`
+	SubmitTime time.Time        `gorm:"not null"`       //提出日時
+	Status     SubmissionStatus `gorm:"not null;index"` //index
+	Prog       uint64           //テストケースの進捗状況(完了数<<32 & 全体数)
 }
 
 func (dm *DatabaseManager) CreateSubmissionTable() error {
-	err := dm.db.CreateTableIfNotExists(&Submission{})
+	err := dm.db.AutoMigrate(&Submission{}).Error
 
 	if err != nil {
 		return err
 	}
 
-	dm.db.CreateIndex(&Submission{}, "pid")
-	dm.db.CreateIndex(&Submission{}, "iid")
-	dm.db.CreateIndex(&Submission{}, "status")
-
 	return nil
 }
 
 func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i int64, b error) {
-	res, err := dm.db.DB().Exec("insert into submission (pid, iid, lang, time, mem, score, submit_time, status, prog) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", pid, iid, lang, 0, 0, 0, time.Now().Unix(), int64(InQueue), 0)
+	sm := Submission{
+		Pid:        pid,
+		Iid:        iid,
+		Lang:       lang,
+		SubmitTime: time.Now(),
+		Status:     InQueue,
+	}
+
+	err := dm.db.Create(&sm).Error
 
 	if err != nil {
 		return 0, err
 	}
 
-	id, _ := res.LastInsertId()
+	id := sm.Sid
 
 	err = os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(id, 10)), os.ModePerm)
 
@@ -147,7 +159,7 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 
 func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
 	sm := Submission{Sid: sid}
-	_, err := dm.db.Delete(&sm)
+	err := dm.db.Delete(&sm).Error
 
 	if err != nil {
 		return err
@@ -165,49 +177,58 @@ func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
 }
 
 func (dm *DatabaseManager) SubmissionRemoveAll(pid int64) error {
-	sml, err := dm.SubmissionList(dm.db.Where("pid", "=", pid))
-
-	if err != nil {
-		return err
-	}
-
-	for i := range *sml {
-		dm.SubmissionRemove((*sml)[i].Sid)
-	}
-
-	return nil
+	return dm.db.Delete(Submission{}, "pid=?", pid).Error
 }
 
 func (dm *DatabaseManager) SubmissionFind(sid int64) (*Submission, error) {
-	var results []Submission
+	var result Submission
 
-	err := dm.db.Select(&results, dm.db.Where("sid", "=", sid))
+	err := dm.db.First(&result, sid).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, ErrUnknownSubmission
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(results) == 0 {
-		return nil, ErrUnknownSubmission
-	}
-
-	return &results[0], nil
+	return &result, nil
 }
 
-func (dm *DatabaseManager) SubmissionUpdate(sid, time, mem int64, status SubmissionStatus, fin, all int, score int64) error {
-	sm, err := dm.SubmissionFind(sid)
+func (dm *DatabaseManager) SubmissionUpdate(sid, time, mem int64, status SubmissionStatus, fin, all int, score int64) (ret error) {
+	tx := dm.db.Begin()
+
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if ret != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}()
+
+	var result Submission
+	err := tx.First(&result, sid).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return ErrUnknownSubmission
+	}
 
 	if err != nil {
 		return err
 	}
 
-	sm.Time = time
-	sm.Mem = mem
-	sm.Status = int64(status)
-	sm.Prog = uint64(fin)<<32 | uint64(all)
-	sm.Score = score
+	result.Time = time
+	result.Mem = mem
+	result.Status = status
+	result.Prog = uint64(fin)<<32 | uint64(all)
+	result.Score = score
 
-	_, err = dm.db.Update(sm)
+	err = tx.Save(&result).Error
 
 	return err
 }
@@ -362,16 +383,18 @@ func (dm *DatabaseManager) SubmissionClearCase(sid int64) error {
 	return os.MkdirAll(filepath.Join(SubmissionDir, strconv.FormatInt(sid, 10)+"/cases/"), os.ModePerm)
 }
 
-func (dm *DatabaseManager) SubmissionList(options ...*genmai.Condition) (*[]Submission, error) {
+func (dm *DatabaseManager) SubmissionList(options ...[]interface{}) (*[]Submission, error) {
 	var resulsts []Submission
 
-	opt := make([]interface{}, len(options))
+	db := dm.db
 
 	for i := range options {
-		opt[i] = options[i]
+		if len(options[i]) > 0 {
+			db = db.Where(options[i][0], options[i][1:])
+		}
 	}
 
-	err := dm.db.Select(&resulsts, opt...)
+	err := db.Find(&resulsts).Error
 
 	if err != nil {
 		return nil, err
@@ -395,7 +418,8 @@ type SubmissionView struct {
 	Sid        int64
 }
 
-func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*string, error) {
+// TODO: Gormに切り替え
+func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (string, error) {
 	conditions := make([]string, 0, 5)
 
 	if cid != -1 {
@@ -408,7 +432,7 @@ func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid
 
 	if pidx != -1 {
 		if cid == -1 {
-			return nil, errors.New("You must set cid to set pidx")
+			return "", errors.New("You must set cid to set pidx")
 		}
 
 		conditions = append(conditions, "contest_problem.pidx = "+strconv.FormatInt(pidx, 10)+" ")
@@ -442,7 +466,7 @@ func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid
 
 	query += where + order + lim
 
-	return &query, nil
+	return query, nil
 }
 
 func (dm *DatabaseManager) SubmissionViewCount(cid, iid, lid, pidx, stat int64) (int64, error) {
@@ -454,7 +478,7 @@ func (dm *DatabaseManager) SubmissionViewCount(cid, iid, lid, pidx, stat int64) 
 		return 0, err
 	}
 
-	rows, err := dm.db.DB().Query(*query)
+	rows, err := dm.db.DB().Query(query)
 
 	if err != nil {
 		return 0, err
@@ -483,7 +507,7 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 		return nil, err
 	}
 
-	rows, err := dm.db.DB().Query(*query)
+	rows, err := dm.db.DB().Query(query)
 
 	if err != nil {
 		return nil, err

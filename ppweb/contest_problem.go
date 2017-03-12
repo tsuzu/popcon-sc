@@ -11,7 +11,6 @@ import (
 	mgo "gopkg.in/mgo.v2"
 
 	"github.com/cs3238-tsuzu/popcon-sc/ppweb/file_manager"
-	"github.com/naoina/genmai"
 )
 
 var ContestProblemDir = "contest_problems/"
@@ -23,21 +22,34 @@ const (
 	JudgeRunningCode  JudgeType = 1
 )
 
-type ContestProblem struct {
-	Pid          int64  `db:"pk"`
-	Cid          int64  `default:""`
-	Pidx         int64  `default:""`
-	Name         string `default:"" size:"256"`
-	Time         int64  `default:""` // Second
-	Mem          int64  `default:""` // MB
-	LastModified int64  `default:""`
-	Score        int    `default:"0"`
-	Type         int    `default:""`               // int->JudgeType
-	Cases        string `default:"{}" size:"4095"` // json format []TestCase
-	Scores       string `default:"{}" size:"4095"` // json format []ScoreSet
+type ContestProblemTestCase struct {
+	Pid    int64
+	Name   string
+	Input  string
+	Output string
 }
 
-// TODO: テストケースの情報を乗っけるようにする途中でORMの変更が入ったので断念
+type ContestProblemScoreSet struct {
+	Pid   int64
+	Cases []int `json:"cases"`
+	Score int   `json:"score"`
+}
+
+type ContestProblem struct {
+	Pid          int64                    `gorm:"primary_key"`
+	Cid          int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Pidx         int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Name         string                   `gorm:"not null;size:255"`
+	Time         int64                    `gorm:"not null"` // Second
+	Mem          int64                    `gorm:"not null"` // MB
+	LastModified int64                    `gorm:"not null"`
+	Score        int                      `gorm:"not null"`
+	Type         JudgeType                `gorm:"not null"`       // int->JudgeType
+	Cases        []ContestProblemTestCase `gorm:"ForeignKey:Pid"` // json format []TestCase
+	Scores       []ContestProblemScoreSet `gorm:"ForeignKey:Pid"` // json format []ScoreSet
+}
+
+// TODO: テストケースの情報を乗っけるようにする途中でORMの変更が入ったので中断
 // 適当にSQLに乗っけるように変更
 
 func (cp *ContestProblem) UpdateStatement(text string) error {
@@ -90,35 +102,24 @@ func (cp *ContestProblem) LoadChecker() (int64, string, error) {
 	return ci.Lid, ci.Code, nil
 }
 
-type TestCase struct {
-	Name   string
-	Input  string
-	Output string
-}
-
-type ScoreSet struct {
-	Cases []int `json:"cases"`
-	Score int   `json:"score"`
-}
-
 type TestCaseJson struct {
-	CaseNames []TestCase `json:"case_names"`
-	Scores    []ScoreSet `json:"scores"`
+	CaseNames []ContestProblemTestCase `json:"case_names"`
+	Scores    []ContestProblemScoreSet `json:"scores"`
 }
 
-func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ScoreSet) (resErr error) {
+func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ContestProblemScoreSet) (resErr error) {
 	scoreSum := 0
 	for i := range scores {
 		scoreSum += scores[i].Score
 	}
 
-	tx, err := mainDB.db.DB().Begin()
+	/*tx, err := mainDB.db.DB().Begin()
 
 	if err != nil {
 		return err
-	}
+	}*/
 
-	var casesString, scoresString string
+	/*var casesString, scoresString string
 	defer func() {
 		if err := recover(); err != nil {
 			resErr = err.(error)
@@ -162,8 +163,8 @@ func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ScoreSet)
 		// TODO: Remove files
 		/*
 			oldCases[i].Input
-		*/
-	}
+	*/
+	/*}
 
 	casesBytes, _ := json.Marshal(newCases)
 	casesString = string(casesBytes)
@@ -175,7 +176,7 @@ func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ScoreSet)
 	if err != nil {
 		panic(err)
 	}
-
+	*/
 	return nil
 }
 
@@ -190,7 +191,7 @@ func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
 }
 
 func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) (retErr error) {
-	fp, err := cp.CreateUniquelyNamedFile()
+	/*fp, err := cp.CreateUniquelyNamedFile()
 
 	if err != nil {
 		return err
@@ -251,7 +252,7 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) (
 
 	result := results[0]
 
-	var cases []TestCase
+	var cases []ContestProblemTestCase
 	json.Unmarshal([]byte(result), &cases)
 
 	if isInput {
@@ -267,13 +268,13 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) (
 
 	if err != nil {
 		panic(err)
-	}
+	}*/
 
 	return nil
 }
 
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (string, error) {
-	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_RDONLY, false)
+	/*fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_RDONLY, false)
 
 	if err != nil {
 		return "", err
@@ -300,14 +301,15 @@ func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (string, error)
 		return "", nil
 	}
 
-	return string(b), err
+	return string(b), err*/
+	return "", nil
 }
 
-func (cp *ContestProblem) LoadTestCases() ([]TestCase, []ScoreSet, error) {
-	var scores []ScoreSet
-	var cases []TestCase
+func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestProblemScoreSet, error) {
+	var scores []ContestProblemScoreSet
+	var cases []ContestProblemTestCase
 
-	rows, err := mainDB.db.DB().Query("select cases, scores from contest_problem where pid=?", cp.Pid)
+	/*rows, err := mainDB.db.DB().Query("select cases, scores from contest_problem where pid=?", cp.Pid)
 
 	if err != nil {
 		return nil, nil, err
@@ -319,7 +321,7 @@ func (cp *ContestProblem) LoadTestCases() ([]TestCase, []ScoreSet, error) {
 
 	if err != nil {
 		return nil, nil, ErrUnknownProblem
-	}
+	}*/
 
 	return cases, scores, nil
 }
@@ -339,8 +341,8 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseId int) (int64, int64, error) {
 	return 0, 0, nil
 }
 
-func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ScoreSet, error) {
-	var scores []ScoreSet
+func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSet, error) {
+	var scores []ContestProblemScoreSet
 	var cases []string
 
 	fm, err := FileManager.OpenFile(filepath.Join(ContestProblemDir, strconv.FormatInt(cp.Pid, 10)+"/.cases_lock"), os.O_RDONLY, false)
@@ -392,15 +394,10 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ScoreSet, error) {
 }
 
 func (dm *DatabaseManager) CreateContestProblemTable() error {
-	err := dm.db.CreateTableIfNotExists(&ContestProblem{})
-
+	err := dm.db.AutoMigrate(&ContestProblem{}).Error
 	if err != nil {
 		return err
 	}
-
-	dm.db.CreateIndex(&ContestProblem{}, "cid")
-	dm.db.CreateIndex(&ContestProblem{}, "pidx")
-	dm.db.CreateUniqueIndex(&ContestProblem{}, "pidx", "cid")
 
 	return nil
 }
@@ -460,16 +457,14 @@ func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeL
 }
 
 func (dm *DatabaseManager) ContestProblemUpdate(prob ContestProblem) error {
-	_, err := dm.db.Update(&prob)
-
-	return err
+	return dm.db.Update(&prob).Error
 }
 
 func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
-	timeLimit := ContestProblem{Pid: pid}
+	//timeLimit := ContestProblem{Pid: pid}
 
-	_, err := dm.db.Delete(&timeLimit)
-
+	//_, err := dm.db.Delete(&timeLimit)
+	err := error(nil)
 	if err != nil {
 		return err
 	}
@@ -498,7 +493,7 @@ func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
 func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error) {
 	var resulsts []ContestProblem
 
-	err := dm.db.Select(&resulsts, dm.db.Where("pid", "=", pid))
+	err := dm.db.Select(&resulsts, dm.db.Where("pid", "=", pid)).Error
 
 	if err != nil {
 		return nil, err
@@ -514,8 +509,8 @@ func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error
 func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem, error) {
 	var resulsts []ContestProblem
 
-	err := dm.db.Select(&resulsts, dm.db.Where("pidx", "=", pidx).And("cid", "=", cid))
-
+	//err := dm.db.Select(&resulsts, dm.db.Where("pidx", "=", pidx).And("cid", "=", cid)).Error
+	err := error(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +525,8 @@ func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem
 func (dm *DatabaseManager) ContestProblemList(cid int64) (*[]ContestProblem, error) {
 	var results []ContestProblem
 
-	err := dm.db.Select(&results, dm.db.Where("cid", "=", cid), dm.db.OrderBy("pidx", genmai.ASC))
+	//	err := dm.db.Select(&results, dm.db.Where("cid", "=", cid), dm.db.OrderBy("pidx", genmai.ASC))
+	err := error(nil)
 
 	if err != nil {
 		return nil, err
@@ -543,7 +539,8 @@ func (dm *DatabaseManager) ContestProblemCount(cid int64) (int64, error) {
 	var count int64
 
 	// COUNT(*)が重い
-	err := dm.db.Select(&count, dm.db.Count("pid"), dm.db.From(&ContestProblem{}), dm.db.Where("cid", "=", cid))
+	//err := dm.db.Select(&count, dm.db.Count("pid"), dm.db.From(&ContestProblem{}), dm.db.Where("cid", "=", cid))
+	err := error(nil)
 
 	if err != nil {
 		return 0, err
@@ -557,7 +554,7 @@ type ContestProblemLight struct {
 	Name string
 }
 
-func (dm *DatabaseManager) ContestProblemListLight(cid int64) (*[]ContestProblemLight, error) {
+func (dm *DatabaseManager) ContestProblemListLight(cid int64) ([]ContestProblemLight, error) {
 	results := make([]ContestProblemLight, 0, 50)
 
 	rows, err := dm.db.DB().Query("select pidx, name from contest_problem where cid = ?", cid)
@@ -574,7 +571,7 @@ func (dm *DatabaseManager) ContestProblemListLight(cid int64) (*[]ContestProblem
 		results = append(results, cpl)
 	}
 
-	return &results, nil
+	return results, nil
 }
 
 func (dm *DatabaseManager) ContestProblemRemoveAll(cid int64) error {
