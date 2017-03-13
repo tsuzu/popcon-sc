@@ -1508,7 +1508,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 func CreateContestEachHandler() (*ContestEachHandler, error) {
 	funcMap := template.FuncMap{
-		"timeRangeToString": TimeRangeToString,
+		"timeRangeToStringInt64": TimeRangeToStringInt64,
 	}
 
 	top, err := template.New("").Funcs(funcMap).ParseFiles("./html/contests/each/index_tmpl.html")
@@ -1584,7 +1584,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 	}
 
 	funcMap = template.FuncMap{
-		"timeRangeToString": TimeRangeToString,
+		"timeRangeToStringInt64": TimeRangeToStringInt64,
 	}
 
 	manse, err := template.New("").Funcs(funcMap).ParseFiles("./html/contests/each/management/setting_tmpl.html")

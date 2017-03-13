@@ -3,6 +3,10 @@ package main
 import (
 	"time"
 
+	"strconv"
+
+	"io/ioutil"
+
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/jinzhu/gorm"
 )
@@ -51,20 +55,16 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		return 0, err
 	}
 
-	id := contest.Cid
-
-	// TODO: ***Important***Support GridFS
-	/*fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(id, 10)), os.O_CREATE|os.O_WRONLY, true)
+	fs, err := mainFS.Open(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(contest.Cid, 10)+".txt")
 
 	if err != nil {
-		dm.ContestDelete(id)
-
+		return 0, err
+	}
+	if err := fs.Close(); err != nil {
 		return 0, err
 	}
 
-	fm.Close()*/
-
-	return id, nil
+	return contest.Cid, nil
 }
 
 func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype popconSCTypes.ContestType) error {
@@ -97,18 +97,7 @@ func (dm *DatabaseManager) ContestDelete(cid int64) error {
 		return err
 	}
 
-	// TODO: Support GridFS
-	/*fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_WRONLY, true)
-
-	if err != nil {
-		return err
-	}
-
-	defer fm.Close()
-
-	return os.Remove(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)))*/
-
-	return nil
+	return mainFS.Remove(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
 }
 
 func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
@@ -128,41 +117,56 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 }
 
 func (dm *DatabaseManager) ContestDescriptionUpdate(cid int64, desc string) error {
-	// TODO:Support GridFS
+	// TODO:[completed]Support GridFS
 
-	/*fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_WRONLY|os.O_TRUNC, true)
+	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
 
 	if err != nil {
 		return err
 	}
 
-	defer fm.Close()
+	id := fs.Id()
 
-	_, err = fm.Write([]byte(desc))
+	if err := fs.Close(); err != nil {
+		return err
+	}
 
-	return err*/
-	return nil
+	fs, err = mainFS.Open(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
+
+	if err != nil {
+		return err
+	}
+
+	_, err = fs.Write([]byte(desc))
+
+	if err != nil {
+		return err
+	}
+	if err := fs.Close(); err != nil {
+		return err
+	}
+
+	return mainFS.RemoveID(FS_CATEGORY_CONTEST_DESCRIPTION, id)
 }
 
 func (dm *DatabaseManager) ContestDescriptionLoad(cid int64) (string, error) {
-	//TODO: Support GridFS
-	/*fm, err := FileManager.OpenFile(filepath.Join(ContestDir, strconv.FormatInt(cid, 10)), os.O_RDONLY, false)
+	//TODO:[completed]Support GridFS
+
+	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
 
 	if err != nil {
 		return "", err
 	}
 
-	defer fm.Close()
+	defer fs.Close()
 
-	b, err := ioutil.ReadAll(fm)
+	b, err := ioutil.ReadAll(fs)
 
 	if err != nil {
 		return "", err
 	}
 
-	return string(b), err*/
-
-	return "", nil
+	return string(b), nil
 }
 
 func (dm *DatabaseManager) ContestCount(options ...[]interface{}) (int64, error) {
@@ -186,7 +190,7 @@ func (dm *DatabaseManager) ContestCount(options ...[]interface{}) (int64, error)
 
 // ContestList : if "offset" and "limit" aren't neccesary, set -1
 func (dm *DatabaseManager) ContestList(offset, limit int, options ...[]interface{}) (*[]Contest, error) {
-	var resulsts []Contest
+	var results []Contest
 
 	db := dm.db
 	for i := range options {
@@ -195,11 +199,11 @@ func (dm *DatabaseManager) ContestList(offset, limit int, options ...[]interface
 		}
 	}
 
-	err := db.Offset(offset).Limit(limit).Order("start_time asc").Find(&resulsts).Error
+	err := db.Offset(offset).Limit(limit).Order("start_time asc").Find(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &resulsts, nil
+	return &results, nil
 }

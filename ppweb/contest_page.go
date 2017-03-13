@@ -23,10 +23,11 @@ type ContestsTopHandler struct {
 
 func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 	funcs := template.FuncMap{
-		"add":               func(x, y int) int { return x + y },
-		"timeRangeToString": TimeRangeToString,
-		"contestTypeToString": func(t int64) string {
-			return popconSCTypes.ContestTypeToString[popconSCTypes.ContestType(t)]
+		"add": func(x, y int) int { return x + y },
+		"TimeRangeToStringInt64": TimeRangeToStringInt64,
+		"timeRangeToString":      func(st, fn time.Time) string { return TimeRangeToStringInt64(st.Unix(), fn.Unix()) },
+		"contestTypeToString": func(t popconSCTypes.ContestType) string {
+			return popconSCTypes.ContestTypeToString[t]
 		},
 	}
 
@@ -57,7 +58,7 @@ func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 	return &ContestsTopHandler{temp, newContest, ceh}, nil
 }
 
-func TimeRangeToString(start, finish int64) string {
+func TimeRangeToStringInt64(start, finish int64) string {
 	startTime := time.Unix(start, 0)
 	finishTime := time.Unix(finish, 0)
 

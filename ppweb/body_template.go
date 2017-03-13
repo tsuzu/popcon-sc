@@ -16,7 +16,7 @@ Received an illegal request.
 </html>
 `
 
-// NF404 is "404 Not Found"
+// FBD403 is "403 Forbidden"
 const FBD403 = `
 <!DOCTYPE html>
 <html>
@@ -79,6 +79,8 @@ The service is not implemented.
 </body>
 </html>
 `
+
+// RETL413 is "413 Request Entity Too Large"
 const RETL413 = `
 <!DOCTYPE html>
 <html>

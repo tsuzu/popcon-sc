@@ -423,11 +423,11 @@ func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid
 	conditions := make([]string, 0, 5)
 
 	if cid != -1 {
-		conditions = append(conditions, "contest_problem.cid = "+strconv.FormatInt(cid, 10)+" ")
+		conditions = append(conditions, "contest_problems.cid = "+strconv.FormatInt(cid, 10)+" ")
 	}
 
 	if iid != -1 {
-		conditions = append(conditions, "user.iid = "+strconv.FormatInt(iid, 10)+" ")
+		conditions = append(conditions, "users.iid = "+strconv.FormatInt(iid, 10)+" ")
 	}
 
 	if pidx != -1 {
@@ -435,15 +435,15 @@ func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid
 			return "", errors.New("You must set cid to set pidx")
 		}
 
-		conditions = append(conditions, "contest_problem.pidx = "+strconv.FormatInt(pidx, 10)+" ")
+		conditions = append(conditions, "contest_problems.pidx = "+strconv.FormatInt(pidx, 10)+" ")
 	}
 
 	if lid != -1 {
-		conditions = append(conditions, "language.lid = "+strconv.FormatInt(lid, 10)+" ")
+		conditions = append(conditions, "languages.lid = "+strconv.FormatInt(lid, 10)+" ")
 	}
 
 	if stat != -1 {
-		conditions = append(conditions, "submission.status = "+strconv.FormatInt(stat, 10)+" ")
+		conditions = append(conditions, "submissions.status = "+strconv.FormatInt(stat, 10)+" ")
 	}
 
 	where := strings.Join(conditions, "and ")
@@ -470,7 +470,7 @@ func (dm *DatabaseManager) submissionViewQueryCreate(query string, cid, iid, lid
 }
 
 func (dm *DatabaseManager) SubmissionViewCount(cid, iid, lid, pidx, stat int64) (int64, error) {
-	queryBase := "select count(submission.sid) from submission inner join contest_problem on submission.pid = contest_problem.pid inner join user on submission.iid = user.iid inner join language on submission.lang = language.lid "
+	queryBase := "select count(submissions.sid) from submissions inner join contest_problems on submissions.pid = contest_problems.pid inner join users on submissions.iid = users.iid inner join languages on submissions.lang = languages.lid "
 
 	query, err := dm.submissionViewQueryCreate(queryBase, cid, iid, lid, pidx, stat, "", -1, -1)
 
@@ -499,9 +499,9 @@ func (dm *DatabaseManager) SubmissionViewCount(cid, iid, lid, pidx, stat int64) 
 }
 
 func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset, limit int64) (*[]SubmissionView, error) {
-	queryBase := "select submission.submit_time, contest_problem.cid, contest_problem.pidx, contest_problem.name, user.uid, user.user_name, language.name, submission.score, submission.status, submission.prog, submission.time, submission.mem, submission.sid from submission inner join contest_problem on submission.pid = contest_problem.pid inner join user on submission.iid = user.iid inner join language on submission.lang = language.lid "
+	queryBase := "select submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name, submissions.score, submissions.status, submissions.prog, submissions.time, submissions.mem, submissions.sid from submissions inner join contest_problems on submissions.pid = contest_problems.pid inner join user on submissions.iid = users.iid inner join languages on submissions.lang = languages.lid "
 
-	query, err := dm.submissionViewQueryCreate(queryBase, cid, iid, lid, pidx, stat, "order by submission.sid desc ", offset, limit)
+	query, err := dm.submissionViewQueryCreate(queryBase, cid, iid, lid, pidx, stat, "order by submissions.sid desc ", offset, limit)
 
 	if err != nil {
 		return nil, err
@@ -552,7 +552,7 @@ type SubmissionViewEach struct {
 }
 
 func (dm *DatabaseManager) SubmissionViewFind(sid int64) (*SubmissionViewEach, error) {
-	query := "select submission.submit_time, contest_problem.cid, contest_problem.pidx, contest_problem.name, user.uid, user.user_name, language.name, submission.score, submission.status, submission.prog, submission.time, submission.mem, submission.sid, language.highlight_type, submission.iid from submission inner join contest_problem on submission.pid = contest_problem.pid inner join user on submission.iid = user.iid inner join language on submission.lang = language.lid where submission.sid = " + strconv.FormatInt(sid, 10)
+	query := "select submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name, submissions.score, submissions.status, submissions.prog, submissions.time, submissions.mem, submissions.sid, languages.highlight_type, submissions.iid from submissions inner join contest_problems on submissions.pid = contest_problems.pid inner join user on submissions.iid = users.iid inner join languages on submissions.lang = languages.lid where submissions.sid = " + strconv.FormatInt(sid, 10)
 
 	rows, err := dm.db.DB().Query(query)
 
@@ -593,7 +593,7 @@ func (dm *DatabaseManager) SubmissionViewFind(sid int64) (*SubmissionViewEach, e
 }
 
 func (dm *DatabaseManager) SubmissionGetPid(sid int64) (int64, error) {
-	rows, err := dm.db.DB().Query("select pid from submission where sid = ?", sid)
+	rows, err := dm.db.DB().Query("select pid from submissions where sid = ?", sid)
 
 	if err != nil {
 		return 0, err
