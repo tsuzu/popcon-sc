@@ -197,11 +197,11 @@ func (rm *RedisManager) StandardSignupGroupGet() (int64, error) {
 	return gid, nil
 }
 
-func (rm *RedisManager) TestCaseIDGenerate() (int64, error) {
+func (rm *RedisManager) UniqueFileID(category string) (int64, error) {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	return redis.Int64(conn.Do("INCR", "test_case_id_incremental"))
+	return redis.Int64(conn.Do("INCR", "unique_"+category+"_file_id_incr_"+category))
 }
 
 func (rm *RedisManager) Ping() error {

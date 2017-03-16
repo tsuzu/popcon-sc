@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
@@ -73,9 +74,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 	mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
 		if req.URL.Path != "/" {
-			rw.WriteHeader(http.StatusNotFound)
-
-			rw.Write([]byte(NF404))
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 			return
 		}
@@ -92,7 +91,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ManagementButtonActive bool
 		}
 
-		desc, err := mainDB.ContestDescriptionLoad(cid)
+		desc, err := (&Contest{Cid: cid}).DescriptionLoad()
 
 		if err != nil {
 			desc = ""
@@ -159,9 +158,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			pidx, err := strconv.ParseInt(req.URL.Path, 10, 64)
 
 			if err != nil {
-				rw.WriteHeader(http.StatusNotFound)
-
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
@@ -169,9 +166,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			prob, err := mainDB.ContestProblemFind2(cid, pidx)
 
 			if err != nil {
-				rw.WriteHeader(http.StatusNotFound)
-
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
@@ -179,9 +174,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			stat, err := prob.LoadStatement()
 
 			if err != nil {
-				HttpLog.Println(err)
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				DBLog.WithError(err).Error("LoadStatement error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -239,9 +233,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		count, err := mainDB.ContestRankingCount(cid)
 
 		if err != nil {
-			HttpLog.Println(std.Iid, err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			rw.Write([]byte(ISE500))
+			DBLog.WithError(err).WithField("iid", std.Iid).Error("ContestRankingCount error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
 		}
@@ -254,9 +247,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		probs, err := mainDB.ContestProblemList(cid)
 
 		if err != nil {
-			HttpLog.Println(std.Iid, err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			rw.Write([]byte(ISE500))
+			DBLog.WithError(err).WithField("iid", std.Iid).Error("ContestProblemList error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
 		}
@@ -282,10 +274,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ranks, err := mainDB.ContestRankingList(cid, int64((page-1)*ContentsPerPage), ContentsPerPage)
 
 			if err != nil {
-				DBLog.Println(err)
+				DBLog.WithError(err).Error("ContestRankingList error")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -332,8 +323,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				iid = -1
 			} else {
 				if len(userID) > 40 || !UTF8StringLengthAndBOMCheck(userID, 40) {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -356,9 +346,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			count, err := mainDB.SubmissionViewCount(cid, iid, lang, prob, stat)
 
 			if err != nil {
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
-				HttpLog.Println(std.Iid, err)
+				DBLog.WithError(err).WithField("iid", std.Iid).Error("SubmissionViewCount error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -442,35 +431,32 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			sid, err := strconv.ParseInt(req.URL.Path, 10, 64)
 
 			if err != nil {
-				rw.WriteHeader(http.StatusNotFound)
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
 
 			submission, err := mainDB.SubmissionViewFind(sid)
 
-			if err != nil {
-				HttpLog.Println(std.Iid, err)
+			if err == ErrUnknownSubmission {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
-				rw.WriteHeader(http.StatusNotFound)
-				rw.Write([]byte(NF404))
+				return
+			} else if err != nil {
+				DBLog.WithError(err).WithField("sid", sid).Error("SubmissionViewFind error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
 
 			if submission.Cid != cid {
-				rw.WriteHeader(http.StatusNotFound)
-
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
 
 			if !isAdmin && submission.Iid != std.Iid && !isFinished {
-				rw.WriteHeader(http.StatusForbidden)
-
-				rw.Write([]byte(FBD403))
+				sctypes.ResponseTemplateWrite(http.StatusForbidden, rw)
 
 				return
 			}
@@ -544,8 +530,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/")
 		} else {
-			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte(BR400))
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
 		}
 	})
 
@@ -615,8 +602,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			code := wrapFormStr("code")
 
 			if lid < 0 || pid < 0 || code == "" {
-				rw.WriteHeader(http.StatusBadRequest)
-				rw.Write([]byte(BR400))
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 				return
 			}
@@ -625,14 +611,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			if err != nil {
 				if err == ErrUnknownProblem {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				} else {
-					HttpLog.Println(err)
-					rw.WriteHeader(http.StatusInternalServerError)
-					rw.Write([]byte(ISE500))
+					DBLog.WithError(err).Error("ContestProblemFind2 error")
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
 				}
@@ -643,13 +627,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				if err == ErrUnknownLanguage {
 					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				} else {
-					HttpLog.Println(err)
-					rw.WriteHeader(http.StatusInternalServerError)
-					rw.Write([]byte(ISE500))
+					DBLog.WithError(err).Error("LanguageFind error")
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
 				}
@@ -658,9 +641,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			subm, err := mainDB.SubmissionAdd(prob.Pid, std.Iid, lid, code)
 
 			if err != nil {
-				HttpLog.Println(err)
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				DBLog.WithError(err).Error("SubmissionAdd error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -674,8 +656,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 	mux.Handle("/management/", http.StripPrefix("/management/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if !isAdmin {
-			rw.WriteHeader(http.StatusForbidden)
-			rw.Write([]byte(FBD403))
+			sctypes.ResponseTemplateWrite(http.StatusForbidden, rw)
 
 			return
 		}
@@ -755,9 +736,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						if err == ErrUnknownSubmission {
 							respondTemp("該当する提出がありません。")
 						} else {
-							HttpLog.Println(err)
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							DBLog.WithError(err).Error("SubmissionFind error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 						}
 						return
 					}
@@ -765,10 +745,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cp, err := mainDB.ContestProblemFind(sm.Pid)
 
 					if err != nil {
-						HttpLog.Println(err)
-
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("ContestProblemFind error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
@@ -791,10 +769,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						if err == ErrUnknownProblem {
 							respondTemp("該当する問題がありません。")
 						} else {
-							HttpLog.Println(err)
+							DBLog.WithError(err).Error("ContestProblemFind2 error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
 						}
 						return
 					}
@@ -802,14 +779,14 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					sml, err := mainDB.SubmissionList(ArgumentsToArray("pid=?", cp.Pid))
 
 					if err != nil {
-						HttpLog.Println(err)
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("SubmissionList error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
 
 					for _ = range *sml {
+						// TODO: JudgeQueue処理
 						//SJQueue.Push((*sml)[i].Sid)
 					}
 
@@ -821,8 +798,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/")
 
 			} else {
-				rw.WriteHeader(http.StatusBadRequest)
-				rw.Write([]byte(BR400))
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 				return
 			}
@@ -941,14 +917,14 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						return
 					} else {
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("ContestUpdate error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
 				}
 
-				err = mainDB.ContestDescriptionUpdate(cid, description)
+				err = (&Contest{Cid: cid}).DescriptionUpdate(description)
 
 				if err != nil {
 					HttpLog.Println(std.Iid, err)
@@ -956,7 +932,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/")
 			} else if req.Method == "GET" {
-				desc, _ := mainDB.ContestDescriptionLoad(cid)
+				desc, _ := (&Contest{Cid: cid}).DescriptionLoad()
 
 				templateVal := TemplateVal{
 					Cid:         cid,
@@ -970,8 +946,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				}
 				ceh.ManagementSettingPage.Execute(rw, templateVal)
 			} else {
-				rw.WriteHeader(http.StatusBadRequest)
-				rw.Write([]byte(BR400))
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+				return
 			}
 		} else if len(req.URL.Path) >= 9 && req.URL.Path[:9] == "problems/" {
 			http.StripPrefix("problems/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -986,9 +963,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					list, err := mainDB.ContestProblemList(cid)
 
 					if err != nil {
-						HttpLog.Println(err)
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("ContestProblemList error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
@@ -1001,16 +977,14 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cnt, err := mainDB.ContestProblemCount(cid)
 
 						if err != nil {
-							HttpLog.Println(err)
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							DBLog.WithError(err).Error("ContestProblemCoun error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
 
 						if cnt >= 50 {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						}
@@ -1040,9 +1014,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					languages, err := mainDB.LanguageList()
 
 					if err != nil {
-						DBLog.Println(err)
-						rw.WriteHeader(http.StatusBadRequest)
-						rw.Write([]byte(BR400))
+						DBLog.WithError(err).Error("LanguageList error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
@@ -1053,14 +1026,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						if err != nil {
 							if err == ErrUnknownProblem {
-								rw.WriteHeader(http.StatusNotFound)
-								rw.Write([]byte(NF404))
+								sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 								return
 							} else {
-								HttpLog.Println(err)
-								rw.WriteHeader(http.StatusInternalServerError)
-								rw.Write([]byte(ISE500))
+								DBLog.WithError(err).Error("ContestProblemFind2 error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
 							}
@@ -1074,9 +1045,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							lid, checker, err := cp.LoadChecker()
 
 							if err != nil {
-								HttpLog.Println(err)
-								rw.WriteHeader(http.StatusInternalServerError)
-								rw.Write([]byte(ISE500))
+								DBLog.WithError(err).Error("LoadChecker error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
 							}
@@ -1084,9 +1054,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							stat, err := cp.LoadStatement()
 
 							if err != nil {
-								HttpLog.Println(err)
-								rw.WriteHeader(http.StatusInternalServerError)
-								rw.Write([]byte(ISE500))
+								DBLog.WithError(err).Error("LoadStatement error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
 							}
@@ -1110,8 +1079,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						jtype, prob, lid, code := wrapForm("type"), wrapFormStr("prob"), wrapForm("lang"), wrapFormStr("code")
 
 						if pidx == -1 || time < 1 || time > 10 || mem < 32 || mem > 1024 || jtype < 0 || jtype > 1 || (jtype == int64(JudgeRunningCode) && lid == -1) {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						}
@@ -1130,14 +1098,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						if JudgeType(jtype) == JudgeRunningCode {
 							if _, err := mainDB.LanguageFind(lid); err != nil {
 								if err == ErrUnknownLanguage {
-									rw.WriteHeader(http.StatusBadRequest)
-									rw.Write([]byte(BR400))
+									sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 									return
 								} else {
-									HttpLog.Println(err)
-									rw.WriteHeader(http.StatusInternalServerError)
-									rw.Write([]byte(ISE500))
+									DBLog.WithError(err).Error("LanguageFind error")
+									sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 									return
 								}
@@ -1167,9 +1133,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 								return
 							} else {
-								HttpLog.Println(err)
-								rw.WriteHeader(http.StatusInternalServerError)
-								rw.Write([]byte(ISE500))
+								DBLog.WithError(err).Error("ProblemAdd/ContestProblemUpdate error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
 							}
@@ -1178,9 +1143,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						err = cp.UpdateStatement(prob)
 
 						if err != nil {
-							HttpLog.Println(err)
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							DBLog.WithError(err).Error("UpdateStatement error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -1188,17 +1152,15 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						err = cp.UpdateChecker(lid, code)
 
 						if err != nil {
-							HttpLog.Println(err)
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							DBLog.WithError(err).Error("UpdateChecker error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
 
 						RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/problems/")
 					} else {
-						rw.WriteHeader(http.StatusBadRequest)
-						rw.Write([]byte(BR400))
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 						return
 					}
@@ -1210,19 +1172,23 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			pidx, err := strconv.ParseInt(arr[0], 10, 64)
 
 			if err != nil {
-				rw.WriteHeader(http.StatusNotFound)
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
 
 			cp, err := mainDB.ContestProblemFind2(cid, pidx)
 
-			if err != nil {
-				rw.WriteHeader(http.StatusNotFound)
-				rw.Write([]byte(NF404))
+			if err == ErrUnknownProblem {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
+			} else {
+				DBLog.WithError(err).Error("ContestProblemFind2 error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+
 			}
 
 			if len(arr) == 1 {
@@ -1240,9 +1206,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cases, sets, err := cp.LoadTestCaseNames()
 
 					if err != nil {
-						HttpLog.Println(err)
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("LoadTestCaseNames error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
@@ -1254,15 +1219,13 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					setCases := req.Form["set_case[]"]
 
 					if len(caseNames) > 50 {
-						rw.WriteHeader(http.StatusBadRequest)
-						rw.Write([]byte(BR400))
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 						return
 					}
 
 					if len(setScores) != len(setCases) || len(setScores) > 50 {
-						rw.WriteHeader(http.StatusBadRequest)
-						rw.Write([]byte(BR400))
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 						return
 					}
@@ -1275,7 +1238,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 					scores := make([]ContestProblemScoreSet, len(setScores))
 					for i := range scores {
-						caseIds := make([]int, 0, 50)
+						caseIds := make([]int64, 0, 50)
 						for _, str := range strings.Split(setCases[i], ",") {
 							str = strings.TrimSpace(str)
 
@@ -1289,7 +1252,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 								illegal = true
 							}
 
-							caseIds = append(caseIds, int(id))
+							caseIds = append(caseIds, id)
 						}
 
 						score, err := strconv.ParseInt(setScores[i], 10, 32)
@@ -1303,9 +1266,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						}
 
 						scores[i] = ContestProblemScoreSet{
-							Cases: caseIds,
 							Score: int(score),
 						}
+
+						scores[i].Cases.Set(caseIds)
 					}
 
 					if illegal {
@@ -1319,17 +1283,15 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					err := cp.UpdateTestCaseNames(cases, scores)
 
 					if err != nil {
-						HttpLog.Println(err)
-						rw.WriteHeader(http.StatusInternalServerError)
-						rw.Write([]byte(ISE500))
+						DBLog.WithError(err).Error("UpdateTestCaseNames error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
 
 					RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/testcases/"+strconv.FormatInt(pidx, 10))
 				} else {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -1337,8 +1299,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				tcid, err := strconv.ParseInt(arr[1], 10, 32)
 
 				if err != nil {
-					rw.WriteHeader(http.StatusNotFound)
-					rw.Write([]byte(NF404))
+					sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 					return
 				}
@@ -1347,11 +1308,13 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 					in, out, err := cp.LoadTestCaseInfo(int(tcid))
 
-					if err != nil {
-						DBLog.Println(err)
+					if err == ErrUnknownTestcase {
+						sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
-						rw.WriteHeader(http.StatusNotFound)
-						rw.Write([]byte(NF404))
+						return
+					} else if err != nil {
+						DBLog.WithError(err).Error("LoadTestCaseInfo error")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
 					}
@@ -1380,8 +1343,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						err := req.ParseMultipartForm(10 * 1024 * 1024)
 
 						if err != nil {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						}
@@ -1389,21 +1351,18 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						file, _, err := req.FormFile("file")
 
 						if err != nil {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						}
 						l, err := file.Seek(0, 2)
 
 						if err != nil {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						} else if l > 20*1024*1024 {
-							rw.WriteHeader(http.StatusRequestEntityTooLarge)
-							rw.Write([]byte(RETL413))
+							sctypes.ResponseTemplateWrite(http.StatusRequestEntityTooLarge, rw)
 
 							return
 						}
@@ -1415,8 +1374,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						b, err := ioutil.ReadAll(file)
 
 						if err != nil {
-							rw.WriteHeader(http.StatusBadRequest)
-							rw.Write([]byte(BR400))
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
 						}
@@ -1426,17 +1384,18 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						} else if arr[2] == "output" {
 							err = cp.UpdateTestCase(false, int(tcid), ReplaceEndline(string(b)))
 						} else {
-							rw.WriteHeader(http.StatusNotFound)
-							rw.Write([]byte(NF404))
+							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return
 						}
 
-						if err != nil {
-							DBLog.Println(err)
+						if err == ErrUnknownTestcase {
+							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
-							rw.WriteHeader(http.StatusNotFound)
-							rw.Write([]byte(NF404))
+							return
+						} else if err != nil {
+							DBLog.WithError(err).Error("UpdateTestCase error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -1451,15 +1410,18 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						} else if arr[2] == "output" {
 							str, err = cp.LoadTestCase(false, int(tcid))
 						} else {
-							rw.WriteHeader(http.StatusNotFound)
-							rw.Write([]byte(NF404))
+							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return
 						}
 
-						if err != nil {
-							rw.WriteHeader(http.StatusNotFound)
-							rw.Write([]byte(NF404))
+						if err == ErrUnknownTestcase {
+							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+							return
+						} else if err != nil {
+							DBLog.WithError(err).Error("UpdateTestCase error")
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -1479,23 +1441,21 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						rw.WriteHeader(http.StatusOK)
 						rw.Write([]byte(str))
 					} else {
-						rw.WriteHeader(http.StatusNotFound)
-						rw.Write([]byte(NF404))
+						sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 						return
 					}
 				} else {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
 			}
 
 		} else {
-			rw.WriteHeader(http.StatusNotFound)
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
-			rw.Write([]byte(NF404))
+			return
 		}
 	})))
 

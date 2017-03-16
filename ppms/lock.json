@@ -1,0 +1,43 @@
+{
+    "memo": "7db2b2f24908ca9cc57e536f8b2ff9e96192b75b0eb5f0fd4c660c92b2f44c57",
+    "projects": [
+        {
+            "name": "github.com/Sirupsen/logrus",
+            "revision": "cd7d1bbe41066b6c1f19780f895901052150a575",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/cs3238-tsuzu/bursa",
+            "branch": "master",
+            "revision": "3a814004d95cbdf3f5a02e6c9d176117f90bfb3f",
+            "packages": [
+                "middleware/logtext"
+            ]
+        },
+        {
+            "name": "github.com/cs3238-tsuzu/popcon-sc",
+            "branch": "swarm",
+            "revision": "2ac64cb6c4a18c9cd375e6cbba3ffb27bb6887f5",
+            "packages": [
+                "types"
+            ]
+        },
+        {
+            "name": "golang.org/x/sys",
+            "revision": "b776ec39b3e54652e09028aaaaac9757f4f8211a",
+            "packages": [
+                "unix"
+            ]
+        },
+        {
+            "name": "gopkg.in/mgo.v2",
+            "branch": "v2",
+            "revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+            "packages": [
+                "."
+            ]
+        }
+    ]
+}

@@ -26,8 +26,8 @@ func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 		"add": func(x, y int) int { return x + y },
 		"TimeRangeToStringInt64": TimeRangeToStringInt64,
 		"timeRangeToString":      func(st, fn time.Time) string { return TimeRangeToStringInt64(st.Unix(), fn.Unix()) },
-		"contestTypeToString": func(t popconSCTypes.ContestType) string {
-			return popconSCTypes.ContestTypeToString[t]
+		"contestTypeToString": func(t sctypes.ContestType) string {
+			return sctypes.ContestTypeToString[t]
 		},
 	}
 
@@ -78,9 +78,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 	}
 
 	if !settingManager.Get().CanCreateContestByNotAdmin && std.Gid != 0 {
-		rw.WriteHeader(http.StatusForbidden)
-
-		rw.Write([]byte(FBD403))
+		sctypes.ResponseTemplateWrite(http.StatusForbidden, rw)
 
 		return
 	}
@@ -157,15 +155,16 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 				return
 			} else {
-				HttpLog.Println(err)
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				DBLog.WithError(err).Error("ContestAdd error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
 		}
 
-		err = mainDB.ContestDescriptionUpdate(cid, description)
+		err = (&Contest{
+			Cid: cid,
+		}).DescriptionUpdate(description)
 
 		if err != nil {
 			HttpLog.Println(std.Iid, err)
@@ -179,8 +178,9 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 		ch.NewContest.Execute(rw, templateVal)
 	} else {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte(BR400))
+		sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+		return
 	}
 }
 
@@ -194,10 +194,9 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 			return
 		}
 
-		HttpLog.WithError(err).Error("ParseRequestForSession failed")
+		DBLog.WithError(err).Error("ParseRequestForSession failed")
 
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(ISE500))
+		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 		return
 	}
@@ -205,9 +204,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	err = req.ParseForm()
 
 	if err != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-
-		rw.Write([]byte(BR400))
+		sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 		return
 	}
@@ -250,8 +247,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		cid, err := strconv.ParseInt(cidStr, 10, 64)
 
 		if err != nil {
-			rw.WriteHeader(http.StatusNotFound)
-			rw.Write([]byte(NF404))
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 			return
 		}
@@ -259,8 +255,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		handler, err := ch.EachHandler.GetHandler(cid, *std)
 
 		if err != nil {
-			rw.WriteHeader(http.StatusNotFound)
-			rw.Write([]byte(NF404))
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 			return
 		}

@@ -1,0 +1,16 @@
+{
+    "dependencies": {
+        "github.com/Sirupsen/logrus": {
+            "revision": "cd7d1bbe41066b6c1f19780f895901052150a575"
+        },
+        "github.com/cs3238-tsuzu/bursa": {
+            "branch": "master"
+        },
+        "github.com/cs3238-tsuzu/popcon-sc": {
+            "branch": "swarm"
+        },
+        "gopkg.in/mgo.v2": {
+            "branch": "v2"
+        }
+    }
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"io"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -26,6 +27,7 @@ import (
 var ContestDir = "/tmp"
 
 func main() {
+	// 標準時
 	time.Local = Location
 
 	settingFile := os.Getenv("PP_SETTING")
@@ -82,6 +84,7 @@ func main() {
 	setting.redisAddr = os.Getenv("PP_REDIS_ADDR")
 	setting.redisPass = os.Getenv("PP_REDIS_PASS")
 	setting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
+	setting.microServicesAddr = os.Getenv("PP_MS_ADDR")
 	setting.internalToken = os.Getenv("PP_TOKEN")
 	setting.listeningEndpoint = os.Getenv("PP_LISTEN")
 	setting.dataDirectory = os.Getenv("PP_DATA_DIR")
@@ -97,13 +100,21 @@ func main() {
 
 	settingManager.Set(setting)
 
-	lo, err := NewLogMultipleOutput(settingManager.Get().LogFile)
+	var logWriter io.Writer
+	if len(settingManager.Get().LogFile) != 0 {
+		fp, err = os.OpenFile(settingManager.Get().LogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
-	if err != nil {
-		logrus.Fatal(err.Error())
+		if err != nil {
+			logrus.WithField("path", settingManager.Get().LogFile).Fatal("Failed to open logging gile")
+		}
+
+		logWriter = io.MultiWriter(os.NewFile(os.Stdout.Fd(), "stdout"), fp)
+	} else {
+		logWriter = os.NewFile(os.Stdout.Fd(), "stdout")
 	}
+
 	// ロガー作成
-	CreateLogger(lo)
+	InitLogger(logWriter)
 
 	dir := settingManager.Get().dataDirectory
 
@@ -121,6 +132,7 @@ func main() {
 		HttpLog.Fatalf("Creation of ContestProblemDir(%s) failed(error: %s)", ContestProblemDir, err.Error())
 	}
 
+	// Redis
 	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)
 
 	if err != nil {
@@ -128,13 +140,15 @@ func main() {
 	}
 	defer mainRM.Close()
 
-	mainFS, err = NewMongoFSManager(setting.mongoAddr)
+	// MongoDB
+	mainFS, err = NewMongoFSManager(setting.mongoAddr, setting.microServicesAddr, setting.internalToken)
 
 	if err != nil {
 		FSLog.WithError(err).Fatal("MongoDB FS initialization failed")
 	}
 	defer mainFS.Close()
 
+	// MySQL Database
 	mainDB, err = NewDatabaseManager(setting.debugMode)
 
 	if err != nil {

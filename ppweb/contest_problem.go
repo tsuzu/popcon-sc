@@ -29,10 +29,27 @@ type ContestProblemTestCase struct {
 	Output string
 }
 
+type ContestProblemScoreSetCasesString string
+
+func (cs *ContestProblemScoreSetCasesString) Get() []int64 {
+	var results []int64
+	json.Unmarshal([]byte(*cs), &results)
+
+	return results
+}
+
+func (cs *ContestProblemScoreSetCasesString) Set(a []int64) {
+	if b, err := json.Marshal(a); err != nil {
+		*cs = "[]"
+	} else {
+		*cs = ContestProblemScoreSetCasesString(string(b))
+	}
+}
+
 type ContestProblemScoreSet struct {
 	Pid   int64
-	Cases []int `json:"cases"`
-	Score int   `json:"score"`
+	Cases ContestProblemScoreSetCasesString
+	Score int
 }
 
 type ContestProblem struct {
@@ -181,7 +198,7 @@ func (cp *ContestProblem) UpdateTestCaseNames(cases []string, scores []ContestPr
 }
 
 func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
-	id, err := mainRM.TestCaseIDGenerate()
+	id, err := mainRM.UniqueFileID(FS_CATEGORY_TESTCASE_INOUT)
 
 	if err != nil {
 		return nil, err
@@ -190,6 +207,7 @@ func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
 	return mainFS.Open(FS_CATEGORY_TESTCASE_INOUT, "testcase_"+mainFS.TestcaseFileBaseTag+"_"+strconv.FormatInt(id, 10))
 }
 
+// ErrUnknownTestcase
 func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int, str string) (retErr error) {
 	/*fp, err := cp.CreateUniquelyNamedFile()
 
@@ -335,10 +353,12 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseId int) (int64, int64, error) {
 		return 0, 0, err
 	}
 
-	rows.Next()
+	if !rows.Next() {
+		return 0, 0, ErrUnknownTestcase
+	}
 	err = rows.Scan(&casesString)
 
-	return 0, 0, nil
+	return 0, 0, err
 }
 
 func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSet, error) {
@@ -394,7 +414,7 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSe
 }
 
 func (dm *DatabaseManager) CreateContestProblemTable() error {
-	err := dm.db.AutoMigrate(&ContestProblem{}).Error
+	err := dm.db.AutoMigrate(&ContestProblem{}, &ContestProblemTestCase{}, &ContestProblemScoreSet{}).Error
 	if err != nil {
 		return err
 	}

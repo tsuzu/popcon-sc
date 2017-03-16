@@ -562,7 +562,9 @@ func (dm *DatabaseManager) SubmissionViewFind(sid int64) (*SubmissionViewEach, e
 
 	defer rows.Close()
 
-	rows.Next()
+	if !rows.Next() {
+		return nil, ErrUnknownSubmission
+	}
 
 	var sv SubmissionViewEach
 	var status int64

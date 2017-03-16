@@ -27,6 +27,7 @@ type Setting struct {
 	redisAddr           string
 	redisPass           string
 	judgeControllerAddr string
+	microServicesAddr   string
 	internalToken       string
 	listeningEndpoint   string
 	dataDirectory       string

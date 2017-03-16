@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"errors"
-	"fmt"
 	html "html/template"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
@@ -80,8 +80,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if req.URL.Path != "/" && req.URL.Path != "/#" {
-				rw.WriteHeader(http.StatusNotFound)
-				rw.Write([]byte(NF404))
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
 			}
@@ -137,13 +136,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 		}
 
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.WriteHeader(http.StatusNotImplemented)
-
-			fmt.Fprint(rw, NI501)
+			sctypes.ResponseTemplateWrite(http.StatusNotImplemented, rw)
 
 			return
-
-			ojh.ServeHTTP(rw, req)
 		})
 
 		return f, nil
@@ -214,8 +209,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				}
 
 				if strings.Index(comeback, "//") != -1 || len(comeback) > 128 {
-					rw.WriteHeader(http.StatusBadRequest)
-					fmt.Fprint(rw, BR400)
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -248,8 +242,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 						if err != nil {
 							if err != ErrMailWasSent {
-								rw.WriteHeader(http.StatusInternalServerError)
-								rw.Write([]byte(ISE500))
+								DBLog.WithError(err).Error("MailSendConfirmUser error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
 								return
 							}
 
@@ -272,18 +267,19 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				sessionID, err := mainDB.SessionAdd(user.Iid)
 
 				if err != nil {
-					rw.WriteHeader(http.StatusInternalServerError)
-					HttpLog.WithError(err).Error("Session addition failed")
+					DBLog.WithError(err).Error("SessionAdd error")
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
-					rw.Write([]byte(ISE500))
+					return
 				} else {
 					SetSession(rw, sessionID)
 
 					RespondRedirection(rw, comeback)
 				}
 			} else {
-				rw.WriteHeader(http.StatusBadRequest)
-				fmt.Fprint(rw, BR400)
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+				return
 			}
 
 		})
@@ -337,10 +333,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 
-				HttpLog.WithError(err).Error("ParseRequestForSession failed")
+				DBLog.WithError(err).Error("ParseRequestForSession failed")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -379,10 +374,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 
-				HttpLog.WithError(err).Error("ParseRequestForUserData failed")
+				DBLog.WithError(err).Error("ParseRequestForUserData failed")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -394,8 +388,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			if err != nil {
 				DBLog.WithError(err).Error("Token generation and registration failed")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -411,8 +404,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				err := req.ParseForm()
 
 				if err != nil {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -433,8 +425,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				if err != nil {
 					DBLog.WithError(err).Error("TokenGetAndRemoveInt64 failed")
 
-					rw.WriteHeader(http.StatusInternalServerError)
-					rw.Write([]byte(ISE500))
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
 					return
 				}
 				if !ok {
@@ -446,8 +438,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				}
 
 				if iid != user.Iid {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -472,9 +463,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				err = mainDB.UserUpdatePassword(iid, pass)
 
 				if err != nil {
-					DBLog.WithError(err).Error("UserUpdatePassword failed")
-					rw.WriteHeader(http.StatusInternalServerError)
-					rw.Write([]byte(ISE500))
+					DBLog.WithError(err).Error("UserUpdatePassword error")
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
 				}
@@ -531,10 +521,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			token, err := mainRM.TokenGenerateAndRegister(SIGNUPTOKENSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute)
 
 			if err != nil {
-				HttpLog.WithError(err).Error("Token generation or registration failed")
-
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				DBLog.WithError(err).Error("TokenGenerateAndRegister error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -549,8 +537,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				err := req.ParseForm()
 
 				if err != nil {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}
@@ -665,10 +652,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 							tmp.Execute(rw, val)
 							return
 						} else {
-							DBLog.WithError(err).Error("User addition failed")
+							DBLog.WithError(err).Error("UserAdd error")
 
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -678,9 +664,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						err := MailSendConfirmUser(iid, userName, email)
 
 						if err != nil {
-							MailLog.WithError(err).Error("Sending mail failed")
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							MailLog.WithError(err).Error("MailSendConfirmUser failed")
+
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -694,10 +680,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						session, err := mainDB.SessionAdd(iid)
 
 						if err != nil {
-							DBLog.WithError(err).WithField("iid", iid).Error("Session addition failed")
+							DBLog.WithError(err).WithField("iid", iid).Error("SessionAdd failed")
 
-							rw.WriteHeader(http.StatusInternalServerError)
-							rw.Write([]byte(ISE500))
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
@@ -712,8 +697,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 			} else {
-				rw.WriteHeader(http.StatusNotImplemented)
-				rw.Write([]byte(NI501))
+				sctypes.ResponseTemplateWrite(http.StatusNotImplemented, rw)
+
+				return
 			}
 		})
 
@@ -738,8 +724,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			err := req.ParseForm()
 
 			if err != nil {
-				rw.WriteHeader(http.StatusBadRequest)
-				rw.Write([]byte(BR400))
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 				return
 			}
@@ -755,10 +740,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			ok, iid, err := mainRM.TokenGetAndRemoveInt64(MAILCONFTOKENSERVICE, token)
 
 			if err != nil {
-				DBLog.WithError(err).Error("TokenGetAndRemoveInt64 failed")
+				DBLog.WithError(err).Error("TokenGetAndRemoveInt64 error")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -778,10 +762,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			err = mainDB.UserUpdateEnabled(iid, true)
 
 			if err != nil {
-				DBLog.WithError(err).Error("UserUpdateEnabled failed")
+				DBLog.WithError(err).Error("UserUpdateEnabled error")
 
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -818,8 +801,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 		}
 
 		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.WriteHeader(http.StatusNotFound)
-			rw.Write([]byte(NF404))
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 			return
 
@@ -835,9 +817,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			fp, err := os.Open("./html/help.md")
 
 			if err != nil {
-				HttpLog.Println(err)
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				HttpLog.WithError(err).Error("os.Open error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -846,9 +827,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			b, err := ioutil.ReadAll(fp)
 
 			if err != nil {
-				HttpLog.Println(err)
-				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte(ISE500))
+				HttpLog.WithError(err).Error("ReadAll error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
 			}
@@ -878,8 +858,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			err := req.ParseForm()
 
 			if err != nil {
-				rw.WriteHeader(http.StatusBadRequest)
-				rw.Write([]byte(ISE500))
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 				return
 			}
@@ -912,8 +891,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				pass := wrapFormStr("password")
 
 				if len(id) == 0 || len(name) == 0 || len(pass) == 0 {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte(BR400))
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
 				}

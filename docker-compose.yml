@@ -37,16 +37,18 @@ services:
     ppjc:
         build: ppjc
 
+    ppms:
+        build: ppms
+        environment:
+            PP_MONGO_ADDR: "mongo:27017"
+            PP_TOKEN: ${PP_TOKEN}
+
     # Webサーバ
     ppweb:
         build: ppweb
         volumes_from:
             - ppdata
             - sendmail
-        links:
-            - mysql:mysql
-            - ppjc:ppjc
-            - redis:redis
         ports: 
             - 1234:80
         environment:
@@ -55,6 +57,7 @@ services:
             PP_REDIS_PASS: "${PP_DB_PASSWORD}"
             PP_MONGO_ADDR: "mongo:27017"
             PP_JC_ADDR: "http://ppcj:80"
+            PP_MS_ADDR: "http://ppms:7502"
             PP_TOKEN: ${PP_TOKEN}
             PP_LISTEN: ":80"
             PP_DATA_DIR: "/data"

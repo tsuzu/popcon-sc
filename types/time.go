@@ -1,4 +1,4 @@
-package popconSCTypes
+package sctypes
 
 import "time"
 

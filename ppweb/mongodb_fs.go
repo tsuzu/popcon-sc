@@ -3,9 +3,13 @@ package main
 import (
 	"time"
 
+	ppms "github.com/cs3238-tsuzu/popcon-sc/ppms/client"
+
 	"io/ioutil"
 
 	"crypto/sha256"
+
+	"strconv"
 
 	"gopkg.in/mgo.v2"
 )
@@ -22,10 +26,11 @@ var mainFS *MongoFSManager
 type MongoFSManager struct {
 	session             *mgo.Session
 	db                  *mgo.Database
+	msClient            *ppms.Client
 	TestcaseFileBaseTag string
 }
 
-func NewMongoFSManager(addr string) (*MongoFSManager, error) {
+func NewMongoFSManager(addr, msaddr, token string) (*MongoFSManager, error) {
 
 	cnt := 0
 	const RetryingMax = 1000
@@ -52,9 +57,16 @@ RETRY:
 
 	b := sha256.Sum256([]byte(time.Now().String()))
 
+	client, err := ppms.NewClient(addr, token)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &MongoFSManager{
 		session:             session,
 		db:                  db,
+		msClient:            client,
 		TestcaseFileBaseTag: string(b[:]),
 	}, err
 }
@@ -123,4 +135,38 @@ func (mfs *MongoFSManager) RemoveID(category string, id interface{}) error {
 
 func (mfs *MongoFSManager) Ping() error {
 	return mfs.session.Ping()
+}
+
+func (mfs *MongoFSManager) RemoveLater(category, path string) error {
+	return mfs.msClient.RemoveFile(category, path)
+}
+
+func (mfs *MongoFSManager) FileUpdate(category, oldName, newData string) (string, error) {
+	err := mfs.msClient.RemoveFile(category, oldName)
+
+	if err != nil {
+		FSLog.WithError(err).Error("RemoveFile error")
+	}
+
+	fid, err := mainRM.UniqueFileID(category)
+
+	if err != nil {
+		return "", err
+	}
+	newName := category + "_" + strconv.FormatInt(fid, 10) + ".txt"
+
+	fp, err := mainFS.Open(category, newName)
+
+	if err != nil {
+		return "", err
+	}
+	defer fp.Close()
+
+	_, err = fp.Write([]byte(newData))
+
+	if err != nil {
+		return "", err
+	}
+
+	return newName, nil
 }

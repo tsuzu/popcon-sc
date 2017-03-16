@@ -12,12 +12,13 @@ import (
 )
 
 type Contest struct {
-	Cid        int64                     `gorm:"primary_key"`
-	Name       string                    `gorm:"not null;unique_index"`
-	StartTime  time.Time                 `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
-	FinishTime time.Time                 `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
-	Admin      int64                     `gorm:"not null"`
-	Type       popconSCTypes.ContestType `gorm:"not null"`
+	Cid             int64               `gorm:"primary_key"`
+	Name            string              `gorm:"not null;unique_index"`
+	StartTime       time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
+	FinishTime      time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
+	Admin           int64               `gorm:"not null"`
+	Type            sctypes.ContestType `gorm:"not null"`
+	DescriptionFile string              `gorm:"not null"`
 }
 
 func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype JudgeType) (*ContestProblem, error) {
@@ -30,6 +31,55 @@ func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype Jud
 	return mainDB.ContestProblemFind(pb)
 }
 
+func (c *Contest) DescriptionUpdate(desc string) error {
+	var res Contest
+	tx := mainDB.db.Begin()
+
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	if err := tx.Select("description_file").First(&res, c.Cid).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	newName, err := mainFS.FileUpdate(FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile, desc)
+
+	if err != nil {
+		tx.Rollback()
+
+		return err
+	}
+
+	res.Cid = c.Cid
+	if err := tx.Model(&res).Update("description_file", newName).Error; err != nil {
+		tx.Rollback()
+
+		return err
+	}
+
+	tx.Commit()
+	return nil
+}
+
+func (c *Contest) DescriptionLoad() (string, error) {
+	var res Contest
+	res.Cid = c.Cid
+
+	if err := mainDB.db.Select("description_file").First(&res, c.Cid).Error; err != nil {
+		return "", err
+	}
+
+	b, err := mainFS.Read(FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
 func (dm *DatabaseManager) CreateContestTable() error {
 	err := dm.db.AutoMigrate(&Contest{}).Error
 
@@ -40,7 +90,7 @@ func (dm *DatabaseManager) CreateContestTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype popconSCTypes.ContestType) (int64, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType) (int64, error) {
 	contest := Contest{
 		Name:       name,
 		StartTime:  start,
@@ -67,7 +117,7 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 	return contest.Cid, nil
 }
 
-func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype popconSCTypes.ContestType) error {
+func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType) error {
 	cont := Contest{
 		Cid:        cid,
 		Name:       name,
@@ -116,7 +166,7 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 	return &res, nil
 }
 
-func (dm *DatabaseManager) ContestDescriptionUpdate(cid int64, desc string) error {
+func (dm *DatabaseManager) ContestDescriptionUpdateDisabled(cid int64, desc string) error {
 	// TODO:[completed]Support GridFS
 
 	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
@@ -149,7 +199,7 @@ func (dm *DatabaseManager) ContestDescriptionUpdate(cid int64, desc string) erro
 	return mainFS.RemoveID(FS_CATEGORY_CONTEST_DESCRIPTION, id)
 }
 
-func (dm *DatabaseManager) ContestDescriptionLoad(cid int64) (string, error) {
+func (dm *DatabaseManager) ContestDescriptionLoadDisabled(cid int64) (string, error) {
 	//TODO:[completed]Support GridFS
 
 	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
