@@ -6,6 +6,8 @@ import (
 
 	"net/url"
 
+	"path"
+
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 )
 
@@ -24,13 +26,20 @@ func (client *Client) defaultRequest() *http.Request {
 	}
 }
 
-func (client *Client) RemoveFile(category, path string) error {
+func (client *Client) RemoveFile(category, name string) error {
 	req := client.defaultRequest()
 
-	val := url.Values{}
+	u, err := url.Parse(path.Join(client.addr, "/remove_file"))
 
+	if err != nil {
+		return err
+	}
+
+	req.URL = u
+
+	val := url.Values{}
 	val.Add("category", category)
-	val.Set("path", path)
+	val.Set("path", name)
 
 	req.Form = val
 

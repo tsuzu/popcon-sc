@@ -10,6 +10,8 @@ import (
 
 	"os/signal"
 
+	"context"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/bursa/middleware/logtext"
 	"github.com/cs3238-tsuzu/popcon-sc/types"
@@ -48,12 +50,6 @@ func main() {
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 
-	go func() {
-		<-signal_chan
-
-		close(finCh)
-	}()
-
 	if len(addr) == 0 {
 		addr = ":7502"
 	}
@@ -67,8 +63,22 @@ func main() {
 			return
 		}
 	}
-
-	if err := http.ListenAndServe(addr, http.HandlerFunc(listener)); err != nil {
-		logrus.WithError(err).Error("ListenAndServe error")
+	server := http.Server{
+		Handler: http.HandlerFunc(listener),
 	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			logrus.WithError(err).Error("ListenAndServe error")
+		}
+	}()
+
+	<-signal_chan
+
+	close(finCh)
+	if err := server.Shutdown(context.Background()); err != nil {
+		logrus.WithError(err).Error("Shutdown(graceful shutdown) error")
+	}
+
+	os.Exit(0)
 }

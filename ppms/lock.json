@@ -19,14 +19,15 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "swarm",
-            "revision": "2ac64cb6c4a18c9cd375e6cbba3ffb27bb6887f5",
+            "revision": "5b93d2867a46f1168185deb570a54ab1af3619dc",
             "packages": [
                 "types"
             ]
         },
         {
             "name": "golang.org/x/sys",
-            "revision": "b776ec39b3e54652e09028aaaaac9757f4f8211a",
+            "branch": "master",
+            "revision": "99f16d856c9836c42d24e7ab64ea72916925fa97",
             "packages": [
                 "unix"
             ]
