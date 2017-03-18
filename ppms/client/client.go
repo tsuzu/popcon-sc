@@ -40,8 +40,7 @@ func (client *Client) RemoveFile(category, name string) error {
 	val := url.Values{}
 	val.Add("category", category)
 	val.Set("path", name)
-
-	req.Form = val
+	req.PostForm = val
 
 	resp, err := http.DefaultClient.Do(req)
 

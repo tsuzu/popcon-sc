@@ -82,12 +82,15 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 					return
 				}
 
+				logger.WithField("category", fi.Category).WithField("path", fi.Path).Info("The unnecessary file will be removed.")
 				time.Sleep(fi.Time.Add(Duration).Sub(time.Now()))
 
 				err := db.GridFS(fi.Category).Remove(fi.Path)
 
 				if err != nil {
 					logger.WithError(err).Error("Remove error")
+				} else {
+					logger.WithField("category", fi.Category).WithField("path", fi.Path).Info("The unnecessary file was removed.")
 				}
 			}
 		}
@@ -113,6 +116,7 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 			Path:     path,
 			Time:     time.Now(),
 		}
+		logger.WithField("category", category).WithField("path", path).Info("The unnecessary file was pushed into the queue.")
 
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("OK"))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 
 func InitLogger(writer io.Writer) {
 	logrus.SetOutput(writer)
+	logrus.SetLevel(logrus.DebugLevel)
 
 	lt := &logtext.Logtext{
 		Formatter:  new(logrus.TextFormatter),
@@ -30,6 +32,7 @@ func InitLogger(writer io.Writer) {
 }
 
 func main() {
+	fmt.Println("started")
 	InitLogger(os.NewFile(os.Stdout.Fd(), "stdout"))
 	token := os.Getenv("PP_TOKEN")
 	addr := os.Getenv("PP_LISTEN")
@@ -62,6 +65,7 @@ func main() {
 
 			return
 		}
+		mux.ServeHTTP(rw, req)
 	}
 	server := http.Server{
 		Addr:    addr,
@@ -69,6 +73,7 @@ func main() {
 	}
 
 	go func() {
+		logrus.Info("Starting to listen and serve.")
 		if err := server.ListenAndServe(); err != nil {
 			logrus.WithError(err).Error("ListenAndServe error")
 		}
