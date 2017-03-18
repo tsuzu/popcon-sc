@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -32,7 +31,6 @@ func InitLogger(writer io.Writer) {
 }
 
 func main() {
-	fmt.Println("started")
 	InitLogger(os.NewFile(os.Stdout.Fd(), "stdout"))
 	token := os.Getenv("PP_TOKEN")
 	addr := os.Getenv("PP_LISTEN")

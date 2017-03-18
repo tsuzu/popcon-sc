@@ -25,7 +25,7 @@ func (client *Client) RemoveFile(category, name string) error {
 
 	val := url.Values{}
 	val.Add("category", category)
-	val.Set("path", name)
+	val.Add("path", name)
 
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(val.Encode()))
 
@@ -33,10 +33,8 @@ func (client *Client) RemoveFile(category, name string) error {
 		return err
 	}
 
-	header := http.Header{}
-	header.Set(sctypes.InternalHTTPToken, client.auth)
-	header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header = header
+	req.Header.Set(sctypes.InternalHTTPToken, client.auth)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
 
