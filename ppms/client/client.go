@@ -6,6 +6,8 @@ import (
 
 	"net/url"
 
+	"strings"
+
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 )
 
@@ -14,9 +16,6 @@ type Client struct {
 }
 
 func (client *Client) defaultRequest() *http.Request {
-	header := http.Header{}
-
-	header.Set(sctypes.InternalHTTPToken, client.auth)
 
 	return &http.Request{
 		Method: "POST",
@@ -25,22 +24,27 @@ func (client *Client) defaultRequest() *http.Request {
 }
 
 func (client *Client) RemoveFile(category, name string) error {
-	req := client.defaultRequest()
-
 	u, err := url.Parse(client.addr)
 
 	if err != nil {
 		return err
 	}
-
 	u.Path = "/remove_file"
-
-	req.URL = u
 
 	val := url.Values{}
 	val.Add("category", category)
 	val.Set("path", name)
-	req.PostForm = val
+
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(val.Encode()))
+
+	if err != nil {
+		return err
+	}
+
+	header := http.Header{}
+	header.Set(sctypes.InternalHTTPToken, client.auth)
+	header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header = header
 
 	resp, err := http.DefaultClient.Do(req)
 

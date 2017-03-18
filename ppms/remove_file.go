@@ -107,7 +107,11 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 
 			return
 		}
+		if err := req.ParseForm(); err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
+			return
+		}
 		category := req.FormValue("category")
 		path := req.FormValue("path")
 
