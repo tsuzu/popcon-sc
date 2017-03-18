@@ -15,14 +15,6 @@ type Client struct {
 	addr, auth string
 }
 
-func (client *Client) defaultRequest() *http.Request {
-
-	return &http.Request{
-		Method: "POST",
-		Header: header,
-	}
-}
-
 func (client *Client) RemoveFile(category, name string) error {
 	u, err := url.Parse(client.addr)
 
