@@ -64,6 +64,7 @@ func main() {
 		}
 	}
 	server := http.Server{
+		Addr:    addr,
 		Handler: http.HandlerFunc(listener),
 	}
 

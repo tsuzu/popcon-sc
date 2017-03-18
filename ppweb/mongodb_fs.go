@@ -57,7 +57,7 @@ RETRY:
 
 	b := sha256.Sum256([]byte(time.Now().String()))
 
-	client, err := ppms.NewClient(addr, token)
+	client, err := ppms.NewClient(msaddr, token)
 
 	if err != nil {
 		return nil, err
