@@ -3,10 +3,16 @@
         "github.com/Sirupsen/logrus": {
             "revision": "cd7d1bbe41066b6c1f19780f895901052150a575"
         },
-        "github.com/cs3238-tsuzu/popcon-sc": {
-            "branch": "contest"
+        "github.com/cs3238-tsuzu/bursa": {
+            "branch": "master"
         },
-        "github.com/derekdowling/bursa": {
+        "github.com/cs3238-tsuzu/popcon-sc": {
+            "branch": "swarm"
+        },
+        "github.com/facebookgo/grace": {
+            "branch": "master"
+        },
+        "github.com/garyburd/redigo": {
             "branch": "master"
         },
         "github.com/go-sql-driver/mysql": {
@@ -15,10 +21,10 @@
         "github.com/gorilla/handlers": {
             "branch": "master"
         },
-        "github.com/microcosm-cc/bluemonday": {
+        "github.com/jinzhu/gorm": {
             "branch": "master"
         },
-        "github.com/naoina/genmai": {
+        "github.com/microcosm-cc/bluemonday": {
             "branch": "master"
         },
         "github.com/russross/blackfriday": {
@@ -32,6 +38,9 @@
         },
         "golang.org/x/crypto": {
             "branch": "master"
+        },
+        "gopkg.in/mgo.v2": {
+            "branch": "v2"
         }
     }
 }

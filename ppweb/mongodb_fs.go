@@ -42,7 +42,7 @@ func NewMongoFSManager(addr, msaddr, token string) (*MongoFSManager, error) {
 
 RETRY:
 	if cnt != 0 {
-		FSLog.Info("Waiting for MongoDB Server Launching...", err.Error())
+		FSLog().Info("Waiting for MongoDB Server Launching...", err.Error())
 		time.Sleep(3 * time.Second)
 	}
 	cnt++
@@ -154,7 +154,7 @@ func (mfs *MongoFSManager) CreateFilePath(category string, version int64) string
 }
 
 func (mfs *MongoFSManager) FileUpdate(category, oldName, newData string) (string, error) {
-	FSLog.Warn("FileUpdate() is deprecated. Should use FileSecureUpdate()")
+	FSLog().Warn("FileUpdate() is deprecated. Should use FileSecureUpdate()")
 
 	f, n, e := mfs.FileSecureUpdate(category, oldName, newData)
 
@@ -173,7 +173,7 @@ func (mfs *MongoFSManager) FileSecureUpdateWithReader(category, oldName string, 
 			err := mfs.msClient.RemoveFile(category, oldName)
 
 			if err != nil {
-				FSLog.WithError(err).Error("RemoveFile error")
+				FSLog().WithError(err).Error("RemoveFile error")
 			}
 		}
 	}

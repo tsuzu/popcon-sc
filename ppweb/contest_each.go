@@ -175,7 +175,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			stat, err := prob.LoadStatement()
 
 			if err != nil {
-				DBLog.WithError(err).Error("LoadStatement error")
+				DBLog().WithError(err).Error("LoadStatement error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -234,7 +234,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		count, err := mainDB.ContestRankingCount(cid)
 
 		if err != nil {
-			DBLog.WithError(err).WithField("iid", std.Iid).Error("ContestRankingCount error")
+			DBLog().WithError(err).WithField("iid", std.Iid).Error("ContestRankingCount error")
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
@@ -248,7 +248,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		probs, err := mainDB.ContestProblemList(cid)
 
 		if err != nil {
-			DBLog.WithError(err).WithField("iid", std.Iid).Error("ContestProblemList error")
+			DBLog().WithError(err).WithField("iid", std.Iid).Error("ContestProblemList error")
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
@@ -275,7 +275,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ranks, err := mainDB.ContestRankingList(cid, int64((page-1)*ContentsPerPage), ContentsPerPage)
 
 			if err != nil {
-				DBLog.WithError(err).Error("ContestRankingList error")
+				DBLog().WithError(err).Error("ContestRankingList error")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -347,7 +347,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			count, err := mainDB.SubmissionViewCount(cid, iid, lang, prob, stat)
 
 			if err != nil {
-				DBLog.WithError(err).WithField("iid", std.Iid).Error("SubmissionViewCount error")
+				DBLog().WithError(err).WithField("iid", std.Iid).Error("SubmissionViewCount error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -384,7 +384,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			langs, err := mainDB.LanguageList()
 
 			if err != nil {
-				HttpLog.Println(std.Iid, err)
+				HttpLog().WithField("iid", iid).WithError(err).Error("LanguageList() error")
 			} else {
 				templateVal.Languages = langs
 			}
@@ -392,7 +392,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			probs, err := mainDB.ContestProblemListLight(cid)
 
 			if err != nil {
-				HttpLog.Println(std.Iid, err)
+				HttpLog().WithField("iid", iid).WithError(err).Error("ContestProblemListLight() error")
 			} else {
 				templateVal.Problems = probs
 			}
@@ -419,7 +419,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				if err == nil {
 					templateVal.Submissions = submissions
 				} else {
-					HttpLog.Println(std.Iid, err)
+					HttpLog().WithField("iid", iid).WithError(err).Error("SubmissionViewList() error")
 				}
 			}
 
@@ -444,7 +444,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 				return
 			} else if err != nil {
-				DBLog.WithError(err).WithField("sid", sid).Error("SubmissionViewFind error")
+				DBLog().WithError(err).WithField("sid", sid).Error("SubmissionViewFind error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -491,7 +491,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					idx++
 				}
 			} else {
-				HttpLog.Println(std.Iid, err)
+				HttpLog().WithError(err).Error("SubmissionGetCase() error")
+
 			}
 
 			msg, err := mainDB.SubmissionGetMsg(sid)
@@ -559,7 +560,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				list = []ContestProblem{}
 
-				HttpLog.Println(std.Iid, err)
+				HttpLog().WithError(err).Error("ContestProblemListLight() error")
 			}
 
 			lang, err := mainDB.LanguageList()
@@ -567,7 +568,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				lang = []Language{}
 
-				HttpLog.Println(std.Iid, err)
+				HttpLog().WithError(err).Error("LanguageList() error")
 			}
 
 			probArr, has := req.Form["prob"]
@@ -616,7 +617,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 					return
 				} else {
-					DBLog.WithError(err).Error("ContestProblemFind2 error")
+					DBLog().WithError(err).Error("ContestProblemFind2 error")
 					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
@@ -632,7 +633,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 					return
 				} else {
-					DBLog.WithError(err).Error("LanguageFind error")
+					DBLog().WithError(err).Error("LanguageFind error")
 					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
@@ -642,7 +643,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			subm, err := mainDB.SubmissionAdd(prob.Pid, std.Iid, lid, code)
 
 			if err != nil {
-				DBLog.WithError(err).Error("SubmissionAdd error")
+				DBLog().WithError(err).Error("SubmissionAdd error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -673,27 +674,27 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			list, err := mainDB.ContestProblemList(cid)
 
 			if err != nil {
-				DBLog.Println(err)
+				DBLog().WithError(err).Error("ContestProblemList() error")
 			}
 
 			for i := range list {
 				err = mainDB.SubmissionRemoveAll((list)[i].Pid)
 
 				if err != nil {
-					DBLog.Println(err)
+					DBLog().WithError(err).Error("SubmissionRemoveAll() error")
 				}
 			}
 
 			err = mainDB.ContestParticipationRemove(cid)
 
 			if err != nil {
-				DBLog.Println(err)
+				DBLog().WithError(err).Error("ContestParticipationRemove() error")
 			}
 
 			err = mainDB.ContestDelete(cid)
 
 			if err != nil {
-				DBLog.Println(err)
+				DBLog().WithError(err).Error("ContestDelete() error")
 			}
 
 			RespondRedirection(rw, "/contests/")
@@ -737,7 +738,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						if err == ErrUnknownSubmission {
 							respondTemp("該当する提出がありません。")
 						} else {
-							DBLog.WithError(err).Error("SubmissionFind error")
+							DBLog().WithError(err).Error("SubmissionFind error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 						}
 						return
@@ -746,7 +747,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cp, err := mainDB.ContestProblemFind(sm.Pid)
 
 					if err != nil {
-						DBLog.WithError(err).Error("ContestProblemFind error")
+						DBLog().WithError(err).Error("ContestProblemFind error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -770,7 +771,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						if err == ErrUnknownProblem {
 							respondTemp("該当する問題がありません。")
 						} else {
-							DBLog.WithError(err).Error("ContestProblemFind2 error")
+							DBLog().WithError(err).Error("ContestProblemFind2 error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						}
@@ -780,7 +781,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					sml, err := mainDB.SubmissionListWithPid(cp.Pid)
 
 					if err != nil {
-						DBLog.WithError(err).Error("SubmissionList error")
+						DBLog().WithError(err).Error("SubmissionList error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -918,7 +919,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						return
 					} else {
-						DBLog.WithError(err).Error("ContestUpdate error")
+						DBLog().WithError(err).Error("ContestUpdate error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -928,7 +929,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				err = (&Contest{Cid: cid}).DescriptionUpdate(description)
 
 				if err != nil {
-					HttpLog.Println(std.Iid, err)
+					HttpLog().WithError(err).Error("DescriptionUpdate() error")
 				}
 
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/")
@@ -964,7 +965,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					list, err := mainDB.ContestProblemList(cid)
 
 					if err != nil {
-						DBLog.WithError(err).Error("ContestProblemList error")
+						DBLog().WithError(err).Error("ContestProblemList error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -978,7 +979,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						cnt, err := mainDB.ContestProblemCount(cid)
 
 						if err != nil {
-							DBLog.WithError(err).Error("ContestProblemCoun error")
+							DBLog().WithError(err).Error("ContestProblemCoun error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
@@ -1015,7 +1016,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					languages, err := mainDB.LanguageList()
 
 					if err != nil {
-						DBLog.WithError(err).Error("LanguageList error")
+						DBLog().WithError(err).Error("LanguageList error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -1031,7 +1032,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 								return
 							} else {
-								DBLog.WithError(err).Error("ContestProblemFind2 error")
+								DBLog().WithError(err).Error("ContestProblemFind2 error")
 								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
@@ -1046,7 +1047,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							lid, checker, err := cp.LoadChecker()
 
 							if err != nil {
-								DBLog.WithError(err).Error("LoadChecker error")
+								DBLog().WithError(err).Error("LoadChecker error")
 								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
@@ -1055,7 +1056,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							stat, err := cp.LoadStatement()
 
 							if err != nil {
-								DBLog.WithError(err).Error("LoadStatement error")
+								DBLog().WithError(err).Error("LoadStatement error")
 								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
@@ -1103,7 +1104,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 									return
 								} else {
-									DBLog.WithError(err).Error("LanguageFind error")
+									DBLog().WithError(err).Error("LanguageFind error")
 									sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 									return
@@ -1134,7 +1135,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 								return
 							} else {
-								DBLog.WithError(err).Error("ProblemAdd/ContestProblemUpdate error")
+								DBLog().WithError(err).Error("ProblemAdd/ContestProblemUpdate error")
 								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
@@ -1144,7 +1145,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						err = cp.UpdateStatement(prob)
 
 						if err != nil {
-							DBLog.WithError(err).Error("UpdateStatement error")
+							DBLog().WithError(err).Error("UpdateStatement error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
@@ -1153,7 +1154,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						err = cp.UpdateChecker(lid, code)
 
 						if err != nil {
-							DBLog.WithError(err).Error("UpdateChecker error")
+							DBLog().WithError(err).Error("UpdateChecker error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
@@ -1184,8 +1185,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
-			} else {
-				DBLog.WithError(err).Error("ContestProblemFind2 error")
+			} else if err != nil {
+				DBLog().WithError(err).Error("ContestProblemFind2 error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -1207,7 +1208,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cases, sets, err := cp.LoadTestCaseNames()
 
 					if err != nil {
-						DBLog.WithError(err).Error("LoadTestCaseNames error")
+						DBLog().WithError(err).Error("LoadTestCaseNames error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -1243,7 +1244,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						for _, str := range strings.Split(setCases[i], ",") {
 							str = strings.TrimSpace(str)
 
-							id, err := strconv.ParseInt(str, 10, 32)
+							id, err := strconv.ParseInt(str, 10, 64)
 
 							if err != nil {
 								illegal = true
@@ -1262,7 +1263,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							illegal = true
 						}
 
-						if score < 10 || score > 2000 {
+						if score < 0 || score > 10000 {
 							illegal = true
 						}
 
@@ -1271,6 +1272,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						}
 
 						scores[i].Cases.Set(caseIds)
+						scores[i].BeforeSave() // copy from cases to casesrawstring
 					}
 
 					if illegal {
@@ -1284,7 +1286,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					err := cp.UpdateTestCaseNames(cases, scores)
 
 					if err != nil {
-						DBLog.WithError(err).Error("UpdateTestCaseNames error")
+						DBLog().WithError(err).Error("UpdateTestCaseNames error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -1314,7 +1316,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						return
 					} else if err != nil {
-						DBLog.WithError(err).Error("LoadTestCaseInfo error")
+						DBLog().WithError(err).Error("LoadTestCaseInfo error")
 						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 						return
@@ -1387,7 +1389,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 							return
 						} else if err != nil {
-							DBLog.WithError(err).Error("UpdateTestCase error")
+							DBLog().WithError(err).Error("UpdateTestCase error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
@@ -1407,18 +1409,18 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 							return
 						}
-						defer reader.Close()
 
 						if err == ErrUnknownTestcase {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return
 						} else if err != nil {
-							DBLog.WithError(err).Error("UpdateTestCase error")
+							DBLog().WithError(err).Error("UpdateTestCase error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 							return
 						}
+						defer reader.Close()
 
 						fileName := strconv.FormatInt(cid, 10) + "-" + strconv.FormatInt(pidx, 10) + "_" + strconv.FormatInt(int64(tcid), 10)
 

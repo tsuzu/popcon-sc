@@ -139,7 +139,7 @@ func CreateAdminUserAutomatically() bool {
 	_, err := mainDB.UserAdd("admin", "admin", pass, NullStringInvalid, 0, true)
 
 	if err == nil {
-		DBLog.Infof("Default User(ID: admin, Pass: %s) You should change this", pass)
+		DBLog().Infof("Default User(ID: admin, Pass: %s) You should change this", pass)
 
 		return true
 	}

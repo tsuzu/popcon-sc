@@ -110,21 +110,21 @@ func main() {
 	}
 
 	// ロガー作成
-	InitLogger(logWriter)
+	InitLogger(logWriter, setting.debugMode)
 
 	dir := settingManager.Get().dataDirectory
 
 	// TODO: Change to gridfs
 	SubmissionDir = filepath.Join(dir, SubmissionDir)
 	if err := os.MkdirAll(SubmissionDir, 0770); err != nil {
-		HttpLog.Fatalf("Creation of SubmissionDir(%s) failed(error: %s)", SubmissionDir, err.Error())
+		HttpLog().Fatalf("Creation of SubmissionDir(%s) failed(error: %s)", SubmissionDir, err.Error())
 	}
 
 	// Redis
 	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)
 
 	if err != nil {
-		DBLog.WithError(err).Fatal("Redis initialization failed")
+		DBLog().WithError(err).Fatal("Redis initialization failed")
 	}
 	defer mainRM.Close()
 
@@ -132,7 +132,7 @@ func main() {
 	mainFS, err = NewMongoFSManager(setting.mongoAddr, setting.microServicesAddr, setting.internalToken)
 
 	if err != nil {
-		FSLog.WithError(err).Fatal("MongoDB FS initialization failed")
+		FSLog().WithError(err).Fatal("MongoDB FS initialization failed")
 	}
 	defer mainFS.Close()
 
@@ -140,14 +140,14 @@ func main() {
 	mainDB, err = NewDatabaseManager(setting.debugMode)
 
 	if err != nil {
-		DBLog.WithError(err).Fatal("Database initialization failed")
+		DBLog().WithError(err).Fatal("Database initialization failed")
 	}
 	defer mainDB.Close()
 
 	userCnt, err := mainDB.UserCount()
 
 	if err != nil {
-		DBLog.Println("Failed to count the users", err.Error())
+		DBLog().Println("Failed to count the users", err.Error())
 
 		return
 	}
@@ -155,7 +155,7 @@ func main() {
 	if userCnt == 0 {
 		if !CreateAdminUserAutomatically() {
 			if cnt, err := mainDB.UserCount(); cnt == 0 || err != nil {
-				DBLog.Println("Admin user creation failed.")
+				DBLog().Println("Admin user creation failed.")
 
 				return
 			}
@@ -166,7 +166,7 @@ func main() {
 	handlers, err := CreateHandlers()
 
 	if err != nil {
-		HttpLog.Fatal(err)
+		HttpLog().Fatal(err)
 	}
 
 	for k, v := range handlers {
@@ -183,13 +183,13 @@ func main() {
 	xffh, err := xff.Default()
 
 	if err != nil {
-		HttpLog.Fatal(err)
+		HttpLog().Fatal(err)
 	}
 
 	logger := gorilla.LoggingHandler(
 		NewCustomizedWriter(
 			func(b []byte) (int, error) {
-				HttpLog.Info(string(b))
+				HttpLog().Info(string(b))
 
 				return len(b), nil
 			},
@@ -212,7 +212,7 @@ func main() {
 	if len(setting.CertFilePath) != 0 && len(setting.KeyFilePath) != 0 {
 		cer, err := tls.LoadX509KeyPair(setting.CertFilePath, setting.KeyFilePath)
 		if err != nil {
-			HttpLog.Fatal(err)
+			HttpLog().Fatal(err)
 		}
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
@@ -222,6 +222,6 @@ func main() {
 	err = gracehttp.Serve(server)
 
 	if err != nil {
-		HttpLog.Fatal(err)
+		HttpLog().Fatal(err)
 	}
 }

@@ -26,7 +26,7 @@ func SendMail(to string, subject string, body string) error {
 	if err != nil {
 		return fmt.Errorf("output: %s, error: %s", string(b), err.Error())
 	}
-	MailLog.WithField("to", to).WithField("subject", subject).Info("A mail was sent successfully")
+	MailLog().WithField("to", to).WithField("subject", subject).Info("A mail was sent successfully")
 
 	return nil
 }

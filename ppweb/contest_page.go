@@ -155,7 +155,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 				return
 			} else {
-				DBLog.WithError(err).Error("ContestAdd error")
+				DBLog().WithError(err).Error("ContestAdd error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -167,7 +167,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		}).DescriptionUpdate(description)
 
 		if err != nil {
-			HttpLog.Println(std.Iid, err)
+			HttpLog().Println(std.Iid, err)
 		}
 
 		RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/")
@@ -194,7 +194,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 			return
 		}
 
-		DBLog.WithError(err).Error("ParseRequestForSession failed")
+		DBLog().WithError(err).Error("ParseRequestForSession failed")
 
 		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -276,7 +276,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	count, err := mainDB.ContestCount(cond)
 
 	if err != nil {
-		HttpLog.Println(std.Iid, err)
+		HttpLog().Println(std.Iid, err)
 		return
 	}
 
@@ -315,7 +315,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		if err == nil {
 			templateVal.Contests = *contests
 		} else {
-			HttpLog.WithError(err).WithField("iid", std.Iid).Error("ContestList error")
+			HttpLog().WithError(err).WithField("iid", std.Iid).Error("ContestList error")
 		}
 	}
 

@@ -8,6 +8,8 @@ import (
 
 	"io"
 
+	"strings"
+
 	"github.com/jinzhu/gorm"
 )
 
@@ -19,7 +21,7 @@ const (
 )
 
 type ContestProblemTestCase struct {
-	Id     int64 `gorm:"parimary_key"`
+	Id     int64 `gorm:"primary_key"`
 	Pid    int64
 	Name   string `gorm:"size:128"`
 	Input  string `gorm:"size:128"`
@@ -29,25 +31,45 @@ type ContestProblemTestCase struct {
 type ContestProblemScoreSetCasesString string
 
 func (cs *ContestProblemScoreSetCasesString) Get() []int64 {
-	var results []int64
-	json.Unmarshal([]byte(*cs), &results)
+	arr := strings.Split(string(*cs), ",")
+	ret := make([]int64, len(arr))
 
-	return results
+	for i := range arr {
+		ret[i], _ = strconv.ParseInt(arr[i], 10, 64)
+	}
+
+	return ret
 }
 
 func (cs *ContestProblemScoreSetCasesString) Set(a []int64) {
-	if b, err := json.Marshal(a); err != nil {
-		*cs = "[]"
-	} else {
-		*cs = ContestProblemScoreSetCasesString(string(b))
+	arr := make([]string, len(a))
+
+	for i := range a {
+		arr[i] = strconv.FormatInt(a[i], 10)
 	}
+
+	*cs = ContestProblemScoreSetCasesString(strings.Join(arr, ","))
 }
 
 type ContestProblemScoreSet struct {
-	Id    int64 `gorm:"parimary_key"`
-	Pid   int64
-	Cases ContestProblemScoreSetCasesString `gorm:"size:6143"`
-	Score int64
+	Id             int64 `gorm:"primary_key"`
+	Pid            int64
+	CasesRawString string `gorm:"size:6143"`
+	Score          int64
+	Cases          ContestProblemScoreSetCasesString `gorm:"-"`
+}
+
+func (ss *ContestProblemScoreSet) BeforeSave() error {
+	ss.CasesRawString = string(ss.Cases)
+	DBLog().WithField("cases", ss.Cases).Debug("Before Called")
+	return nil
+}
+
+func (ss *ContestProblemScoreSet) AfterFind() error {
+	ss.Cases = ContestProblemScoreSetCasesString(ss.CasesRawString)
+	DBLog().WithField("str", ss.CasesRawString).Debug("After Called")
+
+	return nil
 }
 
 type ContestProblem struct {
@@ -59,7 +81,7 @@ type ContestProblem struct {
 	Mem           int64                    `gorm:"not null"` // MB
 	LastModified  int64                    `gorm:"not null"`
 	Score         int                      `gorm:"not null"`
-	Type          JudgeType                `gorm:"not null"` // int->JudgeType
+	Type          JudgeType                `gorm:"not null"`
 	StatementFile string                   `gorm:"not null;size:128"`
 	CheckerFile   string                   `gorm:"not null;size:128"`
 	Cases         []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
@@ -205,17 +227,19 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 				}
 
 				f = FunctionJoin(f, func() {
-					for i := range oldFiles {
-						if err := mainFS.Remove(FS_CATEGORY_TESTCASE_INOUT, oldFiles[i]); err != nil {
-							FSLog.WithField("category", FS_CATEGORY_TESTCASE_INOUT).WithField("path", oldFiles[i]).WithError(err).Error("Failed removing a file")
+					go func() {
+						for i := range oldFiles {
+							if err := mainFS.RemoveLater(FS_CATEGORY_TESTCASE_INOUT, oldFiles[i]); err != nil {
+								FSLog().WithField("category", FS_CATEGORY_TESTCASE_INOUT).WithField("path", oldFiles[i]).WithError(err).Error("Failed removing a file")
+							}
 						}
-					}
+					}()
 				})
 			}
 		}
 		newCases := make([]ContestProblemTestCase, len(newCaseNames))
 
-		for i := 0; i < len(newCaseNames) && i < len(cases); i++ {
+		for i := 0; i < len(newCaseNames); i++ {
 			if i < len(cases) {
 				newCases[i].Input = cases[i].Input
 				newCases[i].Output = cases[i].Output
@@ -224,16 +248,21 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 			newCases[i].Name = newCaseNames[i]
 			newCases[i].Pid = cp.Pid
 		}
-		cases = newCases
 
-		for i := 0; i < len(scores); i++ {
+		for i := 0; i < len(newScores) && i < len(scores); i++ {
 			newScores[i].Id = scores[i].Id
+			newScores[i].Pid = scores[i].Pid
 		}
 
-		if err := db.Model(&cp).Association("Cases").Replace(cases).Replace(scores).Error; err != nil {
+		if err := db.Model(cp).Association("Cases").Replace(newCases).Error; err != nil {
+			return err
+		}
+		if err := db.Model(cp).Association("Scores").Replace(newScores).Error; err != nil {
 			return err
 		}
 
+		f()
+		mainDB.ClearUnassociatedDataWithDB(db)
 		return nil
 	})
 }
@@ -279,6 +308,15 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 
 }
 
+type FakeEmptyReadCloser struct{}
+
+func (r *FakeEmptyReadCloser) Read(b []byte) (n int, err error) {
+	return 0, io.EOF
+}
+func (r *FakeEmptyReadCloser) Close() error {
+	return nil
+}
+
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser, error) {
 	var cpcase ContestProblemTestCase
 
@@ -296,8 +334,17 @@ func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser,
 	} else {
 		path = cpcase.Output
 	}
+	if len(path) == 0 {
+		return &FakeEmptyReadCloser{}, nil
+	}
 
-	return mainFS.OpenOnly(FS_CATEGORY_TESTCASE_INOUT, path)
+	fp, err := mainFS.OpenOnly(FS_CATEGORY_TESTCASE_INOUT, path)
+
+	if err == mgo.ErrNotFound {
+		return nil, ErrUnknownTestcase
+	}
+
+	return fp, err
 }
 
 func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestProblemScoreSet, error) {
@@ -394,7 +441,7 @@ func (dm *DatabaseManager) ContestProblemUpdate(prob ContestProblem) error {
 }
 
 func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
-	log := DBLog.WithField("pid", pid)
+	log := DBLog().WithField("pid", pid)
 
 	cp, err := dm.ContestProblemFind(pid)
 
@@ -428,8 +475,12 @@ func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
 	return dm.db.Delete(&cp).Error
 }
 
+func (dm *DatabaseManager) ClearUnassociatedDataWithDB(db *gorm.DB) error {
+	return db.Where("pid IS NULL").Delete(ContestProblemTestCase{}).Delete(ContestProblemScoreSet{}).Error
+}
+
 func (dm *DatabaseManager) ClearUnassociatedData() error {
-	return dm.db.Where("pid IS NULL").Delete(ContestProblemTestCase{}).Delete(ContestProblemScoreSet{}).Error
+	return dm.ClearUnassociatedDataWithDB(dm.db)
 }
 
 func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error) {

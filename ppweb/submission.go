@@ -474,7 +474,7 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 			status, err := mainRM.JudgingProcessGet(results[i].Cid, results[i].Sid)
 
 			if err != nil {
-				DBLog.WithField("sid", results[i].Sid).WithField("cid", results[i].Cid).WithError(err).Error("JudgingProcessGet error")
+				DBLog().WithField("sid", results[i].Sid).WithField("cid", results[i].Cid).WithError(err).Error("JudgingProcessGet error")
 			} else {
 				results[i].Status = status
 			}

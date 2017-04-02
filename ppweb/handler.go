@@ -102,7 +102,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			if err != nil {
 				news = make([]News, 0)
 
-				DBLog.WithError(err).Error("NewsGet failed")
+				DBLog().WithError(err).Error("NewsGet failed")
 			}
 
 			type IndexResp struct {
@@ -219,9 +219,9 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 				if err != nil || !reflect.DeepEqual(user.PassHash, passHash[:]) {
 					if err != ErrUnknownUser {
-						DBLog.WithError(err).Error("UserFindFromUserID failed")
+						DBLog().WithError(err).Error("UserFindFromUserID failed")
 					}
-					DBLog.Info(err)
+					DBLog().Info(err)
 
 					rw.WriteHeader(http.StatusOK)
 
@@ -242,7 +242,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 						if err != nil {
 							if err != ErrMailWasSent {
-								DBLog.WithError(err).Error("MailSendConfirmUser error")
+								DBLog().WithError(err).Error("MailSendConfirmUser error")
 								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 								return
@@ -267,7 +267,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				sessionID, err := mainDB.SessionAdd(user.Iid)
 
 				if err != nil {
-					DBLog.WithError(err).Error("SessionAdd error")
+					DBLog().WithError(err).Error("SessionAdd error")
 					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
@@ -333,7 +333,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 
-				DBLog.WithError(err).Error("ParseRequestForSession failed")
+				DBLog().WithError(err).Error("ParseRequestForSession failed")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -374,7 +374,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					return
 				}
 
-				DBLog.WithError(err).Error("ParseRequestForUserData failed")
+				DBLog().WithError(err).Error("ParseRequestForUserData failed")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -386,7 +386,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			token, err := mainRM.TokenGenerateAndRegisterWithValue(UPDATEPASSWORDSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute, user.Iid)
 
 			if err != nil {
-				DBLog.WithError(err).Error("Token generation and registration failed")
+				DBLog().WithError(err).Error("Token generation and registration failed")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -423,7 +423,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				ok, iid, err := mainRM.TokenGetAndRemoveInt64(UPDATEPASSWORDSERVICE, token)
 
 				if err != nil {
-					DBLog.WithError(err).Error("TokenGetAndRemoveInt64 failed")
+					DBLog().WithError(err).Error("TokenGetAndRemoveInt64 failed")
 
 					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -463,7 +463,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				err = mainDB.UserUpdatePassword(iid, pass)
 
 				if err != nil {
-					DBLog.WithError(err).Error("UserUpdatePassword error")
+					DBLog().WithError(err).Error("UserUpdatePassword error")
 					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 					return
@@ -521,7 +521,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			token, err := mainRM.TokenGenerateAndRegister(SIGNUPTOKENSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute)
 
 			if err != nil {
-				DBLog.WithError(err).Error("TokenGenerateAndRegister error")
+				DBLog().WithError(err).Error("TokenGenerateAndRegister error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -531,7 +531,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			if req.Method == "GET" {
 				rw.WriteHeader(http.StatusOK)
 				if err := tmp.Execute(rw, val); err != nil {
-					HttpLog.WithError(err).Error("text/template execution failed")
+					HttpLog().WithError(err).Error("text/template execution failed")
 				}
 			} else if req.Method == "POST" {
 				err := req.ParseForm()
@@ -550,7 +550,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				pass := wrapFormStr("password")
 				pass2 := wrapFormStr("password_conf")
 
-				HttpLog.WithFields(logrus.Fields{
+				HttpLog().WithFields(logrus.Fields{
 					"token":    token,
 					"uid":      uid,
 					"userName": userName,
@@ -566,7 +566,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						arr = append(arr, "ワンタイムトークンが無効です。")
 					} else {
 						if ok, err := mainRM.TokenCheckAndRemove(SIGNUPTOKENSERVICE, token); err != nil {
-							HttpLog.WithField("token", token).Errorf("Token confirmation failed)")
+							HttpLog().WithField("token", token).Errorf("Token confirmation failed)")
 						} else if !ok {
 							arr = append(arr, "ワンタイムトークンの有効時間が過ぎました。")
 						}
@@ -630,7 +630,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					gid, err := mainRM.StandardSignupGroupGet()
 
 					if err != nil {
-						DBLog.WithError(err).Error("StandardSignupGroupGet failed")
+						DBLog().WithError(err).Error("StandardSignupGroupGet failed")
 					}
 					iid, err := mainDB.UserAdd(uid, userName, pass, NullStringCreate(email), gid, !settingManager.Get().CertificationWithEmail)
 
@@ -652,7 +652,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 							tmp.Execute(rw, val)
 							return
 						} else {
-							DBLog.WithError(err).Error("UserAdd error")
+							DBLog().WithError(err).Error("UserAdd error")
 
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -664,7 +664,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						err := MailSendConfirmUser(iid, userName, email)
 
 						if err != nil {
-							MailLog.WithError(err).Error("MailSendConfirmUser failed")
+							MailLog().WithError(err).Error("MailSendConfirmUser failed")
 
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -680,7 +680,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						session, err := mainDB.SessionAdd(iid)
 
 						if err != nil {
-							DBLog.WithError(err).WithField("iid", iid).Error("SessionAdd failed")
+							DBLog().WithError(err).WithField("iid", iid).Error("SessionAdd failed")
 
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -740,7 +740,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			ok, iid, err := mainRM.TokenGetAndRemoveInt64(MAILCONFTOKENSERVICE, token)
 
 			if err != nil {
-				DBLog.WithError(err).Error("TokenGetAndRemoveInt64 error")
+				DBLog().WithError(err).Error("TokenGetAndRemoveInt64 error")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -753,7 +753,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					OK:      false,
 					Message: "URLの有効期限が切れています。メールを再送信するにはログインページにてID/パスワードを送信してください。",
 				}); err != nil {
-					HttpLog.WithError(err).Error("Execution failed")
+					HttpLog().WithError(err).Error("Execution failed")
 				}
 
 				return
@@ -762,7 +762,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			err = mainDB.UserUpdateEnabled(iid, true)
 
 			if err != nil {
-				DBLog.WithError(err).Error("UserUpdateEnabled error")
+				DBLog().WithError(err).Error("UserUpdateEnabled error")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
@@ -774,7 +774,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				OK:      true,
 				Message: "メールアドレス認証が完了しました。以下のページよりログインしてください。",
 			}); err != nil {
-				HttpLog.WithError(err).Error("Execution failed")
+				HttpLog().WithError(err).Error("Execution failed")
 			}
 			return
 
@@ -817,7 +817,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			fp, err := os.Open("./html/help.md")
 
 			if err != nil {
-				HttpLog.WithError(err).Error("os.Open error")
+				HttpLog().WithError(err).Error("os.Open error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return
@@ -827,7 +827,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			b, err := ioutil.ReadAll(fp)
 
 			if err != nil {
-				HttpLog.WithError(err).Error("ReadAll error")
+				HttpLog().WithError(err).Error("ReadAll error")
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 				return

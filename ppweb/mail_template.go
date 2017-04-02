@@ -28,19 +28,19 @@ var ErrMailWasSent = errors.New("The mail was sent recently, try later.")
 
 func MailSendConfirmUser(iid int64, userName, email string) error {
 	if ok, err := mainRM.TokenExists(MAILLASTSENDSERVICE, email); err != nil {
-		DBLog.WithError(err).WithField("email", email).Error("TokenExists error")
+		DBLog().WithError(err).WithField("email", email).Error("TokenExists error")
 	} else if ok {
 		return ErrMailWasSent
 	}
 
 	if err := mainRM.TokenRegister(MAILLASTSENDSERVICE, email, MAIL_MINIMUM_INTERVAL); err != nil {
-		DBLog.WithError(err).WithField("email", email).Error("TokenRegister error")
+		DBLog().WithError(err).WithField("email", email).Error("TokenRegister error")
 	}
 
 	token, err := mainRM.TokenGenerateAndRegisterWithValue(MAILCONFTOKENSERVICE, time.Duration(settingManager.Get().MailConfTokenExpirationInMinutes)*time.Minute, iid)
 
 	if err != nil {
-		DBLog.WithError(err).Error("Token generation for mail confirmation failed")
+		DBLog().WithError(err).Error("Token generation for mail confirmation failed")
 
 		return err
 	}
@@ -49,7 +49,7 @@ func MailSendConfirmUser(iid int64, userName, email string) error {
 	err = SendMail(email, s, b)
 
 	if err != nil {
-		MailLog.WithError(err).Error("Sending mail failed")
+		MailLog().WithError(err).Error("Sending mail failed")
 
 		return err
 	}

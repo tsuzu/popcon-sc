@@ -91,7 +91,7 @@ func (rm *RedisManager) TokenGetAndRemove(service, token string) (bool, interfac
 		return false, nil, err
 	}
 	if _, err := conn.Do("DEL", key); err != nil {
-		DBLog.WithError(err).Error("Token deletion failed")
+		DBLog().WithError(err).Error("Token deletion failed")
 	}
 
 	return true, val, nil

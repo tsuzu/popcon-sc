@@ -38,7 +38,7 @@ func NewDatabaseManager(debugMode bool) (*DatabaseManager, error) {
 
 RETRY:
 	if cnt != 0 {
-		DBLog.Info("Waiting for MySQL Server Launching...", err.Error())
+		DBLog().Info("Waiting for MySQL Server Launching...", err.Error())
 		time.Sleep(3 * time.Second)
 	}
 	cnt++

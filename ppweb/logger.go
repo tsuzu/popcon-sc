@@ -7,7 +7,7 @@ import (
 	"github.com/cs3238-tsuzu/bursa/middleware/logtext"
 )
 
-var HttpLog, DBLog, MailLog, FSLog *logrus.Entry
+var HttpLog, DBLog, MailLog, FSLog func() *logrus.Entry
 
 type CustomizedWriter struct {
 	cb func([]byte) (int, error)
@@ -21,8 +21,11 @@ func NewCustomizedWriter(cb func([]byte) (int, error)) CustomizedWriter {
 	return CustomizedWriter{cb}
 }
 
-func InitLogger(writer io.Writer) {
+func InitLogger(writer io.Writer, isDebug bool) {
 	logrus.SetOutput(writer)
+	if isDebug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	lt := &logtext.Logtext{
 		Formatter:  new(logrus.TextFormatter),
@@ -31,8 +34,8 @@ func InitLogger(writer io.Writer) {
 	}
 	logrus.SetFormatter(lt)
 
-	HttpLog = logrus.WithField("category", "http")
-	DBLog = logrus.WithField("category", "database")
-	FSLog = logrus.WithField("category", "mongofs")
-	MailLog = logrus.WithField("category", "mail")
+	HttpLog = func() *logrus.Entry { return logrus.WithField("category", "http") }
+	DBLog = func() *logrus.Entry { return logrus.WithField("category", "database") }
+	FSLog = func() *logrus.Entry { return logrus.WithField("category", "mongofs") }
+	MailLog = func() *logrus.Entry { return logrus.WithField("category", "mail") }
 }
