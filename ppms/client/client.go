@@ -2,7 +2,6 @@ package ppms
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"net/url"
@@ -24,7 +23,6 @@ func (client *Client) RemoveFile(category, name string) error {
 	}
 	u.Path = "/remove_file"
 
-	fmt.Println(category, name)
 	val := url.Values{}
 	val.Add("category", category)
 	val.Add("path", name)

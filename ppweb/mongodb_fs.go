@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"time"
 
 	ppms "github.com/cs3238-tsuzu/popcon-sc/ppms/client"
@@ -11,6 +12,8 @@ import (
 
 	"strconv"
 
+	"strings"
+
 	"gopkg.in/mgo.v2"
 )
 
@@ -20,6 +23,7 @@ var FS_CATEGORY_TESTCASE_SUMMARY = "testcase_summary"
 var FS_CATEGORY_TESTCASE_INOUT = "testcase_inout"
 var FS_CATEGORY_CONTEST_DESCRIPTION = "contest_description"
 var FS_CATEGORY_PROBLEM_STATEMENT = "problem_statement"
+var FS_CATEGORY_PROBLEM_CHECKER = "problem_checker"
 
 var mainFS *MongoFSManager
 
@@ -138,35 +142,65 @@ func (mfs *MongoFSManager) Ping() error {
 }
 
 func (mfs *MongoFSManager) RemoveLater(category, path string) error {
+	if len(path) == 0 {
+		return nil
+	}
+
 	return mfs.msClient.RemoveFile(category, path)
 }
 
-func (mfs *MongoFSManager) FileUpdate(category, oldName, newData string) (string, error) {
-	err := mfs.msClient.RemoveFile(category, oldName)
+func (mfs *MongoFSManager) CreateFilePath(category string, version int64) string {
+	return category + "_" + strconv.FormatInt(version, 10) + ".txt"
+}
 
-	if err != nil {
-		FSLog.WithError(err).Error("RemoveFile error")
+func (mfs *MongoFSManager) FileUpdate(category, oldName, newData string) (string, error) {
+	FSLog.Warn("FileUpdate() is deprecated. Should use FileSecureUpdate()")
+
+	f, n, e := mfs.FileSecureUpdate(category, oldName, newData)
+
+	if f != nil {
+		f()
+	}
+
+	return n, e
+}
+
+func (mfs *MongoFSManager) FileSecureUpdateWithReader(category, oldName string, reader io.Reader) (func(), string, error) {
+	removeSecurely := func() {}
+
+	if len(oldName) != 0 {
+		removeSecurely = func() {
+			err := mfs.msClient.RemoveFile(category, oldName)
+
+			if err != nil {
+				FSLog.WithError(err).Error("RemoveFile error")
+			}
+		}
 	}
 
 	fid, err := mainRM.UniqueFileID(category)
 
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
-	newName := category + "_" + strconv.FormatInt(fid, 10) + ".txt"
+	newName := mfs.CreateFilePath(category, fid)
 
 	fp, err := mainFS.Open(category, newName)
 
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	defer fp.Close()
 
-	_, err = fp.Write([]byte(newData))
+	_, err = io.Copy(fp, reader)
 
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
-	return newName, nil
+	return removeSecurely, newName, nil
+}
+
+func (mfs *MongoFSManager) FileSecureUpdate(category, oldName, newData string) (func(), string, error) {
+	return mfs.FileSecureUpdateWithReader(category, oldName, strings.NewReader(newData))
 }

@@ -11,6 +11,8 @@ import (
 
 	"database/sql"
 
+	"io"
+
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -141,10 +143,55 @@ func CreateAdminUserAutomatically() bool {
 
 		return true
 	}
-	mainDB.GroupAdd("admin")
 	mainDB.GroupAdd("general")
 
 	return false
+}
+
+func FunctionJoin(functions ...func()) func() {
+	return func() {
+		for i := range functions {
+			functions[i]()
+		}
+	}
+}
+
+type TrimNewlineReader struct {
+	reader      io.Reader
+	prevNewline bool
+}
+
+func NewTrimNewlineReader(reader io.Reader) io.Reader {
+	return &TrimNewlineReader{reader, false}
+}
+
+func (tnlr *TrimNewlineReader) Read(ret []byte) (int, error) {
+	p := make([]byte, len(ret))
+	n, err := tnlr.reader.Read(p)
+
+	if err != nil {
+		return n, err
+	}
+
+	len := 0
+	for i := 0; i < n; i++ {
+		if p[i] == '\r' {
+			tnlr.prevNewline = true
+			ret[len] = '\n'
+		} else if p[i] == '\n' {
+			if tnlr.prevNewline {
+				tnlr.prevNewline = false
+				continue
+			} else {
+				ret[len] = '\n'
+			}
+		} else {
+			ret[len] = p[i]
+		}
+		len++
+	}
+
+	return len, nil
 }
 
 func SetSession(rw http.ResponseWriter, session string) {

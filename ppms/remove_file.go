@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/types"
-	"github.com/k0kubun/pp"
 	mgo "gopkg.in/mgo.v2"
 )
 
@@ -83,7 +81,6 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 				if !ok {
 					return
 				}
-				logger.WithField("category", fi.Category).WithField("path", fi.Path).Info("The unnecessary file will be removed.")
 				time.Sleep(fi.Time.Add(Duration).Sub(time.Now()))
 
 				err := db.GridFS(fi.Category).Remove(fi.Path)
@@ -113,7 +110,7 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 
 			return
 		}
-		fmt.Println(pp.Sprint(req))
+
 		category := req.FormValue("category")
 		path := req.FormValue("path")
 
@@ -122,7 +119,7 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 			Path:     path,
 			Time:     time.Now(),
 		}
-		logger.WithField("category", category).WithField("path", path).Info("The unnecessary file was pushed into the queue.")
+		logger.WithField("category", category).WithField("path", path).Info("The file was pushed into the queue.")
 
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("OK"))

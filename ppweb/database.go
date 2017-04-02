@@ -7,6 +7,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	// genmaiのサポートが危うくなっているため規模の大きいgormに移行
 
+	"fmt"
+
 	"github.com/jinzhu/gorm"
 )
 
@@ -130,4 +132,34 @@ RETRY:
 	}
 
 	return dm, nil
+}
+
+func (dm *DatabaseManager) Begin(f func(*gorm.DB) error) error {
+	db := dm.db.Begin()
+
+	if db.Error != nil {
+		return db.Error
+	}
+
+	err := f(db)
+
+	if err != nil {
+		db.Rollback()
+		return err
+	}
+
+	if err := recover(); err != nil {
+		db.Rollback()
+		e, ok := err.(error)
+
+		if ok {
+			return e
+		}
+
+		return errors.New(fmt.Sprint(err))
+	}
+
+	err = db.Commit().Error
+
+	return err
 }

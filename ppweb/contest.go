@@ -3,10 +3,6 @@ package main
 import (
 	"time"
 
-	"strconv"
-
-	"io/ioutil"
-
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/jinzhu/gorm"
 )
@@ -33,34 +29,25 @@ func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype Jud
 
 func (c *Contest) DescriptionUpdate(desc string) error {
 	var res Contest
-	tx := mainDB.db.Begin()
+	return mainDB.Begin(func(db *gorm.DB) error {
+		if err := db.Select("description_file").First(&res, c.Cid).Error; err != nil {
+			return err
+		}
 
-	if tx.Error != nil {
-		return tx.Error
-	}
+		f, newName, err := mainFS.FileSecureUpdate(FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile, desc)
 
-	if err := tx.Select("description_file").First(&res, c.Cid).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+		if err != nil {
+			return err
+		}
 
-	newName, err := mainFS.FileUpdate(FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile, desc)
+		res.Cid = c.Cid
+		if err := db.Model(&res).Update("description_file", newName).Error; err != nil {
+			return err
+		}
 
-	if err != nil {
-		tx.Rollback()
-
-		return err
-	}
-
-	res.Cid = c.Cid
-	if err := tx.Model(&res).Update("description_file", newName).Error; err != nil {
-		tx.Rollback()
-
-		return err
-	}
-
-	tx.Commit()
-	return nil
+		f()
+		return nil
+	})
 }
 
 func (c *Contest) DescriptionLoad() (string, error) {
@@ -105,15 +92,6 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		return 0, err
 	}
 
-	fs, err := mainFS.Open(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(contest.Cid, 10)+".txt")
-
-	if err != nil {
-		return 0, err
-	}
-	if err := fs.Close(); err != nil {
-		return 0, err
-	}
-
 	return contest.Cid, nil
 }
 
@@ -127,7 +105,7 @@ func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time
 		Type:       ctype,
 	}
 
-	err := dm.db.Save(&cont).Error
+	err := dm.db.Omit("description_file").Save(&cont).Error
 
 	if err != nil {
 		return err
@@ -141,13 +119,20 @@ func (dm *DatabaseManager) ContestDelete(cid int64) error {
 		return ErrUnknownContest
 	}
 
-	err := dm.db.Delete(&Contest{Cid: cid}).Error
+	var res Contest
+	err := dm.db.Select("description_file").First(&res, cid).Error
 
 	if err != nil {
 		return err
 	}
 
-	return mainFS.Remove(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
+	err = dm.db.Delete(&Contest{Cid: cid}).Error
+
+	if err != nil {
+		return err
+	}
+
+	return mainFS.Remove(FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
 }
 
 func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
@@ -164,59 +149,6 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 	}
 
 	return &res, nil
-}
-
-func (dm *DatabaseManager) ContestDescriptionUpdateDisabled(cid int64, desc string) error {
-	// TODO:[completed]Support GridFS
-
-	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
-
-	if err != nil {
-		return err
-	}
-
-	id := fs.Id()
-
-	if err := fs.Close(); err != nil {
-		return err
-	}
-
-	fs, err = mainFS.Open(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
-
-	if err != nil {
-		return err
-	}
-
-	_, err = fs.Write([]byte(desc))
-
-	if err != nil {
-		return err
-	}
-	if err := fs.Close(); err != nil {
-		return err
-	}
-
-	return mainFS.RemoveID(FS_CATEGORY_CONTEST_DESCRIPTION, id)
-}
-
-func (dm *DatabaseManager) ContestDescriptionLoadDisabled(cid int64) (string, error) {
-	//TODO:[completed]Support GridFS
-
-	fs, err := mainFS.OpenOnly(FS_CATEGORY_CONTEST_DESCRIPTION, "contest_description_"+strconv.FormatInt(cid, 10)+".txt")
-
-	if err != nil {
-		return "", err
-	}
-
-	defer fs.Close()
-
-	b, err := ioutil.ReadAll(fs)
-
-	if err != nil {
-		return "", err
-	}
-
-	return string(b), nil
 }
 
 func (dm *DatabaseManager) ContestCount(options ...[]interface{}) (int64, error) {

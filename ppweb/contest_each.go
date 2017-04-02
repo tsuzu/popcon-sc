@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"fmt"
-	"io/ioutil"
+
+	"io"
 
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/microcosm-cc/bluemonday"
@@ -133,7 +134,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				probList, err := mainDB.ContestProblemList(cid)
 
 				if err != nil {
-					probList = &[]ContestProblem{}
+					probList = []ContestProblem{}
 				}
 
 				type TemplateVal struct {
@@ -145,7 +146,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 				templateVal := TemplateVal{
 					cont.Name,
-					*probList,
+					probList,
 					std.UserName,
 					cid,
 				}
@@ -252,7 +253,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			return
 		}
-		templateVal.Problems = *probs
+		templateVal.Problems = probs
 
 		templateVal.Current = 1
 
@@ -359,7 +360,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				Cid         int64
 				Uid         string
 				Submissions []SubmissionView
-				Problems    []ContestProblemLight
+				Problems    []ContestProblem
 				Languages   []Language
 				Current     int
 				MaxPage     int
@@ -416,7 +417,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				submissions, err := mainDB.SubmissionViewList(cid, iid, lang, prob, stat, int64((page-1)*ContentsPerPage), ContentsPerPage)
 
 				if err == nil {
-					templateVal.Submissions = *submissions
+					templateVal.Submissions = submissions
 				} else {
 					HttpLog.Println(std.Iid, err)
 				}
@@ -436,7 +437,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				return
 			}
 
-			submission, err := mainDB.SubmissionViewFind(sid)
+			submission, err := mainDB.SubmissionViewFind(sid, cid)
 
 			if err == ErrUnknownSubmission {
 				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
@@ -466,7 +467,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			if err != nil {
 				var tmp string
 
-				code = &tmp
+				code = tmp
 			}
 
 			type SubmissionTestCaseView struct {
@@ -493,18 +494,18 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				HttpLog.Println(std.Iid, err)
 			}
 
-			msg := mainDB.SubmissionGetMsg(sid)
+			msg, err := mainDB.SubmissionGetMsg(sid)
 
-			if msg != nil && len(*msg) == 0 {
-				msg = nil
+			if err != nil {
+				msg = ""
 			}
 
 			type TemplateVal struct {
 				ContestName string
-				Submission  SubmissionViewEach
+				Submission  SubmissionView
 				Cases       []SubmissionTestCaseView
 				Code        string
-				Msg         *string
+				Msg         string
 				UserName    string
 				Cid         int64
 			}
@@ -513,7 +514,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				ContestName: cont.Name,
 				Submission:  *submission,
 				Cases:       cases,
-				Code:        *code,
+				Code:        code,
 				Msg:         msg,
 				UserName:    std.UserName,
 				Cid:         cid,
@@ -548,7 +549,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				ContestName string
 				UserName    string
 				Cid         int64
-				Problems    []ContestProblemLight
+				Problems    []ContestProblem
 				Languages   []Language
 				Prob        int64
 			}
@@ -556,7 +557,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			list, err := mainDB.ContestProblemListLight(cid)
 
 			if err != nil {
-				list = []ContestProblemLight{}
+				list = []ContestProblem{}
 
 				HttpLog.Println(std.Iid, err)
 			}
@@ -675,8 +676,8 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				DBLog.Println(err)
 			}
 
-			for i := range *list {
-				err = mainDB.SubmissionRemoveAll((*list)[i].Pid)
+			for i := range list {
+				err = mainDB.SubmissionRemoveAll((list)[i].Pid)
 
 				if err != nil {
 					DBLog.Println(err)
@@ -776,7 +777,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					sml, err := mainDB.SubmissionList(ArgumentsToArray("pid=?", cp.Pid))
+					sml, err := mainDB.SubmissionListWithPid(cp.Pid)
 
 					if err != nil {
 						DBLog.WithError(err).Error("SubmissionList error")
@@ -969,7 +970,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					ceh.ManagementProblemList.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, *list})
+					ceh.ManagementProblemList.Execute(rw, TemplateVal{cid, cont.Name, std.UserName, list})
 				} else if upidx, err := strconv.ParseInt(req.URL.Path, 10, 64); req.URL.Path == "new" || err == nil {
 					if err != nil {
 						upidx = -1
@@ -1266,7 +1267,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						}
 
 						scores[i] = ContestProblemScoreSet{
-							Score: int(score),
+							Score: score,
 						}
 
 						scores[i].Cases.Set(caseIds)
@@ -1296,7 +1297,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					return
 				}
 			} else if len(arr) >= 2 {
-				tcid, err := strconv.ParseInt(arr[1], 10, 32)
+				tcid, err := strconv.ParseInt(arr[1], 10, 64)
 
 				if err != nil {
 					sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
@@ -1371,18 +1372,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						defer file.Close()
 
-						b, err := ioutil.ReadAll(file)
-
-						if err != nil {
-							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
-
-							return
-						}
-
 						if arr[2] == "input" {
-							err = cp.UpdateTestCase(true, int(tcid), ReplaceEndline(string(b)))
+							err = cp.UpdateTestCase(true, tcid, NewTrimNewlineReader(file))
 						} else if arr[2] == "output" {
-							err = cp.UpdateTestCase(false, int(tcid), ReplaceEndline(string(b)))
+							err = cp.UpdateTestCase(false, tcid, NewTrimNewlineReader(file))
 						} else {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
@@ -1402,18 +1395,19 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/testcases/"+strconv.FormatInt(pidx, 10)+"/"+strconv.FormatInt(int64(tcid), 10))
 					} else if req.Method == "GET" {
-						var str string
+						var reader io.ReadCloser
 						var err error
 
 						if arr[2] == "input" {
-							str, err = cp.LoadTestCase(true, int(tcid))
+							reader, err = cp.LoadTestCase(true, int(tcid))
 						} else if arr[2] == "output" {
-							str, err = cp.LoadTestCase(false, int(tcid))
+							reader, err = cp.LoadTestCase(false, int(tcid))
 						} else {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return
 						}
+						defer reader.Close()
 
 						if err == ErrUnknownTestcase {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
@@ -1439,7 +1433,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						rw.Header()["Content-Disposition"] = []string{"attachment; filename=\"" + fileName + "\""}
 
 						rw.WriteHeader(http.StatusOK)
-						rw.Write([]byte(str))
+						io.Copy(rw, reader)
 					} else {
 						sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
