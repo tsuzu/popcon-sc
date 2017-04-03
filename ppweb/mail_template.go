@@ -37,7 +37,23 @@ func MailSendConfirmUser(iid int64, userName, email string) error {
 		DBLog().WithError(err).WithField("email", email).Error("TokenRegister error")
 	}
 
-	token, err := mainRM.TokenGenerateAndRegisterWithValue(MAILCONFTOKENSERVICE, time.Duration(settingManager.Get().MailConfTokenExpirationInMinutes)*time.Minute, iid)
+	exp, err := mainRM.MailConfTokenExpiration()
+
+	if err != nil {
+		DBLog().WithError(err).Error("CSRFConfTokenExpiration() error")
+
+		return err
+	}
+
+	ph, err := mainRM.PublicHost()
+
+	if err != nil {
+		DBLog().WithError(err).Error("PublicHost() error")
+
+		return err
+	}
+
+	token, err := mainRM.TokenGenerateAndRegisterWithValue(MAILCONFTOKENSERVICE, time.Duration(exp)*time.Minute, iid)
 
 	if err != nil {
 		DBLog().WithError(err).Error("Token generation for mail confirmation failed")
@@ -45,7 +61,7 @@ func MailSendConfirmUser(iid int64, userName, email string) error {
 		return err
 	}
 
-	s, b := MailCreateConfirmUser(userName, path.Join(settingManager.Get().PublicHost, "/signup/account_confirm?token="+token))
+	s, b := MailCreateConfirmUser(userName, path.Join(ph, "/signup/account_confirm?token="+token))
 	err = SendMail(email, s, b)
 
 	if err != nil {

@@ -6,9 +6,15 @@ import (
 )
 
 func SendMail(to string, subject string, body string) error {
-	cmdArr := make([]string, 0, len(settingManager.Get().SendmailCommand))
+	cmd, err := mainRM.SendMailCommand()
 
-	for _, s := range settingManager.Get().SendmailCommand {
+	if err != nil {
+		return err
+	}
+
+	cmdArr := make([]string, 0, len(cmd))
+
+	for _, s := range cmd {
 		switch s {
 		case "#{to}":
 			cmdArr = append(cmdArr, to)

@@ -44,7 +44,7 @@ RETRY:
 	cnt++
 
 	// Database
-	dm.db, err = gorm.Open("mysql", settingManager.Get().dbAddr)
+	dm.db, err = gorm.Open("mysql", environmentalSetting.dbAddr)
 
 	if err != nil {
 		if cnt > RetryingMax {

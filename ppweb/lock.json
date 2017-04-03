@@ -19,7 +19,7 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "swarm",
-            "revision": "284210d5e44bb4dd525080cefb3e17d8aff5f24d",
+            "revision": "037f603b433b10085f9b0510aefdd501cb27a781",
             "packages": [
                 "ppms/client",
                 "types"

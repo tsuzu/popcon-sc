@@ -381,7 +381,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			templateVal.Prob = prob
 			templateVal.Uid = std.UserID
 
-			langs, err := mainDB.LanguageList()
+			langs, err := mainDB.LanguageActiveList()
 
 			if err != nil {
 				HttpLog().WithField("iid", iid).WithError(err).Error("LanguageList() error")
@@ -555,7 +555,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				HttpLog().WithError(err).Error("ContestProblemListLight() error")
 			}
 
-			lang, err := mainDB.LanguageList()
+			lang, err := mainDB.LanguageActiveList()
 
 			if err != nil {
 				lang = []Language{}

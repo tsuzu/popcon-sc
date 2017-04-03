@@ -75,3 +75,15 @@ func (dm *DatabaseManager) LanguageList() ([]Language, error) {
 
 	return resulsts, nil
 }
+
+func (dm *DatabaseManager) LanguageActiveList() ([]Language, error) {
+	var results []Language
+
+	err := dm.db.Where("active=1").Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}

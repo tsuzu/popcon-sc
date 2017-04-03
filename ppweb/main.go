@@ -1,18 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
-	"io"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"time"
-
-	"io/ioutil"
-
-	"crypto/tls"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/facebookgo/grace/gracehttp"
@@ -24,8 +18,7 @@ func main() {
 	// 標準時
 	time.Local = Location
 
-	settingFile := os.Getenv("PP_SETTING")
-	pprof := os.Getenv("PP_PPROF")
+	pprof := os.Getenv("PP_PPROF") == "1"
 
 	help := flag.Bool("help", false, "Show help")
 
@@ -37,8 +30,8 @@ func main() {
 		return
 	}
 
-	if len(pprof) != 0 {
-		l, err := net.Listen("tcp", pprof)
+	if pprof {
+		l, err := net.Listen("tcp", ":54345")
 
 		if err != nil {
 			logrus.Fatal(err.Error())
@@ -48,69 +41,25 @@ func main() {
 		logrus.Info("pprof server is listening on %s\n", l.Addr())
 		go http.Serve(l, nil)
 	}
+	environmentalSetting.dbAddr = os.Getenv("PP_MYSQL_ADDR")
+	environmentalSetting.mongoAddr = os.Getenv("PP_MONGO_ADDR")
+	environmentalSetting.redisAddr = os.Getenv("PP_REDIS_ADDR")
+	environmentalSetting.redisPass = os.Getenv("PP_REDIS_PASS")
+	environmentalSetting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
+	environmentalSetting.microServicesAddr = os.Getenv("PP_MS_ADDR")
+	environmentalSetting.internalToken = os.Getenv("PP_TOKEN")
+	environmentalSetting.listeningEndpoint = os.Getenv("PP_LISTEN")
+	environmentalSetting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
 
-	fp, err := os.OpenFile(settingFile, os.O_RDONLY, 0664)
-
-	if err != nil {
-		b, _ := json.Marshal(Setting{})
-
-		logrus.Info("Json Sample: ", string(b))
-		ioutil.WriteFile(settingFile, b, 0660)
-
-		os.Exit(1)
-
-		return
-	}
-
-	dec := json.NewDecoder(fp)
-
-	var setting Setting
-	err = dec.Decode(&setting)
-
-	if err != nil {
-		logrus.Fatal("Syntax error: ", err)
-
-		return
-	}
-
-	setting.dbAddr = os.Getenv("PP_MYSQL_ADDR")
-	setting.mongoAddr = os.Getenv("PP_MONGO_ADDR")
-	setting.redisAddr = os.Getenv("PP_REDIS_ADDR")
-	setting.redisPass = os.Getenv("PP_REDIS_PASS")
-	setting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
-	setting.microServicesAddr = os.Getenv("PP_MS_ADDR")
-	setting.internalToken = os.Getenv("PP_TOKEN")
-	setting.listeningEndpoint = os.Getenv("PP_LISTEN")
-	setting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
-
-	if setting.CertificationWithEmail && (setting.SendmailCommand == nil || len(setting.SendmailCommand) == 0) {
-		logrus.Fatal("SendmailCommand mustn't be empty in the setting")
-	}
-
-	if len(setting.listeningEndpoint) == 0 {
-		setting.listeningEndpoint = ":80"
-	}
-
-	settingManager.Set(setting)
-
-	var logWriter io.Writer
-	if len(settingManager.Get().LogFile) != 0 {
-		fp, err = os.OpenFile(settingManager.Get().LogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-
-		if err != nil {
-			logrus.WithField("path", settingManager.Get().LogFile).Fatal("Failed to open logging gile")
-		}
-
-		logWriter = io.MultiWriter(os.NewFile(os.Stdout.Fd(), "stdout"), fp)
-	} else {
-		logWriter = os.NewFile(os.Stdout.Fd(), "stdout")
+	if len(environmentalSetting.listeningEndpoint) == 0 {
+		environmentalSetting.listeningEndpoint = ":80"
 	}
 
 	// ロガー作成
-	InitLogger(logWriter, setting.debugMode)
+	InitLogger(os.Stdout, environmentalSetting.debugMode)
 
 	// Redis
-	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)
+	mainRM, err := NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass)
 
 	if err != nil {
 		DBLog().WithError(err).Fatal("Redis initialization failed")
@@ -118,7 +67,7 @@ func main() {
 	defer mainRM.Close()
 
 	// MongoDB
-	mainFS, err = NewMongoFSManager(setting.mongoAddr, setting.microServicesAddr, setting.internalToken)
+	mainFS, err = NewMongoFSManager(environmentalSetting.mongoAddr, environmentalSetting.microServicesAddr, environmentalSetting.internalToken)
 
 	if err != nil {
 		FSLog().WithError(err).Fatal("MongoDB FS initialization failed")
@@ -126,7 +75,7 @@ func main() {
 	defer mainFS.Close()
 
 	// MySQL Database
-	mainDB, err = NewDatabaseManager(setting.debugMode)
+	mainDB, err = NewDatabaseManager(environmentalSetting.debugMode)
 
 	if err != nil {
 		DBLog().WithError(err).Fatal("Database initialization failed")
@@ -193,20 +142,21 @@ func main() {
 
 	// Should use TLS
 	server := &http.Server{
-		Addr:           settingManager.Get().listeningEndpoint,
+		Addr:           ":80",
 		MaxHeaderBytes: 1 << 20,
 		Handler:        xssProtector,
 	}
 
-	if len(setting.CertFilePath) != 0 && len(setting.KeyFilePath) != 0 {
-		cer, err := tls.LoadX509KeyPair(setting.CertFilePath, setting.KeyFilePath)
+	// SSL should be provided at the load balancer
+	/*	if len(environmentalSetting.CertFilePath) != 0 && len(environmentalSetting.KeyFilePath) != 0 {
+		cer, err := tls.LoadX509KeyPair(environmentalSetting.CertFilePath, environmentalSetting.KeyFilePath)
 		if err != nil {
 			HttpLog().Fatal(err)
 		}
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 		server.TLSConfig = config
-	}
+	}*/
 
 	err = gracehttp.Serve(server)
 

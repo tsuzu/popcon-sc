@@ -77,7 +77,16 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		ContestName string
 	}
 
-	if !settingManager.Get().CanCreateContestByNotAdmin && std.Gid != 0 {
+	canCreateContest, err := mainRM.CanCreateContest()
+
+	if err != nil {
+		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+		DBLog().WithError(err).Error("CanCreateContest() error")
+
+		return
+	}
+
+	if !canCreateContest && std.Gid != 0 {
 		sctypes.ResponseTemplateWrite(http.StatusForbidden, rw)
 
 		return
@@ -280,6 +289,15 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
+	canCreateContest, err := mainRM.CanCreateContest()
+
+	if err != nil {
+		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+		DBLog().WithError(err).Error("CanCreateContest() error")
+
+		return
+	}
+
 	type TemplateVal struct {
 		Contests         []Contest
 		UserName         string
@@ -293,7 +311,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	templateVal.UserName = std.UserName
 	templateVal.Type = reqType
 	templateVal.Current = 1
-	templateVal.CanCreateContest = (settingManager.Get().CanCreateContestByNotAdmin || std.Gid == 0)
+	templateVal.CanCreateContest = (canCreateContest || std.Gid == 0)
 
 	templateVal.MaxPage = int(count) / ContentsPerPage
 

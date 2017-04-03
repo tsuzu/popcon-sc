@@ -51,8 +51,8 @@ func ReplaceEndline(str string) string {
 	return strings.Replace(strings.Replace(str, "\r\n", "\n", -1), "\r", "\n", -1)
 }
 
-func TimeToString(t int64) string {
-	return time.Unix(t, 0).In(Location).Format("2006/01/02 15:04:05")
+func TimeToString(t time.Time) string {
+	return t.In(Location).Format("2006/01/02 15:04:05")
 }
 
 // CreateHandlers is a function to return hadlers
@@ -95,7 +95,14 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				}
 			}
 
-			cnt := settingManager.Get().NumberOfDisplayedNews
+			cnt, err := mainRM.NumberOfDisplayedNews()
+
+			if err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+				DBLog().WithError(err).Error("NumberOfDisplayedNews() error")
+
+				return
+			}
 
 			news, err := mainDB.NewsGet(cnt)
 
@@ -188,10 +195,18 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				} else {
 					cburl = comeback[0]
 				}
+				canCreateUser, err := mainRM.CanCreateUser()
+
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					DBLog().WithError(err).Error("CanCreateUser() error")
+
+					return
+				}
 
 				tmp.Execute(rw, LoginTemp{
 					BackURL:       cburl,
-					SignupEnabled: settingManager.Get().CanCreateUser,
+					SignupEnabled: canCreateUser,
 				})
 			} else if req.Method == "POST" {
 				if err := req.ParseForm(); err != nil {
@@ -223,12 +238,21 @@ func CreateHandlers() (map[string]http.Handler, error) {
 					}
 					DBLog().Info(err)
 
+					canCreateUser, err := mainRM.CanCreateUser()
+
+					if err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+						DBLog().WithError(err).Error("CanCreateUser() error")
+
+						return
+					}
+
 					rw.WriteHeader(http.StatusOK)
 
 					tmp.Execute(rw, LoginTemp{
 						Error:         "IDまたはパスワードが間違っています。",
 						BackURL:       comeback,
-						SignupEnabled: settingManager.Get().CanCreateUser,
+						SignupEnabled: canCreateUser,
 					})
 					return
 				}
@@ -256,10 +280,19 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						msg = "アカウントが有効化されていません。"
 					}
 
+					canCreateUser, err := mainRM.CanCreateUser()
+
+					if err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+						DBLog().WithError(err).Error("CanCreateUser() error")
+
+						return
+					}
+
 					tmp.Execute(rw, LoginTemp{
 						Error:         msg,
 						BackURL:       comeback,
-						SignupEnabled: settingManager.Get().CanCreateUser,
+						SignupEnabled: canCreateUser,
 					})
 					return
 				}
@@ -381,9 +414,18 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				return
 			}
 
+			exp, err := mainRM.CSRFConfTokenExpiration()
+
+			if err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+				DBLog().WithError(err).Error("CSRFConfTokenExpiration() error")
+
+				return
+			}
+
 			var val UpdatePasswordTemplateType
 
-			token, err := mainRM.TokenGenerateAndRegisterWithValue(UPDATEPASSWORDSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute, user.Iid)
+			token, err := mainRM.TokenGenerateAndRegisterWithValue(UPDATEPASSWORDSERVICE, time.Duration(exp)*time.Minute, user.Iid)
 
 			if err != nil {
 				DBLog().WithError(err).Error("Token generation and registration failed")
@@ -499,7 +541,16 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				return
 			}
 
-			if !settingManager.Get().CanCreateUser {
+			canCreateUser, err := mainRM.CanCreateUser()
+
+			if err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+				DBLog().WithError(err).Error("CanCreateUser() error")
+
+				return
+			}
+
+			if !canCreateUser {
 				RespondRedirection(rw, "/")
 
 				return
@@ -516,9 +567,27 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			}
 			var val TemplateVal
 
-			val.EmailNeeded = settingManager.Get().CertificationWithEmail
+			certificationWithEmail, err := mainRM.CertificationWithEmail()
 
-			token, err := mainRM.TokenGenerateAndRegister(SIGNUPTOKENSERVICE, time.Duration(settingManager.Get().CSRFTokenExpirationInMinutes)*time.Minute)
+			if err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+				DBLog().WithError(err).Error("CertificationWithEmail() error")
+
+				return
+			}
+
+			exp, err := mainRM.CSRFConfTokenExpiration()
+
+			if err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+				DBLog().WithError(err).Error("CSRFConfTokenExpiration() error")
+
+				return
+			}
+
+			val.EmailNeeded = certificationWithEmail
+
+			token, err := mainRM.TokenGenerateAndRegister(SIGNUPTOKENSERVICE, time.Duration(exp)*time.Minute)
 
 			if err != nil {
 				DBLog().WithError(err).Error("TokenGenerateAndRegister error")
@@ -627,12 +696,25 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				}()
 
 				if len(str) == 0 {
-					gid, err := mainRM.StandardSignupGroupGet()
+					gid, err := mainRM.StandardSignupGroup()
 
 					if err != nil {
-						DBLog().WithError(err).Error("StandardSignupGroupGet failed")
+						DBLog().WithError(err).Error("StandardSignupGroupGet() failed")
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+						return
 					}
-					iid, err := mainDB.UserAdd(uid, userName, pass, NullStringCreate(email), gid, !settingManager.Get().CertificationWithEmail)
+
+					certificationWithEmail, err := mainRM.CertificationWithEmail()
+
+					if err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+						DBLog().WithError(err).Error("CertificationWithEmail() error")
+
+						return
+					}
+
+					iid, err := mainDB.UserAdd(uid, userName, pass, NullStringCreate(email), gid, !certificationWithEmail)
 
 					if err != nil {
 						if strings.Contains(err.Error(), "Duplicate") {
@@ -660,7 +742,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						}
 					}
 
-					if settingManager.Get().CertificationWithEmail {
+					if certificationWithEmail {
 						err := MailSendConfirmUser(iid, userName, email)
 
 						if err != nil {

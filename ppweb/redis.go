@@ -9,6 +9,7 @@ import (
 
 	"fmt"
 
+	"github.com/cs3238-tsuzu/popcon-sc/setting"
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -16,6 +17,7 @@ var mainRM *RedisManager
 
 type RedisManager struct {
 	pool *redis.Pool
+	*ppconfiguration.RedisSettingManager
 }
 
 func NewRedisManager(addr, pass string) (*RedisManager, error) {
@@ -23,8 +25,15 @@ func NewRedisManager(addr, pass string) (*RedisManager, error) {
 		return redis.Dial("tcp", addr, redis.DialPassword(pass), redis.DialConnectTimeout(60*time.Second))
 	}, 100)
 
+	sm, err := ppconfiguration.NewRedisSettingManager(pool)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &RedisManager{
-		pool: pool,
+		pool:                pool,
+		RedisSettingManager: sm,
 	}, nil
 }
 

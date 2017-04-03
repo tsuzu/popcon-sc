@@ -195,10 +195,17 @@ func (tnlr *TrimNewlineReader) Read(ret []byte) (int, error) {
 }
 
 func SetSession(rw http.ResponseWriter, session string) {
+	exp, err := mainRM.SessionExpiration()
+
+	if err != nil {
+		DBLog().WithError(err).Error("SessionExpiration() error")
+		exp = 60
+	}
+
 	cookie := http.Cookie{
 		Name:     HTTPCookieSession,
 		Value:    session,
-		MaxAge:   settingManager.Get().SessionExpirationInMinutes,
+		MaxAge:   exp,
 		HttpOnly: true,
 	}
 

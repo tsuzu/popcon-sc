@@ -525,7 +525,7 @@ func (dm *DatabaseManager) ContestProblemCount(cid int64) (int64, error) {
 func (dm *DatabaseManager) ContestProblemListLight(cid int64) ([]ContestProblem, error) {
 	var results []ContestProblem
 
-	err := dm.db.Select("pidx", "name").Where("cid=?", cid).Find(&results).Error
+	err := dm.db.Select("pidx, name").Where("cid=?", cid).Find(&results).Error
 
 	if err != nil {
 		return nil, err

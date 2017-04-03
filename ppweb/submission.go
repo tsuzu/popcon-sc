@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"time"
 
+	"fmt"
+
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/jinzhu/gorm"
 	"gopkg.in/mgo.v2"
@@ -27,8 +29,8 @@ type Submission struct {
 	Time        int64                        `gorm:"not null"` //ms
 	Mem         int64                        `gorm:"not null"` //KB
 	Score       int64                        `gorm:"not null"`
-	SubmitTime  time.Time                    `gorm:"not null"`       //提出日時
-	Status      sctypes.SubmissionStatusType `gorm:"not null;index"` //index
+	SubmitTime  time.Time                    `gorm:"not null;default:CURRENT_TIMESTAMP"` //提出日時
+	Status      sctypes.SubmissionStatusType `gorm:"not null;index"`                     //index
 	MessageFile string                       `gorm:"not null"`
 	CodeFile    string                       `gorm:"not null"`
 	Cases       []SubmissionTestCase         `gorm:"ForeignKey:Sid"`
@@ -45,7 +47,7 @@ func (dm *DatabaseManager) CreateSubmissionTable() error {
 }
 
 func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i int64, b error) {
-	path, err := mainFS.FileUpdate(FS_CATEGORY_SUBMISSION, "", code)
+	_, path, err := mainFS.FileSecureUpdate(FS_CATEGORY_SUBMISSION, "", code)
 
 	sm := Submission{
 		Pid:        pid,
@@ -231,7 +233,7 @@ func (dm *DatabaseManager) SubmissionListWithPid(pid int64) (*[]Submission, erro
 }
 
 type SubmissionView struct {
-	SubmitTime    int64
+	SubmitTime    time.Time
 	Cid           int64
 	Pidx          int64
 	Name          string
@@ -250,7 +252,7 @@ type SubmissionView struct {
 
 // TODO: Gormに切り替え
 func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*gorm.DB, error) {
-	db := dm.db.Model(&Submission{}).Joins("inner join contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
+	db := dm.db.Table("submissions").Joins("inner join contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
 
 	if cid != -1 {
 		db = db.Where("contest_problems.cid=?", strconv.FormatInt(cid, 10))
@@ -261,6 +263,7 @@ func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat i
 	}
 
 	if pidx != -1 {
+
 		if cid == -1 {
 			return nil, ErrIllegalQuery
 		}
@@ -314,7 +317,7 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 		return nil, err
 	}
 
-	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid")
+	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid")
 
 	var results []SubmissionView
 	if err := db.Scan(&results).Error; err != nil {
@@ -346,11 +349,23 @@ func (dm *DatabaseManager) SubmissionViewFind(sid, cid int64) (*SubmissionView, 
 		return nil, err
 	}
 
-	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid, languages.highlight_type, submissions.iid")
+	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid, languages.highlight_type, submissions.iid").Where("sid=?", sid)
 
 	var result SubmissionView
-	if err := db.First(&result, sid).Error; err != nil {
+	if err := db.First(&result).Error; err != nil {
 		return nil, err
+	}
+
+	result.Status = result.RawStatus.String()
+	fmt.Println(result)
+	if result.RawStatus == sctypes.SubmissionStatusJudging {
+		status, err := mainRM.JudgingProcessGet(result.Sid)
+
+		if err != nil {
+			DBLog().WithField("sid", result.Sid).WithField("cid", result.Cid).WithError(err).Error("JudgingProcessGet error")
+		} else {
+			result.Status = status
+		}
 	}
 
 	return &result, err

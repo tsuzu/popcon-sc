@@ -2,10 +2,11 @@
 
 ## What is popcon-sc?
 - Programming OPen(source) CONtest Server - SCalable
-- popcon-scはオープンソースな競技プログラミング用コンテストサーバです。
-- 主に部活内でコンテストを開催するために製作しています。
-- Pure Go、WebはBootstrap3
-- 前プロジェクト[popcon](https://github.com/cs3238-tsuzu/popcon)よりもDockerベースで扱いやすいシステムを目指しています。
+- popcon-sc is an open-source contest management system for competitive programming.
+- Mainly, made to be used in my club activities.
+- Main: Pure Go
+- Web: Bootstrap3
+- I'll make this more confortable than the previous project, [popcon](https://github.com/cs3238-tsuzu/popcon) by using Docker.
 
 ## Features
 - Scalable web server & judging system
