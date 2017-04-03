@@ -81,7 +81,7 @@ const ISE500 = `
 </head>
 <body>
 <h1>500 Internal Server Error</h1>
-Some errors occurs in this server.
+Some errors occured in this server.
 </body>
 </html>
 `

@@ -3,37 +3,45 @@ package sctypes
 type SubmissionStatusType int
 
 const (
-	Accepted            SubmissionStatusType = 0
-	WrongAnswer         SubmissionStatusType = 1
-	TimeLimitExceeded   SubmissionStatusType = 2
-	MemoryLimitExceeded SubmissionStatusType = 3
-	RuntimeError        SubmissionStatusType = 4
-	CompileError        SubmissionStatusType = 5
-	InternalError       SubmissionStatusType = 6
-	Judging             SubmissionStatusType = 7
-	InQueue             SubmissionStatusType = 8
+	SubmissionStatusInQueue SubmissionStatusType = iota
+	SubmissionStatusJudging
+	SubmissionStatusAccepted
+	SubmissionStatusWrongAnswer
+	SubmissionStatusTimeLimitExceeded
+	SubmissionStatusMemoryLimitExceeded
+	SubmissionStatusRuntimeError
+	SubmissionStatusCompileError
+	SubmissionStatusInternalError
 )
 
-var StringToSubmissionStatusType = map[string]SubmissionStatusType{
-	"Accepted":            Accepted,
-	"WrongAnswer":         WrongAnswer,
-	"TimeLimitExceeded":   TimeLimitExceeded,
-	"MemoryLimitExceeded": MemoryLimitExceeded,
-	"RuntimeError":        RuntimeError,
-	"CompileError":        CompileError,
-	"InternalError":       InternalError,
-	"Judging":             Judging,
-	"InQueue":             InQueue,
+func (ss SubmissionStatusType) String() string {
+	if v, ok := SubmissionStatusTypeToString[ss]; ok {
+		return v
+	}
+
+	return "<NA>"
+}
+
+var SubmissionStatusTypeFromString = map[string]SubmissionStatusType{
+	"WJ":  SubmissionStatusInQueue,
+	"JG":  SubmissionStatusJudging,
+	"AC":  SubmissionStatusAccepted,
+	"WA":  SubmissionStatusWrongAnswer,
+	"TLE": SubmissionStatusTimeLimitExceeded,
+	"MLE": SubmissionStatusMemoryLimitExceeded,
+	"RE":  SubmissionStatusRuntimeError,
+	"CE":  SubmissionStatusCompileError,
+	"IE":  SubmissionStatusInternalError,
 }
 
 var SubmissionStatusTypeToString = map[SubmissionStatusType]string{
-	Accepted:            "Accepted",
-	WrongAnswer:         "WrongAnswer",
-	TimeLimitExceeded:   "TimeLimitExceeded",
-	MemoryLimitExceeded: "MemoryLimitExceeded",
-	RuntimeError:        "RuntimeError",
-	CompileError:        "CompileError",
-	InternalError:       "InternalError",
-	Judging:             "Judging",
-	InQueue:             "InQueue",
+	SubmissionStatusInQueue:             "WJ",
+	SubmissionStatusJudging:             "JG",
+	SubmissionStatusAccepted:            "AC",
+	SubmissionStatusWrongAnswer:         "WA",
+	SubmissionStatusTimeLimitExceeded:   "TLE",
+	SubmissionStatusMemoryLimitExceeded: "MLE",
+	SubmissionStatusRuntimeError:        "RE",
+	SubmissionStatusCompileError:        "CE",
+	SubmissionStatusInternalError:       "IE",
 }

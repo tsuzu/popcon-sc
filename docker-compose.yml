@@ -60,7 +60,6 @@ services:
             PP_MS_ADDR: "http://ppms:7502"
             PP_TOKEN: ${PP_TOKEN}
             PP_LISTEN: ":80"
-            PP_DATA_DIR: "/data"
             PP_SETTING: "/data/ppweb/setting.json"
             PP_DEBUG_MODE: 1
 volumes:

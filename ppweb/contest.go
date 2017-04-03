@@ -17,7 +17,7 @@ type Contest struct {
 	DescriptionFile string              `gorm:"not null"`
 }
 
-func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype JudgeType) (*ContestProblem, error) {
+func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sctypes.JudgeType) (*ContestProblem, error) {
 	pb, err := mainDB.ContestProblemAdd(c.Cid, pidx, name, time, mem, jtype)
 
 	if err != nil {

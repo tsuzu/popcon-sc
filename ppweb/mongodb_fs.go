@@ -24,6 +24,7 @@ var FS_CATEGORY_TESTCASE_INOUT = "testcase_inout"
 var FS_CATEGORY_CONTEST_DESCRIPTION = "contest_description"
 var FS_CATEGORY_PROBLEM_STATEMENT = "problem_statement"
 var FS_CATEGORY_PROBLEM_CHECKER = "problem_checker"
+var FS_CATEGORY_SUBMISSION_MSG = "submission_msg"
 
 var mainFS *MongoFSManager
 

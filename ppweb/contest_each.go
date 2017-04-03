@@ -475,24 +475,16 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				StatusString string
 			}
 
-			casesMap, err := mainDB.SubmissionGetCase(sid)
-			var cases []SubmissionTestCaseView
+			casesArr, err := mainDB.SubmissionGetCase(sid)
+			var caseViews []SubmissionTestCaseView
 
 			if err == nil {
-				cases = make([]SubmissionTestCaseView, len(*casesMap))
-				idx := 0
-				for k, v := range *casesMap {
-					if k >= len(*casesMap) {
-						k = 0
-					}
-
-					cases[k] = SubmissionTestCaseView{v, SubmissionStatusToString[v.Status]}
-
-					idx++
+				caseViews = make([]SubmissionTestCaseView, 0, len(casesArr))
+				for _, v := range casesArr {
+					caseViews = append(caseViews, SubmissionTestCaseView{v, sctypes.SubmissionStatusTypeToString[v.Status]})
 				}
 			} else {
 				HttpLog().WithError(err).Error("SubmissionGetCase() error")
-
 			}
 
 			msg, err := mainDB.SubmissionGetMsg(sid)
@@ -514,7 +506,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			templateVal := TemplateVal{
 				ContestName: cont.Name,
 				Submission:  *submission,
-				Cases:       cases,
+				Cases:       caseViews,
 				Code:        code,
 				Msg:         msg,
 				UserName:    std.UserName,
@@ -1080,7 +1072,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						pidx, name, time, mem := wrapForm("pidx"), wrapFormStr("problem_name"), wrapForm("time"), wrapForm("mem")
 						jtype, prob, lid, code := wrapForm("type"), wrapFormStr("prob"), wrapForm("lang"), wrapFormStr("code")
 
-						if pidx == -1 || time < 1 || time > 10 || mem < 32 || mem > 1024 || jtype < 0 || jtype > 1 || (jtype == int64(JudgeRunningCode) && lid == -1) {
+						if pidx == -1 || time < 1 || time > 10 || mem < 32 || mem > 1024 || jtype < 0 || jtype > 1 || (jtype == int64(sctypes.JudgeRunningCode) && lid == -1) {
 							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 							return
@@ -1097,7 +1089,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							return
 						}
 
-						if JudgeType(jtype) == JudgeRunningCode {
+						if sctypes.JudgeType(jtype) == sctypes.JudgeRunningCode {
 							if _, err := mainDB.LanguageFind(lid); err != nil {
 								if err == ErrUnknownLanguage {
 									sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
@@ -1117,11 +1109,11 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							cp.Name = name
 							cp.Time = time
 							cp.Mem = mem
-							cp.Type = JudgeType(jtype)
+							cp.Type = sctypes.JudgeType(jtype)
 
 							err = mainDB.ContestProblemUpdate(*cp)
 						} else {
-							cp, err = cont.ProblemAdd(pidx, name, time, mem, JudgeType(jtype))
+							cp, err = cont.ProblemAdd(pidx, name, time, mem, sctypes.JudgeType(jtype))
 						}
 
 						if err != nil {

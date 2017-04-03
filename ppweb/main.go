@@ -12,8 +12,6 @@ import (
 
 	"io/ioutil"
 
-	"path/filepath"
-
 	"crypto/tls"
 
 	"github.com/Sirupsen/logrus"
@@ -83,7 +81,6 @@ func main() {
 	setting.microServicesAddr = os.Getenv("PP_MS_ADDR")
 	setting.internalToken = os.Getenv("PP_TOKEN")
 	setting.listeningEndpoint = os.Getenv("PP_LISTEN")
-	setting.dataDirectory = os.Getenv("PP_DATA_DIR")
 	setting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
 
 	if setting.CertificationWithEmail && (setting.SendmailCommand == nil || len(setting.SendmailCommand) == 0) {
@@ -111,14 +108,6 @@ func main() {
 
 	// ロガー作成
 	InitLogger(logWriter, setting.debugMode)
-
-	dir := settingManager.Get().dataDirectory
-
-	// TODO: Change to gridfs
-	SubmissionDir = filepath.Join(dir, SubmissionDir)
-	if err := os.MkdirAll(SubmissionDir, 0770); err != nil {
-		HttpLog().Fatalf("Creation of SubmissionDir(%s) failed(error: %s)", SubmissionDir, err.Error())
-	}
 
 	// Redis
 	mainRM, err = NewRedisManager(setting.redisAddr, setting.redisPass)

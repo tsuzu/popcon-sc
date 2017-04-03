@@ -10,14 +10,8 @@ import (
 
 	"strings"
 
+	"github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/jinzhu/gorm"
-)
-
-type JudgeType int
-
-const (
-	JudgePerfectMatch JudgeType = iota
-	JudgeRunningCode
 )
 
 type ContestProblemTestCase struct {
@@ -61,14 +55,11 @@ type ContestProblemScoreSet struct {
 
 func (ss *ContestProblemScoreSet) BeforeSave() error {
 	ss.CasesRawString = string(ss.Cases)
-	DBLog().WithField("cases", ss.Cases).Debug("Before Called")
 	return nil
 }
 
 func (ss *ContestProblemScoreSet) AfterFind() error {
 	ss.Cases = ContestProblemScoreSetCasesString(ss.CasesRawString)
-	DBLog().WithField("str", ss.CasesRawString).Debug("After Called")
-
 	return nil
 }
 
@@ -80,8 +71,8 @@ type ContestProblem struct {
 	Time          int64                    `gorm:"not null"` // Second
 	Mem           int64                    `gorm:"not null"` // MB
 	LastModified  int64                    `gorm:"not null"`
-	Score         int                      `gorm:"not null"`
-	Type          JudgeType                `gorm:"not null"`
+	Score         int64                    `gorm:"not null"`
+	Type          sctypes.JudgeType        `gorm:"not null"`
 	StatementFile string                   `gorm:"not null;size:128"`
 	CheckerFile   string                   `gorm:"not null;size:128"`
 	Cases         []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
@@ -261,6 +252,8 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 			return err
 		}
 
+		db.Model(&cp).Update("score", scoreSum)
+
 		f()
 		mainDB.ClearUnassociatedDataWithDB(db)
 		return nil
@@ -306,15 +299,6 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 		return nil
 	})
 
-}
-
-type FakeEmptyReadCloser struct{}
-
-func (r *FakeEmptyReadCloser) Read(b []byte) (n int, err error) {
-	return 0, io.EOF
-}
-func (r *FakeEmptyReadCloser) Close() error {
-	return nil
 }
 
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser, error) {
@@ -417,7 +401,7 @@ func (dm *DatabaseManager) CreateContestProblemTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeLimit, mem int64, jtype JudgeType) (int64, error) {
+func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeLimit, mem int64, jtype sctypes.JudgeType) (int64, error) {
 	cp := ContestProblem{
 		Cid:  cid,
 		Pidx: pidx,

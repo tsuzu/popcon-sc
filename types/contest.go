@@ -37,3 +37,23 @@ var ContestTypeFromString = map[string]ContestType{
 	"AtCoder": ContestTypeAtCoder,
 	"PCK":     ContestTypePCK,
 }
+
+type JudgeType int
+
+const (
+	JudgePerfectMatch JudgeType = iota
+	JudgeRunningCode
+	JudgeInteractive
+)
+
+var JudgeTypeToString = map[JudgeType]string{
+	JudgePerfectMatch: "Perfect Match",
+	JudgeRunningCode:  "Running Code",
+	JudgeInteractive:  "Interactive",
+}
+
+var JudgeTypeFromString = map[string]JudgeType{
+	"Perfect Match": JudgePerfectMatch,
+	"Running Code":  JudgeRunningCode,
+	"Interactive":   JudgeInteractive,
+}
