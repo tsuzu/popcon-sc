@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"text/template"
 
@@ -33,7 +34,7 @@ func AdminHandler() (http.Handler, error) {
 
 			return
 		}
-
+		fmt.Println(req.URL)
 		mux.ServeHTTP(rw, req.WithContext(context.WithValue(context.Background(), ContextValueKeySessionTemplateData, *std)))
 	}
 
@@ -47,9 +48,9 @@ func AdminHandler() (http.Handler, error) {
 		return nil
 	}
 
-	ProcessUntilError(
+	err := ProcessUntilError(
 		func() error {
-			tmpl, err := template.New("").ParseFiles("./html/admin/index_tmpl.html")
+			tmpl, err := template.ParseFiles("./html/admin/index_tmpl.html")
 
 			if err != nil {
 				return err
@@ -63,6 +64,7 @@ func AdminHandler() (http.Handler, error) {
 				// Mustn't be nil
 				std := sessionTemplateData(req)
 
+				rw.WriteHeader(http.StatusOK)
 				tmpl.Execute(rw, TemplateVal{
 					UserName: std.UserName,
 				})
@@ -71,7 +73,7 @@ func AdminHandler() (http.Handler, error) {
 			return nil
 		},
 		func() error {
-			tmpl, err := template.New("").ParseFiles("./html/admin/general_tmpl.html")
+			tmpl, err := template.ParseFiles("./html/admin/general_tmpl.html")
 
 			if err != nil {
 				return err
@@ -111,5 +113,8 @@ func AdminHandler() (http.Handler, error) {
 			return nil
 		})
 
+	if err != nil {
+		return nil, err
+	}
 	return http.HandlerFunc(handler), nil
 }

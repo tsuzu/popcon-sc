@@ -1,5 +1,5 @@
 {
-    "memo": "4d8c67f118689f81f947db0c15ed8e4ebc21d07ed272611778c5715a2c1017c3",
+    "memo": "c194ef3b6bcb9e336da4a75cec42df0dc2a9f78f5a589b2d6fcadac83cfcf64c",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
@@ -19,7 +19,7 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "swarm",
-            "revision": "b83a2c1be34af3bfcc2190c0569ff1f318a8e31a",
+            "revision": "b39c804f0c40ac0639ad5c8a02af21ec8f9af6b0",
             "packages": [
                 "ppms/client",
                 "setting",
@@ -77,9 +77,25 @@
             ]
         },
         {
+            "name": "github.com/gorilla/context",
+            "version": "v1.1",
+            "revision": "1ea25387ff6f684839d82767c1733ff4d4d15d0a",
+            "packages": [
+                "."
+            ]
+        },
+        {
             "name": "github.com/gorilla/handlers",
             "branch": "master",
             "revision": "13d73096a474cac93275c679c7b8a2dc17ddba82",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/gorilla/mux",
+            "version": "v1.3.0",
+            "revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
             "packages": [
                 "."
             ]
@@ -143,7 +159,7 @@
         {
             "name": "golang.org/x/crypto",
             "branch": "master",
-            "revision": "88915ccf7aeb91e9324fe7cf3eddd1531ced61ea",
+            "revision": "c2303dcbe84172e0c0da4c9f083eeca54c06f298",
             "packages": [
                 "ssh/terminal"
             ]
@@ -160,7 +176,7 @@
         {
             "name": "golang.org/x/sys",
             "branch": "master",
-            "revision": "9a7256cb28ed514b4e1e5f68959914c4c28a92e0",
+            "revision": "39e3dc274464e7d2f663aa606a830611bae5f1db",
             "packages": [
                 "unix"
             ]

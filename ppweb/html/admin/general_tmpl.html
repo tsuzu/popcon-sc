@@ -109,7 +109,7 @@
                         <div class="form-inline">
                             <div class="form-group">
                                 <label class="control-label">メール送信用コマンド: </label>
-                                <input type="text" class="form-control" name="sendmail_command" value="{{range $idx, $elm := .Setting.SendMailCommand}}{{if (nq $idx 0)}},{{end}}{{html $elm}}{{end}}" />
+                                <input type="text" class="form-control" name="sendmail_command" value="{{range $idx, $elm := .Setting.SendMailCommand}}{{if (ne $idx 0)}},{{end}}{{html $elm}}{{end}}" />
                             </div>
                         </div>
                         <label>※半角カンマ区切り。{{.Subject}}: 件名, {{.Body}}: 本文: {{.To}}: 宛先アドレス</label>

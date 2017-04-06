@@ -65,11 +65,11 @@ var settingDefault = map[SettingNameType]interface{}{
 	NumberOfDisplayedNews:   5,
 	CertificationWithEmail:  true,
 	SendMailCommand:         "",
-	CSRFConfTokenExpiration: 30,      // min
-	MailConfTokenExpiration: 1400,    // min
-	MailMinInterval:         10,      // min
-	SessionExpiration:       1576800, // min
-	StandardSignupGroup:     1,
+	CSRFConfTokenExpiration: int64(30),   // min
+	MailConfTokenExpiration: int64(1400), // min
+	MailMinInterval:         int64(10),   // min
+	SessionExpiration:       1576800,     // min
+	StandardSignupGroup:     int64(1),
 	PublicHost:              "https://localhost",
 }
 
@@ -180,17 +180,20 @@ func (rsm *RedisSettingManager) GetAll() (*Structure, error) {
 	conn := rsm.pool.Get()
 	defer conn.Close()
 
-	conn.Send("GET", CanCreateUser)
-	conn.Send("GET", CanCreateContest)
-	conn.Send("GET", NumberOfDisplayedNews)
-	conn.Send("GET", CertificationWithEmail)
-	conn.Send("GET", SendMailCommand)
-	conn.Send("GET", CSRFConfTokenExpiration)
-	conn.Send("GET", MailConfTokenExpiration)
-	conn.Send("GET", MailMinInterval)
-	conn.Send("GET", SessionExpiration)
-	conn.Send("GET", StandardSignupGroup)
-	conn.Send("GET", PublicHost)
+	getter := func(s SettingNameType) {
+		conn.Send("GET", settingKeyName(s))
+	}
+	getter(CanCreateUser)
+	getter(CanCreateContest)
+	getter(NumberOfDisplayedNews)
+	getter(CertificationWithEmail)
+	getter(SendMailCommand)
+	getter(CSRFConfTokenExpiration)
+	getter(MailConfTokenExpiration)
+	getter(MailMinInterval)
+	getter(SessionExpiration)
+	getter(StandardSignupGroup)
+	getter(PublicHost)
 	if err := conn.Flush(); err != nil {
 		return nil, err
 	}
