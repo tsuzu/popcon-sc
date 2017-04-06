@@ -23,6 +23,7 @@
         input[type="number"].number-input {
             width: 8em;
         }
+        
         input[type="text"].text-input {
             width: 24em;
         }
@@ -66,7 +67,7 @@
                 <div class="col-xs-12 col-md-8 col-md-offset-2">
                     <div class="alert alert-danger" role="alert">
                         <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
-                        <string>Failed:</strong> {{html .}}
+                        <string>Failed:</strong> {{.}}
                     </div>
                 </div>
             </div>
@@ -80,40 +81,40 @@
                         <label><input type="checkbox" name="can_create_contest" value="1" {{if .Setting.CanCreateContest}}checked{{end}}><b>非管理者のコンテスト作成</b></label>
                     </div>
                     <div class="checkbox">
-                        <label><input type="checkbox" name="certiciation_with_email" value="1" {{if .Setting.CertificationWithEmail}}checked{{end}}><b>メールアドレス認証</b></label>
+                        <label><input type="checkbox" name="certification_with_email" value="1" {{if .Setting.CertificationWithEmail}}checked{{end}}><b>メールアドレス認証</b></label>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">ニュース表示数: </label>
-                                <input type="number" class="form-control number-input" name="number_of_displayed_news" value="{{.Setting.NumberOfDisplayedNews}}" min="1"
-                                    max="1000"/>
+                            <input type="number" class="form-control number-input" name="number_of_displayed_news" value="{{.Setting.NumberOfDisplayedNews}}"
+                                min="1" max="1000" />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">CSRFトークン有効期限(分): </label>
-                                <input type="number" class="form-control number-input" name="cstf_token_expiration" value="{{.Setting.CSRFConfTokenExpiration}}" min="1"
-                                    max="1000" />
+                            <input type="number" class="form-control number-input" name="cstf_token_expiration" value="{{.Setting.CSRFConfTokenExpiration}}"
+                                min="1" />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">メール認証トークン有効期限(分): </label>
-                                <input type="number" class="form-control number-input" name="mail_conf_token_expiration" value="{{.Setting.MailConfTokenExpiration}}"
-                                    min="1" max="1000" />
+                            <input type="number" class="form-control number-input" name="mail_conf_token_expiration" value="{{.Setting.MailConfTokenExpiration}}"
+                                min="1" />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">セッション有効期限(分): </label>
-                            <input type="number" class="form-control number-input" name="session_expiration" value="{{.Setting.SessionExpiration}}" min="1" max="1000"
+                            <input type="number" class="form-control number-input" name="session_expiration" value="{{.Setting.SessionExpiration}}" min="1"
                             />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
-                            <label class="control-label">認証メールインターバル(分): </label>                            
-                            <input type="number" class="form-control number-input" name="mail_min_interval" value="{{.Setting.MailMinInterval}}" min="1" max="1000"
+                            <label class="control-label">認証メールインターバル(分): </label>
+                            <input type="number" class="form-control number-input" name="mail_min_interval" value="{{.Setting.MailMinInterval}}" min="1"
                             />
                         </div>
                     </div>
@@ -136,7 +137,7 @@
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">標準ユーザ登録グループ: </label>
-                            <select name="lang" class="form-control">
+                            <select name="standard_signup_group" class="form-control">
                                 {{$top := .}}
                                 {{range .Groups}}
                                     <option {{if (eq $top.Setting.StandardSignupGroup .Gid)}}selected{{end}} value="{{.Gid}}">{{html .Name}}</option>

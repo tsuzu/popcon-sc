@@ -130,7 +130,7 @@ func AdminHandler() (http.Handler, error) {
 					standardSignupGroup := parseFormInt64(string(ppconfiguration.StandardSignupGroup))
 					publicHost := parseFormStr(string(ppconfiguration.PublicHost))
 
-					var val TemplateVal
+					val.Setting = &ppconfiguration.Structure{}
 
 					failureCheck := func() string {
 						var errs []string
@@ -196,6 +196,7 @@ func AdminHandler() (http.Handler, error) {
 
 						RespondRedirection(rw, "/admin/")
 					} else {
+						val.Error = msg
 
 						val.Groups, err = mainDB.GroupList()
 						if err != nil {

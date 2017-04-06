@@ -369,8 +369,16 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				return
 			}
 
+			var val struct {
+				*User
+				IsAdmin bool
+			}
+
+			val.User = user
+			val.IsAdmin = (val.Gid == GroupAdministrator)
+
 			rw.WriteHeader(http.StatusOK)
-			tmp.Execute(rw, user)
+			tmp.Execute(rw, val)
 		})
 
 		return f, nil

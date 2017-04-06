@@ -55,6 +55,7 @@
             <h1>
                 ユーザ情報
                 <button type="button" class="btn btn-default" onclick="location.href='/userinfo/update_password'">パスワード変更</button>
+                {{if .IsAdmin}}<button type="button" class="btn btn-default" onclick="location.href='/admin'">管理者設定</button>{{end}}
             </h1>
         </div>
         <div class="row">

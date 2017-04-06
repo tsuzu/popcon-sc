@@ -24,7 +24,7 @@ func createWrapFormInt64(req *http.Request) func(str string) int64 {
 	f := createWrapFormStr(req)
 
 	return func(str string) int64 {
-		val, err := strconv.ParseInt(str, 10, 64)
+		val, err := strconv.ParseInt(f(str), 10, 64)
 
 		if err != nil {
 			return -1
