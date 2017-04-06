@@ -58,9 +58,9 @@ func main() {
 	// ロガー作成
 	InitLogger(os.Stdout, environmentalSetting.debugMode)
 
+	var err error
 	// Redis
-	mainRM, err := NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass)
-
+	mainRM, err = NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass)
 	if err != nil {
 		DBLog().WithError(err).Fatal("Redis initialization failed")
 	}

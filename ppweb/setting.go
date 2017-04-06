@@ -14,4 +14,4 @@ type EnvironmentalSetting struct {
 	debugMode           bool
 }
 
-var environmentalSetting *EnvironmentalSetting
+var environmentalSetting EnvironmentalSetting

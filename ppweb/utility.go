@@ -220,3 +220,17 @@ func (r *FakeEmptyReadCloser) Read(b []byte) (n int, err error) {
 func (r *FakeEmptyReadCloser) Close() error {
 	return nil
 }
+
+func ProcessUntilError(functions ...func() error) error {
+	var err error
+
+	for i := range functions {
+		err = functions[i]()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

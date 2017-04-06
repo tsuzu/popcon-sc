@@ -7,12 +7,16 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/types"
 )
 
+// Header name
 const HTTPCookieSession = "popcon_session"
 
+// Location for Time
 var Location = sctypes.Location
 
+// Invalid String for sql.NullString
 var NullStringInvalid = sql.NullString{Valid: false}
 
+// Error templates
 var ErrUnknownProblem = errors.New("Unknown problem")
 var ErrUnknownLanguage = errors.New("Unknown language")
 var ErrUnknownSubmission = errors.New("Unknown submission")
@@ -23,3 +27,9 @@ var ErrUnknownSession = errors.New("Unknown session")
 var ErrUnknownTestcase = errors.New("Unknown testcase")
 var ErrIllegalQuery = errors.New("Illegal Query")
 var ErrFileOpenFailed = errors.New("Failed opening a file")
+
+type ContextValueKeyType int
+
+const (
+	ContextValueKeySessionTemplateData ContextValueKeyType = iota
+)

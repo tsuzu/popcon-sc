@@ -31,6 +31,20 @@ const (
 	PublicHost              SettingNameType = "public_host"
 )
 
+type Structure struct {
+	CanCreateUser           bool
+	CanCreateContest        bool
+	NumberOfDisplayedNews   int
+	CertificationWithEmail  bool
+	SendMailCommand         []string
+	CSRFConfTokenExpiration int64
+	MailConfTokenExpiration int64
+	MailMinInterval         int64
+	SessionExpiration       int
+	StandardSignupGroup     int64
+	PublicHost              string
+}
+
 var setting = map[SettingNameType]ConfigTypeOfValue{
 	CanCreateUser:           ConfigTypeBool,
 	CanCreateContest:        ConfigTypeBool,
@@ -68,11 +82,7 @@ type RedisSettingManager struct {
 }
 
 func NewRedisSettingManager(pool *redis.Pool) (*RedisSettingManager, error) {
-	conn, err := pool.Dial()
-
-	if err != nil {
-		return nil, err
-	}
+	conn := pool.Get()
 	defer conn.Close()
 
 	for k, v := range settingDefault {
@@ -89,11 +99,7 @@ func NewRedisSettingManager(pool *redis.Pool) (*RedisSettingManager, error) {
 }
 
 func (rsm *RedisSettingManager) Get(settingName SettingNameType) (interface{}, error) {
-	conn, err := rsm.pool.Dial()
-
-	if err != nil {
-		return nil, err
-	}
+	conn := rsm.pool.Get()
 	defer conn.Close()
 
 	return conn.Do("GET", settingKeyName(settingName))
@@ -113,11 +119,7 @@ func (rsm *RedisSettingManager) GetBool(settingName SettingNameType) (bool, erro
 }
 
 func (rsm *RedisSettingManager) Set(settingName SettingNameType, val interface{}) error {
-	conn, err := rsm.pool.Dial()
-
-	if err != nil {
-		return err
-	}
+	conn := rsm.pool.Get()
 	defer conn.Close()
 
 	conn.Send("SET", settingKeyName(settingName), val)
@@ -137,6 +139,13 @@ func (rsm *RedisSettingManager) NumberOfDisplayedNews() (int, error) {
 func (rsm *RedisSettingManager) CertificationWithEmail() (bool, error) {
 	return rsm.GetBool(CertificationWithEmail)
 }
+
+func (rsm *RedisSettingManager) sendMailCommandParse(str string) []string {
+	var ret []string
+	json.Unmarshal([]byte(str), ret)
+	return ret
+}
+
 func (rsm *RedisSettingManager) SendMailCommand() ([]string, error) {
 	s, err := rsm.GetString(SendMailCommand)
 
@@ -144,9 +153,7 @@ func (rsm *RedisSettingManager) SendMailCommand() ([]string, error) {
 		return nil, err
 	}
 
-	var ret []string
-	json.Unmarshal([]byte(s), ret)
-	return ret, nil
+	return rsm.sendMailCommandParse(s), nil
 }
 func (rsm *RedisSettingManager) CSRFConfTokenExpiration() (int64, error) {
 	return rsm.GetInt64(CSRFConfTokenExpiration)
@@ -165,6 +172,78 @@ func (rsm *RedisSettingManager) StandardSignupGroup() (int64, error) {
 }
 func (rsm *RedisSettingManager) PublicHost() (string, error) {
 	return rsm.GetString(PublicHost)
+}
+
+func (rsm *RedisSettingManager) GetAll() (*Structure, error) {
+	var err error
+	var str Structure
+	conn := rsm.pool.Get()
+	defer conn.Close()
+
+	conn.Send("GET", CanCreateUser)
+	conn.Send("GET", CanCreateContest)
+	conn.Send("GET", NumberOfDisplayedNews)
+	conn.Send("GET", CertificationWithEmail)
+	conn.Send("GET", SendMailCommand)
+	conn.Send("GET", CSRFConfTokenExpiration)
+	conn.Send("GET", MailConfTokenExpiration)
+	conn.Send("GET", MailMinInterval)
+	conn.Send("GET", SessionExpiration)
+	conn.Send("GET", StandardSignupGroup)
+	conn.Send("GET", PublicHost)
+	if err := conn.Flush(); err != nil {
+		return nil, err
+	}
+
+	str.CanCreateUser, err = redis.Bool(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.CanCreateContest, err = redis.Bool(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.NumberOfDisplayedNews, err = redis.Int(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.CertificationWithEmail, err = redis.Bool(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := redis.String(conn.Receive())
+	str.SendMailCommand = rsm.sendMailCommandParse(s)
+	if err != nil {
+		return nil, err
+	}
+
+	str.CSRFConfTokenExpiration, err = redis.Int64(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.MailConfTokenExpiration, err = redis.Int64(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.MailMinInterval, err = redis.Int64(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.SessionExpiration, err = redis.Int(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.StandardSignupGroup, err = redis.Int64(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+	str.PublicHost, err = redis.String(conn.Receive())
+	if err != nil {
+		return nil, err
+	}
+
+	return &str, nil
 }
 
 func (rsm *RedisSettingManager) CanCreateUserSet(a bool) error {

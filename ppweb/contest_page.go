@@ -333,7 +333,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		if err == nil {
 			templateVal.Contests = *contests
 		} else {
-			HttpLog().WithError(err).WithField("iid", std.Iid).Error("ContestList error")
+			DBLog().WithError(err).WithField("iid", std.Iid).Error("ContestList error")
 		}
 	}
 
@@ -341,5 +341,4 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 
 	rw.WriteHeader(http.StatusOK)
 	ch.Temp.Execute(rw, templateVal)
-
 }

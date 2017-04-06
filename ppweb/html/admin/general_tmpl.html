@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>基本設定 管理者設定| popcon</title>
+    <!--Bootstrap CSS-->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!--jQuery-->
+    <script src="/static/js/jquery-1.12.2.min.js"></script>
+    <!--Bootstrap JS-->
+    <script src="/static/js/bootstrap.min.js"></script>
+    <!--footerFixed JS-->
+    <script src="/static/js/footer-fixed.js"></script>
+    <style>
+        #footer {
+            text-align: center;
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbarEexample">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">popcon</a>
+                </div>
+
+                <div class="collapse navbar-collapse" id="navbarEexample">
+                    <ul class="nav navbar-nav">
+                        <li><a href="/">トップ</a></li>
+                        <li><a href="/onlinejudge/">オンラインジャッジ</a></li>
+                        <li><a href="/contests/">コンテスト</a></li>
+                        <li><a href="/help">ヘルプ</a></li>
+                    </ul>
+                    <div class="navbar-right">
+                        <p class="navbar-text">User: <a href="/userinfo">{{html .UserName}}</a></p>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="contents">
+        <div class="container">
+            <div class="page-header">
+                <h1>基本設定</h1>
+            </div>
+            <div style="margin-top:10px" class="form-group">
+                <form method="POST" action="/admin/general">
+                    <div class="checkbox">
+                        <label><input type="checkbox" name="can_create_user" value="1" checked="{{if .Setting.CanCreateUser}}checked{{end}}"><b>新規ユーザ登録</b></label>
+                    </div>
+                    <div class="checkbox">
+                        <label><input type="checkbox" name="can_create_contest" value="1" checked="{{if .Setting.CanCreateContest}}checked{{end}}"><b>非管理者のコンテスト作成</b></label>
+                    </div>
+                    <div class="checkbox">
+                        <label><input type="checkbox" name="certiciation_with_email" value="1" checked="{{if .Setting.CertificationWithEmail}}checked{{end}}"><b>メールアドレス認証</b></label>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">ニュース表示数: </label>
+                            <input type="number" class="form-control" name="number_of_displayed_news" value="{{.Setting.NumberOfDisplayedNews}}" min="1"
+                                max="1000" />
+                        </div>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">CSRFトークン有効期限(分): </label>
+                            <input type="number" class="form-control" name="cstf_token_expiration" value="{{.Setting.CSRFConfTokenExpiration}}" min="1"
+                                max="1000" />
+                        </div>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">メール認証トークン有効期限(分): </label>
+                            <input type="number" class="form-control" name="mail_conf_token_expiration" value="{{.Setting.MailConfTokenExpiration}}"
+                                min="1" max="1000" />
+                        </div>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">セッション有効期限(分): </label>
+                            <input type="number" class="form-control" name="session_expiration" value="{{.Setting.SessionExpiration}}" min="1" max="1000"
+                            />
+                        </div>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">認証メールインターバル(分): </label>
+                            <input type="number" class="form-control" name="mail_min_interval" value="{{.Setting.MailMinInterval}}" min="1" max="1000"/>
+                        </div>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">ホストアドレス(※メールアドレス認証用): </label>
+                            <input type="text" class="form-control" name="public_host" value="{{html .Setting.PublicHost}}" />
+                        </div>
+                    </div>
+                    <div style="margin-top:10px">
+                        <div class="form-inline">
+                            <div class="form-group">
+                                <label class="control-label">メール送信用コマンド: </label>
+                                <input type="text" class="form-control" name="sendmail_command" value="{{range $idx, $elm := .Setting.SendMailCommand}}{{if (nq $idx 0)}},{{end}}{{html $elm}}{{end}}" />
+                            </div>
+                        </div>
+                        <label>※半角カンマ区切り。{{.Subject}}: 件名, {{.Body}}: 本文: {{.To}}: 宛先アドレス</label>
+                    </div>
+                    <div style="margin-top:10px" class="form-inline">
+                        <div class="form-group">
+                            <label class="control-label">標準ユーザ登録グループ: </label>
+                            <select name="lang" class="form-control">
+                                <option value="0">Administrator</option>
+                                {{range .Groups}}
+                                    <option value="{{.Gid}}">{{html .Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 5px;" class="form-actions">
+                        <button type="submit" class="btn btn-primary">更新</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div style="margin-top:10px;" class="container">
+            <footer class="container-fluid" id="footer">
+                <small>© 2017 Tsuzu</small>
+            </footer>
+        </div>
+    </div>
+</body>
+
+</html>

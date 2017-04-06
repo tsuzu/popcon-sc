@@ -1,5 +1,5 @@
 {
-    "memo": "8788f0fbd6d8ea828a187cf098ec6d5ea505356cf584aaa24eb6acd4c783c259",
+    "memo": "4d8c67f118689f81f947db0c15ed8e4ebc21d07ed272611778c5715a2c1017c3",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
@@ -19,9 +19,10 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "swarm",
-            "revision": "037f603b433b10085f9b0510aefdd501cb27a781",
+            "revision": "b83a2c1be34af3bfcc2190c0569ff1f318a8e31a",
             "packages": [
                 "ppms/client",
+                "setting",
                 "types"
             ]
         },

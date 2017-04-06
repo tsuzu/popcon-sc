@@ -179,33 +179,6 @@ func (rm *RedisManager) TokenGenerateAndRegisterWithValue(service string, expira
 	return token, nil
 }
 
-func (rm *RedisManager) StandardSignupGroupSet(gid int64) error {
-	conn := rm.pool.Get()
-	defer conn.Close()
-	if err := conn.Send("SET", "standard_signup_group", gid); err != nil {
-		return err
-	}
-
-	return conn.Flush()
-}
-
-func (rm *RedisManager) StandardSignupGroupGet() (int64, error) {
-	conn := rm.pool.Get()
-	defer conn.Close()
-
-	gid, err := redis.Int64(conn.Do("GET", "standard_signup_group"))
-
-	if err != nil {
-		if err == redis.ErrNil {
-			defer rm.StandardSignupGroupSet(1)
-			return 1, nil
-		}
-		return 0, err
-	}
-
-	return gid, nil
-}
-
 func (rm *RedisManager) UniqueFileID(category string) (int64, error) {
 	conn := rm.pool.Get()
 	defer conn.Close()

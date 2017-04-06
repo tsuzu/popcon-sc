@@ -929,68 +929,14 @@ func CreateHandlers() (map[string]http.Handler, error) {
 	}
 
 	// Debug request
-	res["/admin"], err = func() (*http.HandlerFunc, error) {
-		tmp, err := template.ParseFiles("./html/admin_tmpl.html")
+	res["/admin/"], err = func() (http.Handler, error) {
+		handler, err := AdminHandler()
 
 		if err != nil {
 			return nil, err
 		}
 
-		f := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			err := req.ParseForm()
-
-			if err != nil {
-				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
-
-				return
-			}
-
-			std, err := ParseRequestForUserData(req)
-
-			if err != nil || std.Gid != 0 {
-				RespondRedirection(rw, "/")
-
-				return
-			}
-
-			wrapFormStr := createWrapFormStr(req)
-
-			/*type TeplateVal struct {
-				ReCAPTCHA bool
-				Msg string
-				UserID string
-				UserName string
-				Email string
-				Password string
-				ReCAPTCHASite string
-			}*/
-
-			if req.Method == "GET" {
-				tmp.Execute(rw, map[string]string{"UserName": std.UserName})
-			} else {
-				id := wrapFormStr("id")
-				name := wrapFormStr("name")
-				pass := wrapFormStr("password")
-
-				if len(id) == 0 || len(name) == 0 || len(pass) == 0 {
-					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
-
-					return
-				}
-
-				_, err := mainDB.UserAdd(id, name, pass, NullStringCreate(id+"@hoge.com"), 1, true)
-
-				if err != nil {
-					rw.WriteHeader(http.StatusBadRequest)
-					rw.Write([]byte("BadRequest: " + err.Error()))
-					return
-				}
-
-				RespondRedirection(rw, "/admin")
-			}
-		})
-
-		return &f, nil
+		return http.StripPrefix("/admin", handler), nil
 	}()
 
 	if err != nil {
