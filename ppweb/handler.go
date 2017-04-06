@@ -87,12 +87,8 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 			std, err := ParseRequestForSession(req)
 
-			if std == nil || err != nil {
-				std = &SessionTemplateData{
-					IsSignedIn: false,
-					UserID:     "",
-					UserName:   "",
-				}
+			if err != nil && err != ErrUnknownSession {
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 			}
 
 			cnt, err := mainRM.NumberOfDisplayedNews()
@@ -109,7 +105,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			if err != nil {
 				news = make([]News, 0)
 
-				DBLog().WithError(err).Error("NewsGet failed")
+				DBLog().WithError(err).Error("NewsGet() error")
 			}
 
 			type IndexResp struct {
@@ -125,7 +121,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			}
 
 			rw.WriteHeader(http.StatusOK)
-			tmp.Execute(rw, *resp)
+			tmp.Execute(rw, resp)
 		})
 
 		return f, nil
@@ -428,7 +424,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			token, err := mainRM.TokenGenerateAndRegisterWithValue(UPDATEPASSWORDSERVICE, time.Duration(exp)*time.Minute, user.Iid)
 
 			if err != nil {
-				DBLog().WithError(err).Error("Token generation and registration failed")
+				DBLog().WithError(err).Error("TokenGenerateAndRegisterWithValue() error")
 
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 

@@ -27,9 +27,13 @@ var ErrUnknownSession = errors.New("Unknown session")
 var ErrUnknownTestcase = errors.New("Unknown testcase")
 var ErrIllegalQuery = errors.New("Illegal Query")
 var ErrFileOpenFailed = errors.New("Failed opening a file")
+var ErrKeyDuplication = errors.New("Key Duplication")
 
 type ContextValueKeyType int
 
 const (
 	ContextValueKeySessionTemplateData ContextValueKeyType = iota
 )
+
+const GroupAdministrator int64 = 0
+const GroupAdminiStratorName = "Administrator"

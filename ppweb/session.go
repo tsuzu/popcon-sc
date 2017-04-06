@@ -13,11 +13,10 @@ type Session struct {
 }
 
 type SessionTemplateData struct {
-	IsSignedIn bool
-	Iid        int64
-	UserID     string
-	UserName   string
-	Gid        int64
+	Iid      int64
+	UserID   string
+	UserName string
+	Gid      int64
 }
 
 func (dm *DatabaseManager) CreateSessionTable() error {
@@ -38,7 +37,7 @@ func GetSessionTemplateData(sessionKey string) (*SessionTemplateData, error) {
 		return nil, err
 	}
 
-	return &SessionTemplateData{true, user.Iid, user.Uid, user.UserName, user.Gid}, nil
+	return &SessionTemplateData{user.Iid, user.Uid, user.UserName, user.Gid}, nil
 }
 
 // GetSessionUserData returns an User object

@@ -19,6 +19,13 @@
             text-align: center;
             padding-bottom: 15px;
         }
+        
+        input[type="number"].number-input {
+            width: 8em;
+        }
+        input[type="text"].text-input {
+            width: 24em;
+        }
     </style>
 </head>
 
@@ -54,73 +61,85 @@
             <div class="page-header">
                 <h1>基本設定</h1>
             </div>
+            {{with .Error}}
+            <div class="row">
+                <div class="col-xs-12 col-md-8 col-md-offset-2">
+                    <div class="alert alert-danger" role="alert">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
+                        <string>Failed:</strong> {{html .}}
+                    </div>
+                </div>
+            </div>
+            {{end}}
             <div style="margin-top:10px" class="form-group">
                 <form method="POST" action="/admin/general">
                     <div class="checkbox">
-                        <label><input type="checkbox" name="can_create_user" value="1" checked="{{if .Setting.CanCreateUser}}checked{{end}}"><b>新規ユーザ登録</b></label>
+                        <label><input type="checkbox" name="can_create_user" value="1" {{if .Setting.CanCreateUser}}checked{{end}}><b>新規ユーザ登録</b></label>
                     </div>
                     <div class="checkbox">
-                        <label><input type="checkbox" name="can_create_contest" value="1" checked="{{if .Setting.CanCreateContest}}checked{{end}}"><b>非管理者のコンテスト作成</b></label>
+                        <label><input type="checkbox" name="can_create_contest" value="1" {{if .Setting.CanCreateContest}}checked{{end}}><b>非管理者のコンテスト作成</b></label>
                     </div>
                     <div class="checkbox">
-                        <label><input type="checkbox" name="certiciation_with_email" value="1" checked="{{if .Setting.CertificationWithEmail}}checked{{end}}"><b>メールアドレス認証</b></label>
+                        <label><input type="checkbox" name="certiciation_with_email" value="1" {{if .Setting.CertificationWithEmail}}checked{{end}}><b>メールアドレス認証</b></label>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">ニュース表示数: </label>
-                            <input type="number" class="form-control" name="number_of_displayed_news" value="{{.Setting.NumberOfDisplayedNews}}" min="1"
-                                max="1000" />
+                                <input type="number" class="form-control number-input" name="number_of_displayed_news" value="{{.Setting.NumberOfDisplayedNews}}" min="1"
+                                    max="1000"/>
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">CSRFトークン有効期限(分): </label>
-                            <input type="number" class="form-control" name="cstf_token_expiration" value="{{.Setting.CSRFConfTokenExpiration}}" min="1"
-                                max="1000" />
+                                <input type="number" class="form-control number-input" name="cstf_token_expiration" value="{{.Setting.CSRFConfTokenExpiration}}" min="1"
+                                    max="1000" />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">メール認証トークン有効期限(分): </label>
-                            <input type="number" class="form-control" name="mail_conf_token_expiration" value="{{.Setting.MailConfTokenExpiration}}"
-                                min="1" max="1000" />
+                                <input type="number" class="form-control number-input" name="mail_conf_token_expiration" value="{{.Setting.MailConfTokenExpiration}}"
+                                    min="1" max="1000" />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">セッション有効期限(分): </label>
-                            <input type="number" class="form-control" name="session_expiration" value="{{.Setting.SessionExpiration}}" min="1" max="1000"
+                            <input type="number" class="form-control number-input" name="session_expiration" value="{{.Setting.SessionExpiration}}" min="1" max="1000"
                             />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
-                            <label class="control-label">認証メールインターバル(分): </label>
-                            <input type="number" class="form-control" name="mail_min_interval" value="{{.Setting.MailMinInterval}}" min="1" max="1000"/>
+                            <label class="control-label">認証メールインターバル(分): </label>                            
+                            <input type="number" class="form-control number-input" name="mail_min_interval" value="{{.Setting.MailMinInterval}}" min="1" max="1000"
+                            />
                         </div>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">ホストアドレス(※メールアドレス認証用): </label>
-                            <input type="text" class="form-control" name="public_host" value="{{html .Setting.PublicHost}}" />
+                            <input type="text" class="form-control text-input" name="public_host" value="{{html .Setting.PublicHost}}" />
                         </div>
                     </div>
                     <div style="margin-top:10px">
                         <div class="form-inline">
                             <div class="form-group">
                                 <label class="control-label">メール送信用コマンド: </label>
-                                <input type="text" class="form-control" name="sendmail_command" value="{{range $idx, $elm := .Setting.SendMailCommand}}{{if (ne $idx 0)}},{{end}}{{html $elm}}{{end}}" />
+                                <input type="text" class="form-control text-input" name="sendmail_command" value="{{range $idx, $elm := .Setting.SendMailCommand}}{{if (ne $idx 0)}},{{end}}{{html $elm}}{{end}}"
+                                />
                             </div>
                         </div>
-                        <label>※半角カンマ区切り。{{.Subject}}: 件名, {{.Body}}: 本文: {{.To}}: 宛先アドレス</label>
+                        <label>※半角カンマ区切り。実行はシェルを経由しないため環境変数は使えません。{{"{{.Subject}}: 件名, {{.Body}}: 本文: {{.To}}: 宛先アドレス"}}</label>
                     </div>
                     <div style="margin-top:10px" class="form-inline">
                         <div class="form-group">
                             <label class="control-label">標準ユーザ登録グループ: </label>
                             <select name="lang" class="form-control">
-                                <option value="0">Administrator</option>
+                                {{$top := .}}
                                 {{range .Groups}}
-                                    <option value="{{.Gid}}">{{html .Name}}</option>
+                                    <option {{if (eq $top.Setting.StandardSignupGroup .Gid)}}selected{{end}} value="{{.Gid}}">{{html .Name}}</option>
                                 {{end}}
                             </select>
                         </div>

@@ -20,18 +20,25 @@ func ArgumentsToArray(vals ...interface{}) []interface{} {
 	return vals
 }
 
-func createWrapForm(req *http.Request) func(str string) int64 {
-	return func(str string) int64 {
-		arr, has := req.Form[str]
-		if has && len(arr) != 0 {
-			val, err := strconv.ParseInt(arr[0], 10, 64)
+func createWrapFormInt64(req *http.Request) func(str string) int64 {
+	f := createWrapFormStr(req)
 
-			if err != nil {
-				return -1
-			}
-			return val
+	return func(str string) int64 {
+		val, err := strconv.ParseInt(str, 10, 64)
+
+		if err != nil {
+			return -1
 		}
-		return -1
+
+		return val
+	}
+}
+
+func createWrapFormInt(req *http.Request) func(str string) int {
+	f := createWrapFormInt64(req)
+
+	return func(str string) int {
+		return int(f(str))
 	}
 }
 
@@ -143,7 +150,6 @@ func CreateAdminUserAutomatically() bool {
 
 		return true
 	}
-	mainDB.GroupAdd("general")
 
 	return false
 }

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"text/template"
 
 	"context"
+
+	"strings"
 
 	"github.com/cs3238-tsuzu/popcon-sc/setting"
 	"github.com/cs3238-tsuzu/popcon-sc/types"
@@ -17,14 +18,14 @@ func AdminHandler() (http.Handler, error) {
 	handler := func(rw http.ResponseWriter, req *http.Request) {
 		std, err := ParseRequestForSession(req)
 
-		if err != nil {
-			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+		if err == ErrUnknownSession {
+			RespondRedirection(rw, "/login?comeback=/admin/")
 
 			return
 		}
 
-		if !std.IsSignedIn {
-			RespondRedirection(rw, "/login?comeback=/admin/")
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 			return
 		}
@@ -34,7 +35,6 @@ func AdminHandler() (http.Handler, error) {
 
 			return
 		}
-		fmt.Println(req.URL)
 		mux.ServeHTTP(rw, req.WithContext(context.WithValue(context.Background(), ContextValueKeySessionTemplateData, *std)))
 	}
 
@@ -64,7 +64,6 @@ func AdminHandler() (http.Handler, error) {
 				// Mustn't be nil
 				std := sessionTemplateData(req)
 
-				rw.WriteHeader(http.StatusOK)
 				tmpl.Execute(rw, TemplateVal{
 					UserName: std.UserName,
 				})
@@ -80,6 +79,7 @@ func AdminHandler() (http.Handler, error) {
 			}
 
 			type TemplateVal struct {
+				Error    string
 				UserName string
 				Setting  *ppconfiguration.Structure
 				Groups   []Group
@@ -90,24 +90,128 @@ func AdminHandler() (http.Handler, error) {
 
 				var val TemplateVal
 				val.UserName = std.UserName
-				val.Setting, err = mainRM.GetAll()
+				if req.Method == "GET" {
+					val.Setting, err = mainRM.GetAll()
 
-				if err != nil {
-					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-					DBLog().WithError(err).Error("GetAll() error")
+					if err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+						DBLog().WithError(err).Error("GetAll() error")
+
+						return
+					}
+
+					val.Groups, err = mainDB.GroupList()
+					if err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+						DBLog().WithError(err).Error("GroupList() error")
+
+						return
+					}
+
+					tmpl.Execute(rw, val)
+				} else if req.Method == "POST" {
+					if err := req.ParseForm(); err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+						return
+					}
+					parseForm := createWrapFormInt(req)
+					parseFormInt64 := createWrapFormInt64(req)
+					parseFormStr := createWrapFormStr(req)
+
+					canCreateUser := parseForm(string(ppconfiguration.CanCreateUser)) == 1
+					canCreateContest := parseForm(string(ppconfiguration.CanCreateContest)) == 1
+					numberOfDisplayedNews := parseForm(string(ppconfiguration.NumberOfDisplayedNews))
+					certificationWithEmail := parseForm(string(ppconfiguration.CertificationWithEmail)) == 1
+					sendMailCommand := strings.Split(parseFormStr(string(ppconfiguration.SendMailCommand)), ",")
+					csrfConfTokenExpiration := parseFormInt64(string(ppconfiguration.CSRFConfTokenExpiration))
+					mailConfTokenExpiration := parseFormInt64(string(ppconfiguration.MailConfTokenExpiration))
+					mailMinInterval := parseFormInt64(string(ppconfiguration.MailMinInterval))
+					sessionExpiration := parseForm(string(ppconfiguration.SessionExpiration))
+					standardSignupGroup := parseFormInt64(string(ppconfiguration.StandardSignupGroup))
+					publicHost := parseFormStr(string(ppconfiguration.PublicHost))
+
+					var val TemplateVal
+
+					failureCheck := func() string {
+						var errs []string
+						val.Setting.CanCreateUser = canCreateUser
+						val.Setting.CanCreateContest = canCreateContest
+						val.Setting.CertificationWithEmail = certificationWithEmail
+						val.Setting.SendMailCommand = sendMailCommand
+						val.Setting.PublicHost = publicHost
+
+						if numberOfDisplayedNews > 0 && numberOfDisplayedNews <= 1000 {
+							val.Setting.NumberOfDisplayedNews = numberOfDisplayedNews
+						} else {
+							errs = append(errs, "ニュース表示数の値が不正です。")
+						}
+						if csrfConfTokenExpiration > 0 {
+							val.Setting.CSRFConfTokenExpiration = csrfConfTokenExpiration
+						} else {
+							errs = append(errs, "CSRFトークン有効期限の値が不正です。")
+						}
+						if mailConfTokenExpiration > 0 {
+							val.Setting.MailConfTokenExpiration = mailConfTokenExpiration
+						} else {
+							errs = append(errs, "メール認証トークン有効期限の値が不正です。")
+						}
+						if mailMinInterval > 0 {
+							val.Setting.MailMinInterval = mailMinInterval
+						} else {
+							errs = append(errs, "メール送信最小インターバルの値が不正です。")
+						}
+
+						if sessionExpiration > 0 {
+							val.Setting.SessionExpiration = sessionExpiration
+						} else {
+							errs = append(errs, "セッション有効期限の値が不正です。")
+						}
+
+						if standardSignupGroup > 0 {
+							_, err := mainDB.GroupFind(standardSignupGroup)
+
+							if err == ErrUnknownGroup {
+								errs = append(errs, "登録されていない、または削除されたグループです。")
+							} else {
+								if err != nil {
+									DBLog().WithError(err).Error("GroupFind() error")
+								}
+								val.Setting.StandardSignupGroup = standardSignupGroup
+							}
+						}
+
+						return strings.Join(errs, "<br>")
+					}
+
+					if msg := failureCheck(); len(msg) == 0 {
+						err := mainRM.SetAll(val.Setting)
+
+						if err != nil {
+							DBLog().WithError(err).Error("SetAll() error")
+
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+							return
+						}
+
+						RespondRedirection(rw, "/admin/")
+					} else {
+
+						val.Groups, err = mainDB.GroupList()
+						if err != nil {
+							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+							DBLog().WithError(err).Error("GroupList() error")
+
+							return
+						}
+
+						tmpl.Execute(rw, val)
+					}
+				} else {
+					sctypes.ResponseTemplateWrite(http.StatusNotImplemented, rw)
 
 					return
 				}
-
-				val.Groups, err = mainDB.GroupList()
-				if err != nil {
-					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-					DBLog().WithError(err).Error("GroupList() error")
-
-					return
-				}
-
-				tmpl.Execute(rw, val)
 			})
 
 			return nil

@@ -206,7 +206,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			return
 		}
 
-		wrapForm := createWrapForm(req)
+		wrapForm := createWrapFormInt64(req)
 
 		page := int(wrapForm("p"))
 
@@ -304,7 +304,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		}
 
 		if req.URL.Path == "" {
-			wrapForm := createWrapForm(req)
+			wrapForm := createWrapFormInt64(req)
 
 			wrapFormStr := createWrapFormStr(req)
 
@@ -587,7 +587,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			rw.WriteHeader(http.StatusOK)
 			ceh.SubmitPage.Execute(rw, templateVal)
 		} else if req.Method == "POST" {
-			wrapForm := createWrapForm(req)
+			wrapForm := createWrapFormInt64(req)
 
 			wrapFormStr := createWrapFormStr(req)
 
@@ -713,7 +713,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 				return
 			} else if req.Method == "POST" {
-				wrapForm := createWrapForm(req)
+				wrapForm := createWrapFormInt64(req)
 
 				target, id := wrapForm("target"), wrapForm("id")
 
@@ -1001,7 +1001,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						Code        string
 					}
 
-					wrapForm := createWrapForm(req)
+					wrapForm := createWrapFormInt64(req)
 
 					wrapFormStr := createWrapFormStr(req)
 

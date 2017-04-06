@@ -1,7 +1,7 @@
 package ppconfiguration
 
 import (
-	"encoding/json"
+	"strings"
 
 	"github.com/garyburd/redigo/redis"
 )
@@ -50,7 +50,7 @@ var setting = map[SettingNameType]ConfigTypeOfValue{
 	CanCreateContest:        ConfigTypeBool,
 	NumberOfDisplayedNews:   ConfigTypeInt,
 	CertificationWithEmail:  ConfigTypeBool,
-	SendMailCommand:         ConfigTypeString, // []string -> json
+	SendMailCommand:         ConfigTypeString, // []string -> split by ,
 	CSRFConfTokenExpiration: ConfigTypeInt64,  // min
 	MailConfTokenExpiration: ConfigTypeInt64,  // min
 	MailMinInterval:         ConfigTypeInt64,  // min
@@ -141,9 +141,7 @@ func (rsm *RedisSettingManager) CertificationWithEmail() (bool, error) {
 }
 
 func (rsm *RedisSettingManager) sendMailCommandParse(str string) []string {
-	var ret []string
-	json.Unmarshal([]byte(str), ret)
-	return ret
+	return strings.Split(str, ",")
 }
 
 func (rsm *RedisSettingManager) SendMailCommand() ([]string, error) {
@@ -262,9 +260,7 @@ func (rsm *RedisSettingManager) CertificationWithEmailSet(a bool) error {
 	return rsm.Set(CertificationWithEmail, a)
 }
 func (rsm *RedisSettingManager) SendMailCommandSet(a []string) error {
-	b, _ := json.Marshal(a)
-
-	return rsm.Set(SendMailCommand, string(b))
+	return rsm.Set(SendMailCommand, strings.Join(a, ","))
 }
 func (rsm *RedisSettingManager) CSRFConfTokenExpirationSet(a int64) error {
 	return rsm.Set(CSRFConfTokenExpiration, a)
@@ -283,4 +279,26 @@ func (rsm *RedisSettingManager) StandardSignupGroupSet(a int64) error {
 }
 func (rsm *RedisSettingManager) PublicHostSet(a string) error {
 	return rsm.Set(PublicHost, a)
+}
+
+func (rsm *RedisSettingManager) SetAll(str *Structure) error {
+	conn := rsm.pool.Get()
+
+	setter := func(k SettingNameType, v interface{}) {
+		conn.Send("SET", settingKeyName(k), v)
+	}
+
+	setter(CanCreateUser, str.CanCreateUser)
+	setter(CanCreateContest, str.CanCreateContest)
+	setter(NumberOfDisplayedNews, str.NumberOfDisplayedNews)
+	setter(CertificationWithEmail, str.CertificationWithEmail)
+	setter(SendMailCommand, strings.Join(str.SendMailCommand, ","))
+	setter(CSRFConfTokenExpiration, str.CSRFConfTokenExpiration)
+	setter(MailConfTokenExpiration, str.MailConfTokenExpiration)
+	setter(MailMinInterval, str.MailMinInterval)
+	setter(SessionExpiration, str.SessionExpiration)
+	setter(StandardSignupGroup, str.StandardSignupGroup)
+	setter(PublicHost, str.PublicHost)
+
+	return conn.Flush()
 }

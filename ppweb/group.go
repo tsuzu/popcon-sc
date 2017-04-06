@@ -15,58 +15,68 @@ func (dm *DatabaseManager) CreateGroupTable() error {
 		return err
 	}
 
+	dm.GroupAdd("General")
+
 	return nil
 }
 
 // GroupAdd adds a new group
 // len(groupName) <= 50
 func (dm *DatabaseManager) GroupAdd(name string) (int64, error) {
+	if name == GroupAdminiStratorName {
+		return 0, ErrKeyDuplication
+	}
+
 	if len(name) > 50 {
 		return 0, errors.New("len(groupName) > 50")
 	}
 
-	res, err := dm.db.DB().Exec("insert into group (name) values (?)", name)
+	group := Group{
+		Name: name,
+	}
 
-	if err != nil {
+	if err := dm.db.Create(&group).Error; err != nil {
 		return 0, err
 	}
 
-	return res.LastInsertId()
+	return group.Gid, nil
 }
 
 // GroupFind finds a group with groupID
 func (dm *DatabaseManager) GroupFind(gid int64) (*Group, error) {
-	var resulsts []Group
+	if gid == 0 {
+		return &Group{
+			Gid:  0,
+			Name: GroupAdminiStratorName,
+		}, nil
+	}
 
-	//err := dm.db.Select(&resulsts, dm.db.Where("gid", "=", gid))
-	err := error(nil)
+	var result Group
 
-	if err != nil {
+	if err := dm.db.Find(&result, gid).Error; err != nil {
 		return nil, err
 	}
 
-	if len(resulsts) == 0 {
-		return nil, ErrUnknownGroup
-	}
-
-	return &resulsts[0], nil
+	return &result, nil
 }
 
 // GroupRemove removes from groups
 func (dm *DatabaseManager) GroupRemove(gid int64) error {
-	//	_, err := dm.db.Delete(&Group{Gid: gid})
-	err := error(nil)
-
-	return err
+	return dm.db.Delete(Group{}, gid).Error
 }
 
 func (dm *DatabaseManager) GroupList() ([]Group, error) {
 	var results []Group
-	err := dm.db.Select(&results).Error
 
-	if err != nil {
+	if err := dm.db.Find(&results).Error; err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	res := make([]Group, len(results)+1)
+	res[0] = Group{Gid: 0, Name: GroupAdminiStratorName}
+	for i := range results {
+		res[i+1] = results[i]
+	}
+
+	return res, nil
 }

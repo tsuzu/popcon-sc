@@ -274,7 +274,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	wrapForm := createWrapForm(req)
+	wrapForm := createWrapFormInt64(req)
 
 	page := int(wrapForm("p"))
 
