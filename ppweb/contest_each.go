@@ -12,7 +12,8 @@ import (
 
 	"io"
 
-	"github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
@@ -35,7 +36,7 @@ type ContestEachHandler struct {
 	RankingPage                  *template.Template
 }
 
-func (ceh *ContestEachHandler) checkAdmin(cont *Contest, std SessionTemplateData) bool {
+func (ceh *ContestEachHandler) checkAdmin(cont *database.Contest, std database.SessionTemplateData) bool {
 	if std.Gid == 0 {
 		return true
 	}
@@ -47,7 +48,7 @@ func (ceh *ContestEachHandler) checkAdmin(cont *Contest, std SessionTemplateData
 	return false
 }
 
-func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (http.HandlerFunc, error) {
+func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplateData) (http.HandlerFunc, error) {
 	cont, err := mainDB.ContestFind(cid)
 
 	if err != nil {
@@ -92,7 +93,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ManagementButtonActive bool
 		}
 
-		desc, err := (&Contest{Cid: cid}).DescriptionLoad()
+		desc, err := (&database.Contest{Cid: cid}).DescriptionLoad()
 
 		if err != nil {
 			desc = ""
@@ -134,12 +135,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				probList, err := mainDB.ContestProblemList(cid)
 
 				if err != nil {
-					probList = []ContestProblem{}
+					probList = []database.ContestProblem{}
 				}
 
 				type TemplateVal struct {
 					ContestName string
-					Problems    []ContestProblem
+					Problems    []database.ContestProblem
 					UserName    string
 					Cid         int64
 				}
@@ -185,7 +186,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			html := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
 
 			type TemplateVal struct {
-				ContestProblem
+				database.ContestProblem
 				ContestName string
 				Cid         int64
 				Text        string
@@ -215,7 +216,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 		}
 
 		type RankingRow2 struct {
-			RankingRow
+			database.RankingRow
 			Rank int
 		}
 
@@ -223,7 +224,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			ContestName string
 			Cid         int64
 			UserName    string
-			Problems    []ContestProblem
+			Problems    []database.ContestProblem
 			Ranking     []RankingRow2
 			Current     int
 			MaxPage     int
@@ -359,9 +360,9 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				UserName    string
 				Cid         int64
 				Uid         string
-				Submissions []SubmissionView
-				Problems    []ContestProblem
-				Languages   []Language
+				Submissions []database.SubmissionView
+				Problems    []database.ContestProblem
+				Languages   []database.Language
 				Current     int
 				MaxPage     int
 				Pagination  []PaginationHelper
@@ -439,7 +440,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			submission, err := mainDB.SubmissionViewFind(sid, cid)
 
-			if err == ErrUnknownSubmission {
+			if err == database.ErrUnknownSubmission {
 				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
@@ -471,7 +472,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			}
 
 			type SubmissionTestCaseView struct {
-				SubmissionTestCase
+				database.SubmissionTestCase
 				StatusString string
 			}
 
@@ -495,7 +496,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			type TemplateVal struct {
 				ContestName string
-				Submission  SubmissionView
+				Submission  database.SubmissionView
 				Cases       []SubmissionTestCaseView
 				Code        string
 				Msg         string
@@ -542,15 +543,15 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 				ContestName string
 				UserName    string
 				Cid         int64
-				Problems    []ContestProblem
-				Languages   []Language
+				Problems    []database.ContestProblem
+				Languages   []database.Language
 				Prob        int64
 			}
 
 			list, err := mainDB.ContestProblemListLight(cid)
 
 			if err != nil {
-				list = []ContestProblem{}
+				list = []database.ContestProblem{}
 
 				HttpLog().WithError(err).Error("ContestProblemListLight() error")
 			}
@@ -558,7 +559,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			lang, err := mainDB.LanguageActiveList()
 
 			if err != nil {
-				lang = []Language{}
+				lang = []database.Language{}
 
 				HttpLog().WithError(err).Error("LanguageList() error")
 			}
@@ -604,7 +605,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			prob, err := mainDB.ContestProblemFind2(cid, pid)
 
 			if err != nil {
-				if err == ErrUnknownProblem {
+				if err == database.ErrUnknownProblem {
 					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 					return
@@ -619,7 +620,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 			_, err = mainDB.LanguageFind(lid)
 
 			if err != nil {
-				if err == ErrUnknownLanguage {
+				if err == database.ErrUnknownLanguage {
 					rw.WriteHeader(http.StatusBadRequest)
 					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
@@ -727,7 +728,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					sm, err := mainDB.SubmissionFind(id)
 
 					if err != nil {
-						if err == ErrUnknownSubmission {
+						if err == database.ErrUnknownSubmission {
 							respondTemp("該当する提出がありません。")
 						} else {
 							DBLog().WithError(err).Error("SubmissionFind error")
@@ -760,7 +761,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					cp, err := mainDB.ContestProblemFind2(cid, id)
 
 					if err != nil {
-						if err == ErrUnknownProblem {
+						if err == database.ErrUnknownProblem {
 							respondTemp("該当する問題がありません。")
 						} else {
 							DBLog().WithError(err).Error("ContestProblemFind2 error")
@@ -918,7 +919,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					}
 				}
 
-				err = (&Contest{Cid: cid}).DescriptionUpdate(description)
+				err = (&database.Contest{Cid: cid}).DescriptionUpdate(description)
 
 				if err != nil {
 					HttpLog().WithError(err).Error("DescriptionUpdate() error")
@@ -926,7 +927,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/")
 			} else if req.Method == "GET" {
-				desc, _ := (&Contest{Cid: cid}).DescriptionLoad()
+				desc, _ := (&database.Contest{Cid: cid}).DescriptionLoad()
 
 				templateVal := TemplateVal{
 					Cid:         cid,
@@ -951,7 +952,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						Cid         int64
 						ContestName string
 						UserName    string
-						Problems    []ContestProblem
+						Problems    []database.ContestProblem
 					}
 
 					list, err := mainDB.ContestProblemList(cid)
@@ -997,7 +998,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						Type        int64
 						Prob        string
 						Lang        int64
-						Languages   []Language
+						Languages   []database.Language
 						Code        string
 					}
 
@@ -1014,12 +1015,12 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 						return
 					}
 
-					var cp *ContestProblem
+					var cp *database.ContestProblem
 					if upidx != -1 {
 						cp, err = mainDB.ContestProblemFind2(cid, upidx)
 
 						if err != nil {
-							if err == ErrUnknownProblem {
+							if err == database.ErrUnknownProblem {
 								sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 								return
@@ -1091,7 +1092,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 						if sctypes.JudgeType(jtype) == sctypes.JudgeRunningCode {
 							if _, err := mainDB.LanguageFind(lid); err != nil {
-								if err == ErrUnknownLanguage {
+								if err == database.ErrUnknownLanguage {
 									sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
 									return
@@ -1173,7 +1174,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 			cp, err := mainDB.ContestProblemFind2(cid, pidx)
 
-			if err == ErrUnknownProblem {
+			if err == database.ErrUnknownProblem {
 				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 				return
@@ -1192,7 +1193,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					ContestName string
 					UserName    string
 					Testcases   []string
-					Scoresets   []ContestProblemScoreSet
+					Scoresets   []database.ContestProblemScoreSet
 					Msg         *string
 				}
 
@@ -1230,7 +1231,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 					}
 					illegal := false
 
-					scores := make([]ContestProblemScoreSet, len(setScores))
+					scores := make([]database.ContestProblemScoreSet, len(setScores))
 					for i := range scores {
 						caseIds := make([]int64, 0, 50)
 						for _, str := range strings.Split(setCases[i], ",") {
@@ -1259,7 +1260,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							illegal = true
 						}
 
-						scores[i] = ContestProblemScoreSet{
+						scores[i] = database.ContestProblemScoreSet{
 							Score: score,
 						}
 
@@ -1303,7 +1304,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 
 					in, out, err := cp.LoadTestCaseInfo(int(tcid))
 
-					if err == ErrUnknownTestcase {
+					if err == database.ErrUnknownTestcase {
 						sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 						return
@@ -1376,7 +1377,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							return
 						}
 
-						if err == ErrUnknownTestcase {
+						if err == database.ErrUnknownTestcase {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return
@@ -1402,7 +1403,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std SessionTemplateData) (h
 							return
 						}
 
-						if err == ErrUnknownTestcase {
+						if err == database.ErrUnknownTestcase {
 							sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
 
 							return

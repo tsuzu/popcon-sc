@@ -8,8 +8,9 @@ import (
 
 	"strings"
 
-	"github.com/cs3238-tsuzu/popcon-sc/setting"
-	"github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/setting"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	muxlib "github.com/gorilla/mux"
 )
 
@@ -18,7 +19,7 @@ func AdminHandler() (http.Handler, error) {
 	handler := func(rw http.ResponseWriter, req *http.Request) {
 		std, err := ParseRequestForSession(req)
 
-		if err == ErrUnknownSession {
+		if err == database.ErrUnknownSession {
 			RespondRedirection(rw, "/login?comeback=/admin/")
 
 			return
@@ -38,10 +39,10 @@ func AdminHandler() (http.Handler, error) {
 		mux.ServeHTTP(rw, req.WithContext(context.WithValue(context.Background(), ContextValueKeySessionTemplateData, *std)))
 	}
 
-	sessionTemplateData := func(req *http.Request) *SessionTemplateData {
+	sessionTemplateData := func(req *http.Request) *database.SessionTemplateData {
 		v := req.Context().Value(ContextValueKeySessionTemplateData)
 
-		if std, ok := v.(SessionTemplateData); ok {
+		if std, ok := v.(database.SessionTemplateData); ok {
 			return &std
 		}
 
@@ -82,7 +83,7 @@ func AdminHandler() (http.Handler, error) {
 				Error    string
 				UserName string
 				Setting  *ppconfiguration.Structure
-				Groups   []Group
+				Groups   []database.Group
 			}
 
 			mux.HandleFunc("/general", func(rw http.ResponseWriter, req *http.Request) {
@@ -170,7 +171,7 @@ func AdminHandler() (http.Handler, error) {
 						if standardSignupGroup > 0 {
 							_, err := mainDB.GroupFind(standardSignupGroup)
 
-							if err == ErrUnknownGroup {
+							if err == database.ErrUnknownGroup {
 								errs = append(errs, "登録されていない、または削除されたグループです。")
 							} else {
 								if err != nil {

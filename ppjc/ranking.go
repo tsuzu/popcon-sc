@@ -11,8 +11,7 @@ import (
 
 	"time"
 
-	"github.com/cs3238-tsuzu/popcon-sc/ranking/models"
-	types "github.com/cs3238-tsuzu/popcon-sc/types"
+	sctypes "github.com/cs3238-tsuzu/popcon-sc/types"
 	"github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/emirpasic/gods/utils"
 )
@@ -164,14 +163,14 @@ type ProblemResult struct {
 type SubmissionResult struct {
 	Jid     int64
 	Score   int64
-	Status  types.SubmissionStatusType
+	Status  sctypes.SubmissionStatusType
 	Elapsed int64
 }
 
 type Ranking struct {
 	Cid                            int64
 	StartTime, FinishTime, Penalty int64
-	ContestType                    types.ContestType
+	ContestType                    sctypes.ContestType
 
 	/* Key: RankingCell, Val: nil */
 	Ranking *redblacktree.Tree    `json:"-"`
@@ -181,7 +180,7 @@ type Ranking struct {
 	rankingMutex     sync.RWMutex
 }
 
-func NewRanking(cid int64, startTime int64, finishTime, penalty int64, contestType types.ContestType) (*Ranking, error) {
+func NewRanking(cid int64, startTime int64, finishTime, penalty int64, contestType sctypes.ContestType) (*Ranking, error) {
 	r := Ranking{
 		Cid:         cid,
 		StartTime:   startTime,
@@ -321,7 +320,7 @@ func (r *Ranking) Update(u models.ContestInfo) error {
 
 	if r.StartTime > GetCurrentUnixTime() {
 		r.rankingInfoMutex.Lock()
-		r.ContestType = types.StringToContestType[*u.ContestType]
+		r.ContestType = sctypes.StringToContestType[*u.ContestType]
 		r.Penalty = *u.Penalty
 		r.rankingInfoMutex.Unlock()
 	}

@@ -9,10 +9,17 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
 	"github.com/facebookgo/grace/gracehttp"
 	gorilla "github.com/gorilla/handlers"
 	"github.com/sebest/xff"
 )
+
+var mainDB *database.DatabaseManager
+var mainRM *redis.RedisManager
+var mainFS *fs.MongoFSManager
 
 func main() {
 	// 標準時
@@ -60,14 +67,14 @@ func main() {
 
 	var err error
 	// Redis
-	mainRM, err = NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass)
+	mainRM, err = redis.NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass, DBLog)
 	if err != nil {
 		DBLog().WithError(err).Fatal("Redis initialization failed")
 	}
 	defer mainRM.Close()
 
 	// MongoDB
-	mainFS, err = NewMongoFSManager(environmentalSetting.mongoAddr, environmentalSetting.microServicesAddr, environmentalSetting.internalToken)
+	mainFS, err = fs.NewMongoFSManager(environmentalSetting.mongoAddr, environmentalSetting.microServicesAddr, environmentalSetting.internalToken, mainRM, FSLog)
 
 	if err != nil {
 		FSLog().WithError(err).Fatal("MongoDB FS initialization failed")
@@ -75,7 +82,7 @@ func main() {
 	defer mainFS.Close()
 
 	// MySQL Database
-	mainDB, err = NewDatabaseManager(environmentalSetting.debugMode)
+	mainDB, err = database.NewDatabaseManager(environmentalSetting.dbAddr, environmentalSetting.debugMode, mainFS, mainRM, DBLog)
 
 	if err != nil {
 		DBLog().WithError(err).Fatal("Database initialization failed")

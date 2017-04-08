@@ -7,9 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"math/rand"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
 
-	"database/sql"
+	"math/rand"
 
 	"io"
 
@@ -51,20 +51,6 @@ func createWrapFormStr(req *http.Request) func(str string) string {
 		return ""
 	}
 }
-
-func NullStringCreate(str string) sql.NullString {
-	if str == "" {
-		return sql.NullString{Valid: false}
-	}
-	return sql.NullString{Valid: true, String: str}
-}
-func NullStringGet(str sql.NullString) string {
-	if str.Valid {
-		return str.String
-	}
-	return ""
-}
-
 func CreateDefaultAdminUser() bool {
 	fmt.Println("No user found in the DB")
 	fmt.Println("You need to create the default admin")
@@ -120,7 +106,7 @@ func CreateDefaultAdminUser() bool {
 		return false
 	}
 
-	_, err = mainDB.UserAdd(id, name, pass, NullStringCreate(email), 0, true)
+	_, err = mainDB.UserAdd(id, name, pass, utility.NullStringCreate(email), 0, true)
 
 	if err != nil {
 		fmt.Println("Failed to create user. (", err.Error(), ")")
@@ -152,14 +138,6 @@ func CreateAdminUserAutomatically() bool {
 	}
 
 	return false
-}
-
-func FunctionJoin(functions ...func()) func() {
-	return func() {
-		for i := range functions {
-			functions[i]()
-		}
-	}
 }
 
 type TrimNewlineReader struct {
@@ -216,15 +194,6 @@ func SetSession(rw http.ResponseWriter, session string) {
 	}
 
 	http.SetCookie(rw, &cookie)
-}
-
-type FakeEmptyReadCloser struct{}
-
-func (r *FakeEmptyReadCloser) Read(b []byte) (n int, err error) {
-	return 0, io.EOF
-}
-func (r *FakeEmptyReadCloser) Close() error {
-	return nil
 }
 
 func ProcessUntilError(functions ...func() error) error {

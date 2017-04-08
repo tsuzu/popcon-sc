@@ -1,20 +1,24 @@
 package main
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+)
 
 // ParseRequestForSession returns a SessionTemplateData object
 // error: ErrUnknownSession or ...
-func ParseRequestForSession(req *http.Request) (*SessionTemplateData, error) {
+func ParseRequestForSession(req *http.Request) (*database.SessionTemplateData, error) {
 	session := ParseSession(req)
 
 	if session == nil {
-		return nil, ErrUnknownSession
+		return nil, database.ErrUnknownSession
 	}
 
-	t, err := GetSessionTemplateData(*session)
+	t, err := database.GetSessionTemplateData(*session)
 
-	if err == ErrUnknownUser {
-		return nil, ErrUnknownSession
+	if err == database.ErrUnknownUser {
+		return nil, database.ErrUnknownSession
 	}
 
 	return t, err
@@ -22,17 +26,17 @@ func ParseRequestForSession(req *http.Request) (*SessionTemplateData, error) {
 
 //ParseRequestForUserData returns an User object
 // error: ErrUnknownSession or ...
-func ParseRequestForUserData(req *http.Request) (*User, error) {
+func ParseRequestForUserData(req *http.Request) (*database.User, error) {
 	sessionID := ParseSession(req)
 
 	if sessionID == nil {
-		return nil, ErrUnknownSession
+		return nil, database.ErrUnknownSession
 	}
 
-	u, err := GetSessionUserData(*sessionID)
+	u, err := database.GetSessionUserData(*sessionID)
 
-	if err == ErrUnknownUser {
-		return nil, ErrUnknownSession
+	if err == database.ErrUnknownUser {
+		return nil, database.ErrUnknownSession
 	}
 
 	return u, err

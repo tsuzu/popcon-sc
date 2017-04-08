@@ -1,0 +1,179 @@
+package database
+
+import (
+	"errors"
+	"time"
+
+	// DBの共通化のため
+	"github.com/Sirupsen/logrus"
+	_ "github.com/go-sql-driver/mysql"
+	// genmaiのサポートが危うくなっているため規模の大きいgormに移行
+
+	"fmt"
+
+	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
+	"github.com/jinzhu/gorm"
+)
+
+// Shared in all codes
+var mainDB *DatabaseManager
+
+// DatabaseManager is a connector to this database
+type DatabaseManager struct {
+	db     *gorm.DB
+	fs     *fs.MongoFSManager
+	redis  *redis.RedisManager
+	logger func() *logrus.Entry
+}
+
+func (dm *DatabaseManager) Close() {
+	dm.db.Close()
+}
+
+// NewDatabaseManager is a function to initialize database connections
+// static function
+func NewDatabaseManager(addr string, debugMode bool, fs *fs.MongoFSManager, redis *redis.RedisManager, logger func() *logrus.Entry) (*DatabaseManager, error) {
+	specifyError := func(cat string, err error) error {
+		return errors.New("In " + cat + ", " + err.Error())
+	}
+
+	dm := &DatabaseManager{
+		redis: redis,
+		fs:    fs,
+	}
+	var err error
+	cnt := 0
+	const RetryingMax = 1000
+
+RETRY:
+	if cnt != 0 {
+		mainDB.Logger().Info("Waiting for MySQL Server Launching...", err.Error())
+		time.Sleep(3 * time.Second)
+	}
+	cnt++
+
+	// Database
+	dm.db, err = gorm.Open("mysql", addr)
+
+	if err != nil {
+		if cnt > RetryingMax {
+			return nil, specifyError("connection", err)
+		}
+
+		goto RETRY
+	}
+
+	dm.db.DB().SetConnMaxLifetime(3 * time.Minute)
+	dm.db.DB().SetMaxIdleConns(150)
+	dm.db.DB().SetMaxOpenConns(150)
+	if debugMode {
+		dm.db.LogMode(true)
+	}
+	err = dm.db.DB().Ping()
+
+	if err != nil {
+		if cnt > RetryingMax {
+			return nil, specifyError("connection", err)
+		}
+
+		dm.db.Close()
+		goto RETRY
+	}
+
+	// user_and_group.go
+	// Create Users Table
+	err = dm.CreateUserTable()
+
+	if err != nil {
+		return nil, specifyError("user", err)
+	}
+
+	// session.go
+	// Create Sessions Table
+	err = dm.CreateSessionTable()
+
+	if err != nil {
+		return nil, specifyError("session", err)
+	}
+
+	// group.go
+	err = dm.CreateGroupTable()
+
+	if err != nil {
+		return nil, specifyError("group", err)
+	}
+
+	// news.go
+	err = dm.CreateNewsTable()
+
+	if err != nil {
+		return nil, specifyError("news", err)
+	}
+
+	err = dm.CreateContestTable()
+
+	if err != nil {
+		return nil, specifyError("contest", err)
+	}
+
+	err = dm.CreateContestProblemTable()
+
+	if err != nil {
+		return nil, specifyError("contest_problem", err)
+	}
+
+	err = dm.CreateSubmissionTable()
+
+	if err != nil {
+		return nil, specifyError("submission", err)
+	}
+
+	err = dm.CreateContestParticipationTable()
+
+	if err != nil {
+		return nil, specifyError("contest_participation", err)
+	}
+
+	err = dm.CreateLanguageTable()
+
+	if err != nil {
+		return nil, specifyError("language", err)
+	}
+
+	return dm, nil
+}
+
+func (dm *DatabaseManager) Begin(f func(*gorm.DB) error) error {
+	db := dm.db.Begin()
+
+	if db.Error != nil {
+		return db.Error
+	}
+
+	err := f(db)
+
+	if err != nil {
+		db.Rollback()
+		return err
+	}
+
+	if err := recover(); err != nil {
+		db.Rollback()
+		e, ok := err.(error)
+
+		if ok {
+			return e
+		}
+
+		return errors.New(fmt.Sprint(err))
+	}
+
+	err = db.Commit().Error
+
+	return err
+}
+
+func (dm *DatabaseManager) Logger() *logrus.Entry {
+	return dm.logger()
+}

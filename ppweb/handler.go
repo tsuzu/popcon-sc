@@ -15,7 +15,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
@@ -87,7 +89,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 
 			std, err := ParseRequestForSession(req)
 
-			if err != nil && err != ErrUnknownSession {
+			if err != nil && err != database.ErrUnknownSession {
 				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 			}
 
@@ -103,14 +105,14 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			news, err := mainDB.NewsGet(cnt)
 
 			if err != nil {
-				news = make([]News, 0)
+				news = make([]database.News, 0)
 
 				DBLog().WithError(err).Error("NewsGet() error")
 			}
 
 			type IndexResp struct {
-				*SessionTemplateData
-				News      []News
+				*database.SessionTemplateData
+				News      []database.News
 				NewsCount int
 			}
 
@@ -229,7 +231,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				passHash := sha512.Sum512([]byte(password))
 
 				if err != nil || !reflect.DeepEqual(user.PassHash, passHash[:]) {
-					if err != ErrUnknownUser {
+					if err != database.ErrUnknownUser {
 						DBLog().WithError(err).Error("UserFindFromUserID failed")
 					}
 					DBLog().Info(err)
@@ -356,7 +358,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			user, err := ParseRequestForUserData(req)
 
 			if err != nil {
-				if err == ErrUnknownSession {
+				if err == database.ErrUnknownSession {
 					RespondRedirection(rw, "/login?comeback=/userinfo")
 
 					return
@@ -370,12 +372,12 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			}
 
 			var val struct {
-				*User
+				*database.User
 				IsAdmin bool
 			}
 
 			val.User = user
-			val.IsAdmin = (val.Gid == GroupAdministrator)
+			val.IsAdmin = (val.Gid == sctypes.GroupAdministrator)
 
 			rw.WriteHeader(http.StatusOK)
 			tmp.Execute(rw, val)
@@ -405,7 +407,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 			user, err := ParseRequestForUserData(req)
 
 			if err != nil {
-				if err == ErrUnknownSession {
+				if err == database.ErrUnknownSession {
 					RespondRedirection(rw, "/login?comeback=/userinfo/update_password")
 
 					return
@@ -718,7 +720,7 @@ func CreateHandlers() (map[string]http.Handler, error) {
 						return
 					}
 
-					iid, err := mainDB.UserAdd(uid, userName, pass, NullStringCreate(email), gid, !certificationWithEmail)
+					iid, err := mainDB.UserAdd(uid, userName, pass, utility.NullStringCreate(email), gid, !certificationWithEmail)
 
 					if err != nil {
 						if strings.Contains(err.Error(), "Duplicate") {

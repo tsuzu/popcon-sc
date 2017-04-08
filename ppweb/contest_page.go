@@ -10,7 +10,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 )
 
 const ContentsPerPage = 50
@@ -65,7 +66,7 @@ func TimeRangeToStringInt64(start, finish int64) string {
 	return startTime.In(Location).Format("2006/01/02 15:04:05") + "-" + finishTime.In(Location).Format("2006/01/02 15:04:05")
 }
 
-func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std *SessionTemplateData) {
+func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std *database.SessionTemplateData) {
 	type TemplateVal struct {
 		UserName    string
 		Msg         *string
@@ -171,7 +172,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			}
 		}
 
-		err = (&Contest{
+		err = (&database.Contest{
 			Cid: cid,
 		}).DescriptionUpdate(description)
 
@@ -197,7 +198,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	std, err := ParseRequestForSession(req)
 
 	if err != nil {
-		if err == ErrUnknownSession {
+		if err == database.ErrUnknownSession {
 			RespondRedirection(rw, path.Join("/login?comeback=/contests", url.QueryEscape(req.URL.Path)))
 
 			return
@@ -299,7 +300,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 	}
 
 	type TemplateVal struct {
-		Contests         []Contest
+		Contests         []database.Contest
 		UserName         string
 		Type             int
 		Current          int
