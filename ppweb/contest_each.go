@@ -463,7 +463,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				return
 			}
 
-			code, err := mainDB.SubmissionGetCode(sid)
+			code, err := mainDB.SubmissionGetCode(cid, sid)
 
 			if err != nil {
 				var tmp string
@@ -476,7 +476,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				StatusString string
 			}
 
-			casesArr, err := mainDB.SubmissionGetCase(sid)
+			casesArr, err := mainDB.SubmissionGetCase(cid, sid)
 			var caseViews []SubmissionTestCaseView
 
 			if err == nil {
@@ -488,7 +488,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				HttpLog().WithError(err).Error("SubmissionGetCase() error")
 			}
 
-			msg, err := mainDB.SubmissionGetMsg(sid)
+			msg, err := mainDB.SubmissionGetMsg(cid, sid)
 
 			if err != nil {
 				msg = ""
@@ -633,7 +633,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				}
 			}
 
-			subm, err := mainDB.SubmissionAdd(prob.Pid, std.Iid, lid, code)
+			subm, err := mainDB.SubmissionAdd(cid, prob.Pid, std.Iid, lid, code)
 
 			if err != nil {
 				DBLog().WithError(err).Error("SubmissionAdd error")
@@ -671,7 +671,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 			}
 
 			for i := range list {
-				err = mainDB.SubmissionRemoveAll((list)[i].Pid)
+				err = mainDB.SubmissionRemoveAll(cid, (list)[i].Pid)
 
 				if err != nil {
 					DBLog().WithError(err).Error("SubmissionRemoveAll() error")
@@ -725,7 +725,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				}
 
 				if target == 1 {
-					sm, err := mainDB.SubmissionFind(id)
+					sm, err := mainDB.SubmissionFind(cid, id)
 
 					if err != nil {
 						if err == database.ErrUnknownSubmission {
@@ -771,7 +771,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 						return
 					}
 
-					sml, err := mainDB.SubmissionListWithPid(cp.Pid)
+					sml, err := mainDB.SubmissionListWithPid(cid, cp.Pid)
 
 					if err != nil {
 						DBLog().WithError(err).Error("SubmissionList error")
@@ -780,7 +780,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 						return
 					}
 
-					for _ = range *sml {
+					for _ = range sml {
 						// TODO: JudgeQueue処理
 						//SJQueue.Push((*sml)[i].Sid)
 					}

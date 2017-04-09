@@ -19,6 +19,10 @@ import (
 // Shared in all codes
 var mainDB *DatabaseManager
 
+func SetDefaultManager(dm *DatabaseManager) {
+	mainDB = dm
+}
+
 // DatabaseManager is a connector to this database
 type DatabaseManager struct {
 	db     *gorm.DB
@@ -39,8 +43,9 @@ func NewDatabaseManager(addr string, debugMode bool, fs *fs.MongoFSManager, redi
 	}
 
 	dm := &DatabaseManager{
-		redis: redis,
-		fs:    fs,
+		redis:  redis,
+		fs:     fs,
+		logger: logger,
 	}
 	var err error
 	cnt := 0

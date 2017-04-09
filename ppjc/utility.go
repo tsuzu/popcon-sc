@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 )
@@ -12,8 +10,6 @@ import (
 func GetCurrentUnixTime() int64 {
 	return time.Now().Unix()
 }
-
-var logger = log.New(os.Stderr, "pcppm", log.Llongfile|log.LstdFlags)
 
 // RespondedJSON respondJson()向け
 type RespondedJSON struct {
@@ -31,7 +27,7 @@ func stringToPointer(str string) *string {
 
 // respondJSON REST API向けにJSON返却をラップ
 // エラー時でも200 OKを返すことに注意
-func resprondJSON(rw http.ResponseWriter, errorMessage string, v interface{}) error {
+func respondJSON(rw http.ResponseWriter, errorMessage string, v interface{}) error {
 	b, err := json.Marshal(RespondedJSON{Error: stringToPointer(errorMessage), Message: v})
 
 	if err != nil {
@@ -43,10 +39,6 @@ func resprondJSON(rw http.ResponseWriter, errorMessage string, v interface{}) er
 	rw.Header()["Content-Type"] = []string{"application/json"}
 	rw.WriteHeader(http.StatusOK)
 	_, err = rw.Write(b)
-
-	if err != nil {
-		logger.Println(err)
-	}
 
 	return err
 }

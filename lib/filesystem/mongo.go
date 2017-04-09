@@ -26,8 +26,6 @@ var FS_CATEGORY_PROBLEM_STATEMENT = "problem_statement"
 var FS_CATEGORY_PROBLEM_CHECKER = "problem_checker"
 var FS_CATEGORY_SUBMISSION_MSG = "submission_msg"
 
-var mainFS *MongoFSManager
-
 type MongoFSManager struct {
 	session  *mgo.Session
 	db       *mgo.Database
@@ -185,7 +183,7 @@ func (mfs *MongoFSManager) FileSecureUpdateWithReader(category, oldName string, 
 	}
 	newName := mfs.CreateFilePath(category, fid)
 
-	fp, err := mainFS.Open(category, newName)
+	fp, err := mfs.Open(category, newName)
 
 	if err != nil {
 		return nil, "", err

@@ -14,8 +14,6 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var mainRM *RedisManager
-
 type RedisManager struct {
 	pool   *redis.Pool
 	logger func() *logrus.Entry

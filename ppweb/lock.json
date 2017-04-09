@@ -1,5 +1,5 @@
 {
-    "memo": "c194ef3b6bcb9e336da4a75cec42df0dc2a9f78f5a589b2d6fcadac83cfcf64c",
+    "memo": "",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
@@ -19,11 +19,14 @@
         {
             "name": "github.com/cs3238-tsuzu/popcon-sc",
             "branch": "swarm",
-            "revision": "6a9fa37bfeca3d9f033b4f7bb25fc70fdafe3bec",
+            "revision": "36346f0f24c39bd71448785e4d882614fa56a125",
             "packages": [
-                "ppms/client",
-                "setting",
-                "types"
+                "lib/database",
+                "lib/filesystem",
+                "lib/redis",
+                "lib/setting",
+                "lib/types",
+                "lib/utility"
             ]
         },
         {
@@ -37,10 +40,9 @@
         {
             "name": "github.com/facebookgo/grace",
             "branch": "master",
-            "revision": "4afe952a37a495ae4ac0c1d4ce5f66e91058d149",
+            "revision": "5729e484473f52048578af1b80d0008c7024089b",
             "packages": [
-                "gracehttp",
-                "gracenet"
+                "gracehttp"
             ]
         },
         {
@@ -64,7 +66,6 @@
             "branch": "master",
             "revision": "0d253a66e6e1349f4581d6d2b300ee434ee2da9f",
             "packages": [
-                "internal",
                 "redis"
             ]
         },
@@ -78,8 +79,8 @@
         },
         {
             "name": "github.com/gorilla/context",
-            "version": "v1.1",
-            "revision": "1ea25387ff6f684839d82767c1733ff4d4d15d0a",
+            "branch": "master",
+            "revision": "08b5f424b9271eedf6f9f0ce86cb9396ed337a42",
             "packages": [
                 "."
             ]
@@ -87,15 +88,15 @@
         {
             "name": "github.com/gorilla/handlers",
             "branch": "master",
-            "revision": "13d73096a474cac93275c679c7b8a2dc17ddba82",
+            "revision": "a5775781a543af3c6b9f5baf10995e4d14168950",
             "packages": [
                 "."
             ]
         },
         {
             "name": "github.com/gorilla/mux",
-            "version": "v1.3.0",
-            "revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
+            "branch": "master",
+            "revision": "599cba5e7b6137d46ddf58fb1765f5d928e69604",
             "packages": [
                 "."
             ]
@@ -119,7 +120,7 @@
         {
             "name": "github.com/microcosm-cc/bluemonday",
             "branch": "master",
-            "revision": "e79763773ab6222ca1d5a7cbd9d62d83c1f77081",
+            "revision": "9dc199233bf72cc1aad9b61f73daf2f0075b9ee4",
             "packages": [
                 "."
             ]
@@ -127,7 +128,7 @@
         {
             "name": "github.com/russross/blackfriday",
             "branch": "master",
-            "revision": "5f33e7b7878355cd2b7e6b8eefc48a5472c69f70",
+            "revision": "93622da34e54fb6529bfb7c57e710f37a8d9cbd8",
             "packages": [
                 "."
             ]
@@ -135,7 +136,7 @@
         {
             "name": "github.com/satori/go.uuid",
             "branch": "master",
-            "revision": "5bf94b69c6b68ee1b541973bb8e1144db23a194b",
+            "revision": "b061729afc07e77a8aa4fad0a2fd840958f1942a",
             "packages": [
                 "."
             ]
@@ -143,7 +144,7 @@
         {
             "name": "github.com/sebest/xff",
             "branch": "master",
-            "revision": "6c115e0ffa35d6a2e3f7a9e797c9cf07f0da4b9f",
+            "revision": "38289458361633f7e6eeca8b360224436a6b8bf3",
             "packages": [
                 "."
             ]
@@ -151,7 +152,7 @@
         {
             "name": "github.com/shurcooL/sanitized_anchor_name",
             "branch": "master",
-            "revision": "1dba4b3954bc059efc3991ec364f9f9a35f597d2",
+            "revision": "10ef21a441db47d8b13ebcc5fd2310f636973c77",
             "packages": [
                 "."
             ]
@@ -159,24 +160,21 @@
         {
             "name": "golang.org/x/crypto",
             "branch": "master",
-            "revision": "c2303dcbe84172e0c0da4c9f083eeca54c06f298",
+            "revision": "351dc6a5bf92a5f2ae22fadeee08eb6a45aa2d93",
             "packages": [
                 "ssh/terminal"
             ]
         },
         {
             "name": "golang.org/x/net",
-            "branch": "master",
-            "revision": "ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d",
+            "revision": "2a35e686583654a1b89ca79c4ac78cb3d6529ca3",
             "packages": [
-                "html",
-                "html/atom"
+                "html"
             ]
         },
         {
             "name": "golang.org/x/sys",
-            "branch": "master",
-            "revision": "39e3dc274464e7d2f663aa606a830611bae5f1db",
+            "revision": "b776ec39b3e54652e09028aaaaac9757f4f8211a",
             "packages": [
                 "unix"
             ]
@@ -186,11 +184,7 @@
             "branch": "v2",
             "revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
             "packages": [
-                ".",
-                "bson",
-                "internal/json",
-                "internal/sasl",
-                "internal/scram"
+                "."
             ]
         }
     ]

@@ -15,6 +15,7 @@ import (
 type SubmissionTestCase struct {
 	ID     int64 `gorm:"primary_key"`
 	Sid    int64 `gorm:"index"`
+	Cid    int64 `gorm:"-"`
 	Status sctypes.SubmissionStatusType
 	CaseID int64
 	Name   string
@@ -22,7 +23,12 @@ type SubmissionTestCase struct {
 	Mem    int64
 }
 
+func (stc SubmissionTestCase) TableName() string {
+	return "submission_test_cases_" + strconv.FormatInt(stc.Cid, 10)
+}
+
 type Submission struct {
+	Cid         int64                        `gorm:"-"`
 	Sid         int64                        `gorm:"primary_key"`
 	Pid         int64                        `gorm:"not null;index"` //index
 	Iid         int64                        `gorm:"not null;index"` //index
@@ -37,20 +43,41 @@ type Submission struct {
 	Cases       []SubmissionTestCase         `gorm:"ForeignKey:Sid"`
 }
 
+func (s Submission) TableName() string {
+	return "submissions_" + strconv.FormatInt(s.Cid, 10)
+}
+
 func (dm *DatabaseManager) CreateSubmissionTable() error {
-	err := dm.db.AutoMigrate(&Submission{}, &SubmissionTestCase{}).Error
+	gorm.DefaultTableNameHandler = func(db *gorm.DB, defaultTableName string) string {
+		if v, ok := db.Get("gorm:association:source"); ok {
+			if s, ok := v.(*Submission); ok {
+				return "submission_test_cases_" + strconv.FormatInt(s.Cid, 10)
+			} else if s, ok := v.(Submission); ok {
+				return "submission_test_cases_" + strconv.FormatInt(s.Cid, 10)
+			}
+		}
+
+		return defaultTableName
+	}
+
+	/*err := dm.db.AutoMigrate(&Submission{}, &SubmissionTestCase{}).Error
 
 	if err != nil {
 		return err
-	}
+	}*/
 
 	return nil
 }
 
-func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i int64, b error) {
+func (dm *DatabaseManager) SubmissionAutoMigrate(cid int64) error {
+	return dm.db.AutoMigrate(&Submission{Cid: cid}, &SubmissionTestCase{Cid: cid}).Error
+}
+
+func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string) (i int64, b error) {
 	_, path, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_SUBMISSION, "", code)
 
 	sm := Submission{
+		Cid:        cid,
 		Pid:        pid,
 		Iid:        iid,
 		Lang:       lang,
@@ -59,7 +86,7 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 		CodeFile:   path,
 	}
 
-	err = dm.db.Create(&sm).Error
+	err = dm.db.AutoMigrate(&sm, &SubmissionTestCase{Cid: cid}).Create(&sm).Error
 
 	if err != nil {
 		return 0, err
@@ -68,9 +95,10 @@ func (dm *DatabaseManager) SubmissionAdd(pid, iid, lang int64, code string) (i i
 	return sm.Sid, nil
 }
 
-func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
+func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 	return dm.Begin(func(db *gorm.DB) error {
 		var result Submission
+		result.Cid = cid
 
 		if err := db.First(&result, sid).Error; err != nil {
 			return err
@@ -79,7 +107,7 @@ func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
 		if err := db.Model(&result).Association("Cases").Clear().Error; err != nil {
 			return err
 		}
-		if err := dm.submissionTestCaseDeleteUnassociated(db); err != nil {
+		if err := dm.submissionTestCaseDeleteUnassociated(cid, db); err != nil {
 			dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
 		}
 
@@ -99,12 +127,15 @@ func (dm *DatabaseManager) SubmissionRemove(sid int64) error {
 	})
 }
 
-func (dm *DatabaseManager) SubmissionRemoveAll(pid int64) error {
-	return dm.db.Where("pid=?", pid).Delete(Submission{}).Error
+func (dm *DatabaseManager) SubmissionRemoveAll(cid, pid int64) error {
+	// TODO: implement
+	return nil
+	return dm.db.Delete(Submission{Cid: cid, Pid: pid}).Error
 }
 
-func (dm *DatabaseManager) SubmissionFind(sid int64) (*Submission, error) {
+func (dm *DatabaseManager) SubmissionFind(cid, sid int64) (*Submission, error) {
 	var result Submission
+	result.Cid = cid
 
 	if err := dm.db.First(&result, sid).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -116,9 +147,10 @@ func (dm *DatabaseManager) SubmissionFind(sid int64) (*Submission, error) {
 	return &result, nil
 }
 
-func (dm *DatabaseManager) SubmissionUpdate(sid, time, mem int64, status sctypes.SubmissionStatusType, fin, all int64, score int64) (ret error) {
+func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sctypes.SubmissionStatusType, fin, all int64, score int64) (ret error) {
 	return dm.Begin(func(db *gorm.DB) error {
 		var result Submission
+		result.Cid = cid
 		if err := db.First(&result, sid).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return ErrUnknownSubmission
@@ -146,8 +178,9 @@ func (dm *DatabaseManager) SubmissionUpdate(sid, time, mem int64, status sctypes
 	})
 }
 
-func (dm *DatabaseManager) SubmissionGetCode(sid int64) (string, error) {
+func (dm *DatabaseManager) SubmissionGetCode(cid, sid int64) (string, error) {
 	var result Submission
+	result.Cid = cid
 	if err := dm.db.Select("code_file").First(&result, sid).Error; err != nil {
 		return "", err
 	}
@@ -165,8 +198,9 @@ func (dm *DatabaseManager) SubmissionGetCode(sid int64) (string, error) {
 	return string(b), nil
 }
 
-func (dm *DatabaseManager) SubmissionGetMsg(sid int64) (string, error) {
+func (dm *DatabaseManager) SubmissionGetMsg(cid, sid int64) (string, error) {
 	var result Submission
+	result.Cid = cid
 	if err := dm.db.Select("message_file").First(&result, sid).Error; err != nil {
 		return "", err
 	}
@@ -188,9 +222,10 @@ func (dm *DatabaseManager) SubmissionGetMsg(sid int64) (string, error) {
 	return string(b), nil
 }
 
-func (dm *DatabaseManager) SubmissionSetMsg(sid int64, msg string) error {
+func (dm *DatabaseManager) SubmissionSetMsg(cid, sid int64, msg string) error {
 	return dm.Begin(func(db *gorm.DB) error {
 		var result Submission
+		result.Cid = cid
 		if err := db.Select("message_file").First(&result, sid).Error; err != nil {
 			return err
 		}
@@ -201,7 +236,7 @@ func (dm *DatabaseManager) SubmissionSetMsg(sid int64, msg string) error {
 			return err
 		}
 
-		if err := db.Model(&Submission{Sid: sid}).Update("message_file", path).Error; err != nil {
+		if err := db.Model(&Submission{Sid: sid, Cid: cid}).Update("message_file", path).Error; err != nil {
 			return err
 		}
 
@@ -210,49 +245,49 @@ func (dm *DatabaseManager) SubmissionSetMsg(sid int64, msg string) error {
 	})
 }
 
-func (dm *DatabaseManager) SubmissionGetCase(sid int64) ([]SubmissionTestCase, error) {
+func (dm *DatabaseManager) SubmissionGetCase(cid, sid int64) ([]SubmissionTestCase, error) {
 	var results []SubmissionTestCase
-	if err := dm.db.Model(Submission{Sid: sid}).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
+	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
 		return nil, err
 	}
 
 	return results, nil
 }
 
-func (dm *DatabaseManager) SubmissionSetCase(sid int64, caseId int, stc SubmissionTestCase) error {
-	if err := dm.db.Model(Submission{Sid: sid}).Association("Cases").Append(stc).Error; err != nil {
+func (dm *DatabaseManager) SubmissionSetCase(cid, sid int64, caseId int, stc SubmissionTestCase) error {
+	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Append(stc).Error; err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (dm *DatabaseManager) SubmissionClearCase(sid int64) error {
-	if err := dm.db.Model(Submission{Sid: sid}).Association("Cases").Clear().Error; err != nil {
+func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
+	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
 		return err
 	}
 
-	return dm.SubmissionTestCaseDeleteUnassociated()
+	return dm.SubmissionTestCaseDeleteUnassociated(cid)
 }
 
-func (dm *DatabaseManager) submissionTestCaseDeleteUnassociated(db *gorm.DB) error {
-	return db.Where("sid IS NULL").Delete(SubmissionTestCase{}).Error
+func (dm *DatabaseManager) submissionTestCaseDeleteUnassociated(cid int64, db *gorm.DB) error {
+	return db.Where("sid IS NULL").Delete(SubmissionTestCase{Cid: cid}).Error
 }
 
-func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated() error {
-	return dm.submissionTestCaseDeleteUnassociated(dm.db)
+func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated(cid int64) error {
+	return dm.submissionTestCaseDeleteUnassociated(cid, dm.db)
 }
 
-func (dm *DatabaseManager) SubmissionListWithPid(pid int64) (*[]Submission, error) {
+func (dm *DatabaseManager) SubmissionListWithPid(cid, pid int64) ([]Submission, error) {
 	var results []Submission
 
-	err := dm.db.Where("pid=?", pid).Find(&results).Error
+	err := dm.db.Model(Submission{Cid: cid}).Where("pid=?", pid).Find(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &results, nil
+	return results, nil
 }
 
 type SubmissionView struct {
@@ -275,7 +310,8 @@ type SubmissionView struct {
 
 // TODO: Gormに切り替え
 func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*gorm.DB, error) {
-	db := dm.db.Table("submissions").Joins("inner join contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
+	table := Submission{Cid: cid}.TableName()
+	db := dm.db.Table(table + " as submissions").Joins("inner join contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
 
 	if cid != -1 {
 		db = db.Where("contest_problems.cid=?", strconv.FormatInt(cid, 10))

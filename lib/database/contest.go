@@ -93,6 +93,8 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		return 0, err
 	}
 
+	dm.SubmissionAutoMigrate(contest.Cid)
+
 	return contest.Cid, nil
 }
 

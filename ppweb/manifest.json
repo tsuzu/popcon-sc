@@ -12,16 +12,10 @@
         "github.com/facebookgo/grace": {
             "branch": "master"
         },
-        "github.com/garyburd/redigo": {
-            "branch": "master"
-        },
-        "github.com/go-sql-driver/mysql": {
-            "branch": "master"
-        },
         "github.com/gorilla/handlers": {
             "branch": "master"
         },
-        "github.com/jinzhu/gorm": {
+        "github.com/gorilla/mux": {
             "branch": "master"
         },
         "github.com/microcosm-cc/bluemonday": {
@@ -30,17 +24,11 @@
         "github.com/russross/blackfriday": {
             "branch": "master"
         },
-        "github.com/satori/go.uuid": {
-            "branch": "master"
-        },
         "github.com/sebest/xff": {
             "branch": "master"
         },
         "golang.org/x/crypto": {
             "branch": "master"
-        },
-        "gopkg.in/mgo.v2": {
-            "branch": "v2"
         }
     }
 }

@@ -11,7 +11,7 @@ import (
 
 	"time"
 
-	sctypes "github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/emirpasic/gods/utils"
 )
@@ -256,7 +256,7 @@ func (r *Ranking) save() {
 	b, _ := json.Marshal(r)
 
 	if err := ioutil.WriteFile(filepath.Join(dir, "setting.json"), b, 0770); err != nil {
-		logger.Println("Error occured while writing in setting.json.", err.Error())
+		RKLog().WithError(err).Error("WriteFile(setting.json) error")
 
 		return
 	}
@@ -271,7 +271,7 @@ func (r *Ranking) save() {
 	b, _ = json.Marshal(saved)
 
 	if err := ioutil.WriteFile(filepath.Join(dir, "ranking.json"), b, 0770); err != nil {
-		logger.Println("Error occured while writing in ranking.json.", err.Error())
+		RKLog().WithError(err).Error("WriteFile(ranking.json error")
 
 		return
 	}
@@ -280,7 +280,7 @@ func (r *Ranking) save() {
 		b, _ = json.Marshal(r.Details)
 
 		if err := ioutil.WriteFile(filepath.Join(dir, "details.json"), b, 0770); err != nil {
-			logger.Println("Error occured while writing in details.json.", err.Error())
+			RKLog().WithError(err).Error("WriteFile(details.json) error")
 
 			return
 		}
@@ -320,7 +320,7 @@ func (r *Ranking) Update(u models.ContestInfo) error {
 
 	if r.StartTime > GetCurrentUnixTime() {
 		r.rankingInfoMutex.Lock()
-		r.ContestType = sctypes.StringToContestType[*u.ContestType]
+		r.ContestType = sctypes.ContestTypeFromString[*u.ContestType]
 		r.Penalty = *u.Penalty
 		r.rankingInfoMutex.Unlock()
 	}
@@ -358,7 +358,7 @@ func (r *Ranking) NewSubmissionResult(result models.SubmissionResult) error {
 			*result.Sid,
 			make(map[int64]*SubmissionResult),
 		}
-		pr.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, types.StringToSubmissionStatusType[*result.Status], submitTime.Unix() - r.StartTime}
+		pr.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, sctypes.SubmissionStatusTypeFromString[*result.Status], submitTime.Unix() - r.StartTime}
 		r.Details[*result.UID].Problems[*result.Pid] = pr
 		isChanged = true
 	} else {
@@ -370,7 +370,7 @@ func (r *Ranking) NewSubmissionResult(result models.SubmissionResult) error {
 				if p.Submissions == nil {
 					p.Submissions = make(map[int64]*SubmissionResult)
 				}
-				p.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, types.StringToSubmissionStatusType[*result.Status], submitTime.Unix() - r.StartTime}
+				p.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, sctypes.SubmissionStatusTypeFromString[*result.Status], submitTime.Unix() - r.StartTime}
 
 				var cnt int64 = 0
 				for k := range p.Submissions {
@@ -387,7 +387,7 @@ func (r *Ranking) NewSubmissionResult(result models.SubmissionResult) error {
 				for k, _ := range p.Submissions {
 					if k == *result.Sid {
 						if p.Submissions[k].Jid < *result.Jid {
-							p.Submissions[k] = &SubmissionResult{*result.Jid, *result.Score, types.StringToSubmissionStatusType[*result.Status], submitTime.Unix() - r.StartTime}
+							p.Submissions[k] = &SubmissionResult{*result.Jid, *result.Score, sctypes.SubmissionStatusTypeFromString[*result.Status], submitTime.Unix() - r.StartTime}
 							p.Score = *result.Score
 							p.WA = cnt
 							p.Sid = k
@@ -401,7 +401,7 @@ func (r *Ranking) NewSubmissionResult(result models.SubmissionResult) error {
 			}
 		} else {
 			if _, ok := p.Submissions[*result.Sid]; !ok {
-				p.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, types.StringToSubmissionStatusType[*result.Status], submitTime.Unix() - r.StartTime} // コンテストが開始しているためcontestInfoMutexは不要
+				p.Submissions[*result.Sid] = &SubmissionResult{*result.Jid, *result.Score, sctypes.SubmissionStatusTypeFromString[*result.Status], submitTime.Unix() - r.StartTime} // コンテストが開始しているためcontestInfoMutexは不要
 
 				var cnt int64 = 0
 				for k := range p.Submissions {
@@ -418,7 +418,7 @@ func (r *Ranking) NewSubmissionResult(result models.SubmissionResult) error {
 				if p.Submissions[*result.Sid].Jid < *result.Jid {
 					if *result.Sid != p.Sid {
 						p.Submissions[*result.Sid].Score = *result.Score
-						p.Submissions[*result.Sid].Status = types.StringToSubmissionStatusType[*result.Status]
+						p.Submissions[*result.Sid].Status = sctypes.SubmissionStatusTypeFromString[*result.Status]
 						p.Submissions[*result.Sid].Jid = *result.Jid
 					} else {
 						var cnt int64 = 0
