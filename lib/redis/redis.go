@@ -21,9 +21,15 @@ type RedisManager struct {
 }
 
 func NewRedisManager(addr, pass string, logger func() *logrus.Entry) (*RedisManager, error) {
-	pool := redis.NewPool(func() (redis.Conn, error) {
-		return redis.Dial("tcp", addr, redis.DialPassword(pass), redis.DialConnectTimeout(60*time.Second))
-	}, 100)
+	pool := &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			return redis.Dial("tcp", addr, redis.DialPassword(pass), redis.DialConnectTimeout(60*time.Second))
+		},
+		TestOnBorrow: func(c redis.Conn, _ time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
 
 	sm, err := ppconfiguration.NewRedisSettingManager(pool)
 
@@ -187,29 +193,29 @@ func (rm *RedisManager) UniqueFileID(category string) (int64, error) {
 	return redis.Int64(conn.Do("INCR", "unique_"+category+"_file_id_incr_"+category))
 }
 
-func (rm *RedisManager) JudgingProcessUpdate(sid int64, status string) error {
+func (rm *RedisManager) JudgingProgressUpdate(sid int64, status string) error {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	if err := conn.Send("SET", "judging_process_"+strconv.FormatInt(sid, 10), status); err != nil {
+	if err := conn.Send("SET", "judging_progress_"+strconv.FormatInt(sid, 10), status); err != nil {
 		return err
 	}
 
 	return conn.Flush()
 }
 
-func (rm *RedisManager) JudgingProcessGet(sid int64) (string, error) {
+func (rm *RedisManager) JudgingProgressGet(sid int64) (string, error) {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	return redis.String(conn.Do("GET", "judging_process_"+strconv.FormatInt(sid, 10)))
+	return redis.String(conn.Do("GET", "judging_progress_"+strconv.FormatInt(sid, 10)))
 }
 
-func (rm *RedisManager) JudgingProcessDelete(sid int64) error {
+func (rm *RedisManager) JudgingProgressDelete(sid int64) error {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	if err := conn.Send("DEL", "judging_process_"+strconv.FormatInt(sid, 10)); err != nil {
+	if err := conn.Send("DEL", "judging_progress_"+strconv.FormatInt(sid, 10)); err != nil {
 		return err
 	}
 

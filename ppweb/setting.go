@@ -9,7 +9,6 @@ type EnvironmentalSetting struct {
 	judgeControllerAddr string
 	microServicesAddr   string
 	internalToken       string
-	listeningEndpoint   string
 	dataDirectory       string
 	debugMode           bool
 }

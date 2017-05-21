@@ -1,41 +1,57 @@
 package sctypes
 
+import "time"
+
 type ContestType int
 
 const (
-	ContestTypeJOI ContestType = 0
+	ContestTypeJOI ContestType = iota
 	// Score: Score(>)
 	// Value1: Time(<)
 	// Value2: None
 
-	ContestTypeICPC ContestType = 1
+	ContestTypePCK
 	// Score: Score(>)
 	// Value1: WA(<)
 	// Value2: Time(<)
 
-	ContestTypeAtCoder ContestType = 2
+	ContestTypeAtCoder
 	// Score: Score(>)
 	// Value1: Time+Penalty(<)
 	// Value2: None
-
-	ContestTypePCK ContestType = 3
-	// Score: Score(>)
-	// Value1: Time(Sum All)+Penalty(<)
-	// Value2: None
 )
+
+func (ct ContestType) String() string {
+	return ContestTypeToString[ct]
+}
 
 var ContestTypeToString = map[ContestType]string{
 	ContestTypeJOI:     "JOI",
-	ContestTypeICPC:    "ICPC",
-	ContestTypeAtCoder: "AtCoder",
 	ContestTypePCK:     "PCK",
+	ContestTypeAtCoder: "AtCoder",
+}
+
+var ContestTypeToEvaluationFunction1 = map[ContestType]func(score, penalty int64, time time.Duration) int64{
+	ContestTypeJOI:     func(score, penalty int64, time time.Duration) int64 { return 0 },
+	ContestTypePCK:     func(score, penalty int64, time time.Duration) int64 { return 0 },
+	ContestTypeAtCoder: func(score, penalty int64, time time.Duration) int64 { return 0 },
+}
+var ContestTypeToEvaluationFunction2 = map[ContestType]func(score, penalty int64, time time.Duration) int64{
+	ContestTypeJOI:     func(score, penalty int64, time time.Duration) int64 { return 0 },
+	ContestTypePCK:     func(score, penalty int64, time time.Duration) int64 { return 0 },
+	ContestTypeAtCoder: func(score, penalty int64, time time.Duration) int64 { return 0 },
 }
 
 var ContestTypeFromString = map[string]ContestType{
 	"JOI":     ContestTypeJOI,
-	"ICPC":    ContestTypeICPC,
-	"AtCoder": ContestTypeAtCoder,
 	"PCK":     ContestTypePCK,
+	"AtCoder": ContestTypeAtCoder,
+}
+
+var ContestTypeCEPenalty = map[ContestType]bool{
+	ContestTypeJOI:     false,
+	ContestTypePCK:     false,
+	ContestTypeAtCoder: false,
 }
 
 type JudgeType int

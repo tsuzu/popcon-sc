@@ -737,7 +737,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 						return
 					}
 
-					cp, err := mainDB.ContestProblemFind(sm.Pid)
+					cp, err := mainDB.ContestProblemFind(sm.Cid, sm.Pid)
 
 					if err != nil {
 						DBLog().WithError(err).Error("ContestProblemFind error")

@@ -43,7 +43,7 @@ func (dm *DatabaseManager) ContestRankingCount(cid int64) (int64, error) {
 	return 0, nil
 }
 
-type RankingRow struct {
+type RankingRowOld struct {
 	Uid      string
 	UserName string
 	Score    int64

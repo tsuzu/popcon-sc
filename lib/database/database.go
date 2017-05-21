@@ -53,7 +53,7 @@ func NewDatabaseManager(addr string, debugMode bool, fs *fs.MongoFSManager, redi
 
 RETRY:
 	if cnt != 0 {
-		mainDB.Logger().Info("Waiting for MySQL Server Launching...", err.Error())
+		logger().Info("Waiting for MySQL Server Launching...", err.Error())
 		time.Sleep(3 * time.Second)
 	}
 	cnt++
@@ -149,14 +149,14 @@ RETRY:
 	return dm, nil
 }
 
-func (dm *DatabaseManager) Begin(f func(*gorm.DB) error) error {
+func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {
 	db := dm.db.Begin()
 
 	if db.Error != nil {
 		return db.Error
 	}
 
-	err := f(db)
+	err := f(dm.Clone(db))
 
 	if err != nil {
 		db.Rollback()
@@ -179,6 +179,21 @@ func (dm *DatabaseManager) Begin(f func(*gorm.DB) error) error {
 	return err
 }
 
+func (dm *DatabaseManager) Begin(f func(db *gorm.DB) error) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		return f(dm.db)
+	})
+}
+
 func (dm *DatabaseManager) Logger() *logrus.Entry {
 	return dm.logger()
+}
+
+func (dm *DatabaseManager) Clone(db *gorm.DB) *DatabaseManager {
+	return &DatabaseManager{
+		db:     db,
+		fs:     dm.fs,
+		redis:  dm.redis,
+		logger: dm.logger,
+	}
 }

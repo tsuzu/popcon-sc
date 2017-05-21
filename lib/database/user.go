@@ -70,7 +70,7 @@ func (dm *DatabaseManager) UserAdd(uid string, userName string, pass string, ema
 }
 
 // UserUpdate updates the user with iid
-func (dm *DatabaseManager) UserUpdate(iid int64, uid string, userName string, pass string, email string, groupID int64, enabled bool) error {
+func (dm *DatabaseManager) UserUpdate(iid int64, uid string, userName string, pass string, email string, gid int64, enabled bool) error {
 	if len(uid) > 128 {
 		return errors.New("error: len(uid) > 128")
 	}
@@ -93,7 +93,7 @@ func (dm *DatabaseManager) UserUpdate(iid int64, uid string, userName string, pa
 		UserName: userName,
 		PassHash: passHashArr[:],
 		Email:    utility.NullStringCreate(email),
-		Gid:      groupID,
+		Gid:      gid,
 		Enabled:  enabled,
 	}).Error
 

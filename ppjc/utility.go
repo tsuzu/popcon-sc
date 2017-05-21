@@ -26,7 +26,7 @@ func stringToPointer(str string) *string {
 }
 
 // respondJSON REST API向けにJSON返却をラップ
-// エラー時でも200 OKを返すことに注意
+// エラー時でも200 OKを返すことに注意。
 func respondJSON(rw http.ResponseWriter, errorMessage string, v interface{}) error {
 	b, err := json.Marshal(RespondedJSON{Error: stringToPointer(errorMessage), Message: v})
 

@@ -32,6 +32,7 @@ type Submission struct {
 	Sid         int64                        `gorm:"primary_key"`
 	Pid         int64                        `gorm:"not null;index"` //index
 	Iid         int64                        `gorm:"not null;index"` //index
+	Jid         int64                        `gorm:"not null"`
 	Lang        int64                        `gorm:"not null"`
 	Time        int64                        `gorm:"not null"` //ms
 	Mem         int64                        `gorm:"not null"` //KB
@@ -48,6 +49,7 @@ func (s Submission) TableName() string {
 }
 
 func (dm *DatabaseManager) CreateSubmissionTable() error {
+	prevHandler := gorm.DefaultTableNameHandler
 	gorm.DefaultTableNameHandler = func(db *gorm.DB, defaultTableName string) string {
 		if v, ok := db.Get("gorm:association:source"); ok {
 			if s, ok := v.(*Submission); ok {
@@ -57,7 +59,7 @@ func (dm *DatabaseManager) CreateSubmissionTable() error {
 			}
 		}
 
-		return defaultTableName
+		return prevHandler(db, defaultTableName)
 	}
 
 	/*err := dm.db.AutoMigrate(&Submission{}, &SubmissionTestCase{}).Error
@@ -97,21 +99,25 @@ func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string)
 
 func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 	return dm.Begin(func(db *gorm.DB) error {
-		var result Submission
+		var result *Submission
+		var err error
 		result.Cid = cid
 
-		if err := db.First(&result, sid).Error; err != nil {
+		if result, err = dm.Clone(db).SubmissionFind(cid, sid); err != nil {
+			if err == ErrUnknownSubmission {
+				return nil
+			}
 			return err
 		}
 
-		if err := db.Model(&result).Association("Cases").Clear().Error; err != nil {
+		if err := db.Model(result).Association("Cases").Clear().Error; err != nil {
 			return err
 		}
-		if err := dm.submissionTestCaseDeleteUnassociated(cid, db); err != nil {
+		if err := dm.Clone(db).SubmissionTestCaseDeleteUnassociated(cid); err != nil {
 			dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
 		}
 
-		if err := db.Delete(&result).Error; err != nil {
+		if err := db.Delete(result).Error; err != nil {
 			return err
 		}
 
@@ -128,9 +134,19 @@ func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 }
 
 func (dm *DatabaseManager) SubmissionRemoveAll(cid, pid int64) error {
-	// TODO: implement
+	res, err := dm.SubmissionListWithPid(cid, pid)
+
+	if err != nil {
+		return err
+	}
+
+	for i := range res {
+		if err := dm.SubmissionRemove(cid, res[i].Pid); err != nil {
+			dm.Logger().WithError(err).WithField("cid", cid).WithField("pid", res[i].Pid).Error("SubmissionRemove error")
+		}
+	}
+
 	return nil
-	return dm.db.Delete(Submission{Cid: cid, Pid: pid}).Error
 }
 
 func (dm *DatabaseManager) SubmissionFind(cid, sid int64) (*Submission, error) {
@@ -165,12 +181,12 @@ func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sc
 		result.Score = score
 
 		if status == sctypes.SubmissionStatusJudging {
-			if err := dm.redis.JudgingProcessUpdate(sid, strconv.FormatInt(fin, 10)+"/"+strconv.FormatInt(all, 10)); err != nil {
-				dm.Logger().WithError(err).Error("JudgingProcessUpdate() error")
+			if err := dm.redis.JudgingProgressUpdate(sid, strconv.FormatInt(fin, 10)+"/"+strconv.FormatInt(all, 10)); err != nil {
+				dm.Logger().WithError(err).Error("JudgingProgressUpdate() error")
 			}
 		} else if result.Status == sctypes.SubmissionStatusJudging {
-			if err := dm.redis.JudgingProcessDelete(sid); err != nil {
-				dm.Logger().WithError(err).Error("JudgingProcessDelete() error")
+			if err := dm.redis.JudgingProgressDelete(sid); err != nil {
+				dm.Logger().WithError(err).Error("JudgingProgressDelete() error")
 			}
 		}
 
@@ -270,18 +286,14 @@ func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
 	return dm.SubmissionTestCaseDeleteUnassociated(cid)
 }
 
-func (dm *DatabaseManager) submissionTestCaseDeleteUnassociated(cid int64, db *gorm.DB) error {
-	return db.Where("sid IS NULL").Delete(SubmissionTestCase{Cid: cid}).Error
-}
-
 func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated(cid int64) error {
-	return dm.submissionTestCaseDeleteUnassociated(cid, dm.db)
+	return dm.db.Where("sid IS NULL").Delete(SubmissionTestCase{Cid: cid}).Error
 }
 
 func (dm *DatabaseManager) SubmissionListWithPid(cid, pid int64) ([]Submission, error) {
 	var results []Submission
 
-	err := dm.db.Model(Submission{Cid: cid}).Where("pid=?", pid).Find(&results).Error
+	err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("pid=?", pid).Find(&results).Error
 
 	if err != nil {
 		return nil, err
@@ -311,11 +323,7 @@ type SubmissionView struct {
 // TODO: Gormに切り替え
 func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*gorm.DB, error) {
 	table := Submission{Cid: cid}.TableName()
-	db := dm.db.Table(table + " as submissions").Joins("inner join contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
-
-	if cid != -1 {
-		db = db.Where("contest_problems.cid=?", strconv.FormatInt(cid, 10))
-	}
+	db := dm.db.Table(table + " as submissions").Joins("inner join " + ContestProblem{Cid: cid}.TableName() + " as contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")
 
 	if iid != -1 {
 		db = db.Where("users.iid=?", strconv.FormatInt(iid, 10))
@@ -376,7 +384,7 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 		return nil, err
 	}
 
-	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid")
+	db = db.Select("submissions.submit_time, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid")
 
 	var results []SubmissionView
 	if err := db.Scan(&results).Error; err != nil {
@@ -384,13 +392,14 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 	}
 
 	for i := range results {
+		results[i].Cid = cid
 		results[i].Status = results[i].RawStatus.String()
 
 		if results[i].RawStatus == sctypes.SubmissionStatusJudging {
-			status, err := dm.redis.JudgingProcessGet(results[i].Sid)
+			status, err := dm.redis.JudgingProgressGet(results[i].Sid)
 
 			if err != nil {
-				dm.Logger().WithField("sid", results[i].Sid).WithField("cid", results[i].Cid).WithError(err).Error("JudgingProcessGet error")
+				dm.Logger().WithField("sid", results[i].Sid).WithField("cid", results[i].Cid).WithError(err).Error("JudgingProgressGet error")
 			} else {
 				results[i].Status = status
 			}
@@ -408,7 +417,7 @@ func (dm *DatabaseManager) SubmissionViewFind(sid, cid int64) (*SubmissionView, 
 		return nil, err
 	}
 
-	db = db.Select("submissions.submit_time, contest_problems.cid, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid, languages.highlight_type, submissions.iid").Where("sid=?", sid)
+	db = db.Select("submissions.submit_time, contest_problems.pidx, contest_problems.name, users.uid, users.user_name, languages.name as lang, submissions.score, submissions.status, submissions.time, submissions.mem, submissions.sid, languages.highlight_type, submissions.iid").Where("sid=?", sid)
 
 	var result SubmissionView
 	if err := db.First(&result).Error; err != nil {
@@ -417,15 +426,42 @@ func (dm *DatabaseManager) SubmissionViewFind(sid, cid int64) (*SubmissionView, 
 
 	result.Status = result.RawStatus.String()
 	fmt.Println(result)
+	result.Cid = cid
+
 	if result.RawStatus == sctypes.SubmissionStatusJudging {
-		status, err := dm.redis.JudgingProcessGet(result.Sid)
+		status, err := dm.redis.JudgingProgressGet(result.Sid)
 
 		if err != nil {
-			dm.Logger().WithField("sid", result.Sid).WithField("cid", result.Cid).WithError(err).Error("JudgingProcessGet error")
+			dm.Logger().WithField("sid", result.Sid).WithField("cid", result.Cid).WithError(err).Error("JudgingProgressGet error")
 		} else {
 			result.Status = status
 		}
 	}
 
 	return &result, err
+}
+
+func (dm *DatabaseManager) SubmissionCountForPenalty(cid, iid, pid /*smaller than*/, sid int64, CEContained bool) (int64, error) {
+	lh, rh := sctypes.SubmissionStatusWrongAnswer, sctypes.SubmissionStatusCompileError
+
+	if !CEContained {
+		rh = sctypes.SubmissionStatusRuntimeError
+	}
+
+	var cnt int64
+	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("iid=? AND pid=? AND status >= ? AND status <= ? AND sid < ?", iid, pid, lh, rh, sid).Count(cnt).Error; err != nil {
+		return 0, err
+	}
+
+	return cnt, nil
+}
+
+func (dm *DatabaseManager) SubmissionMaximumScore(cid, iid, pid int64) (*Submission, error) {
+	var sm Submission
+
+	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Order("order by score desc, sid asc").Where("iid=? AND pid=?", iid, pid).First(&sm).Error; err != nil {
+		return nil, err
+	}
+
+	return &sm, nil
 }

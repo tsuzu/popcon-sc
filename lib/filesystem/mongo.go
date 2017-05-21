@@ -101,6 +101,10 @@ func (mfs *MongoFSManager) Read(category, path string) ([]byte, error) {
 	gf, err := mfs.OpenOnly(category, path)
 
 	if err != nil {
+		if err == mgo.ErrNotFound {
+			return []byte{}, nil
+		}
+
 		return nil, err
 	}
 	defer gf.Close()

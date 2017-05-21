@@ -14,6 +14,7 @@ type Contest struct {
 	StartTime       time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
 	FinishTime      time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
 	Admin           int64               `gorm:"not null"`
+	Penalty         int64               `gorm:"not null"`
 	Type            sctypes.ContestType `gorm:"not null"`
 	DescriptionFile string              `gorm:"not null"`
 }
@@ -25,7 +26,7 @@ func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sct
 		return nil, err
 	}
 
-	return mainDB.ContestProblemFind(pb)
+	return mainDB.ContestProblemFind(c.Cid, pb)
 }
 
 func (c *Contest) DescriptionUpdate(desc string) error {
@@ -87,15 +88,31 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		Type:       ctype,
 	}
 
-	err := dm.db.Create(&contest).Error
+	if err := dm.Begin(func(db *gorm.DB) error {
+		err := dm.db.Create(&contest).Error
 
-	if err != nil {
+		if err != nil {
+			return err
+		}
+
+		err = dm.Clone(db).SubmissionAutoMigrate(contest.Cid)
+
+		if err != nil {
+			return err
+		}
+		err = dm.Clone(db).ContestProblemAutoMigrate(contest.Cid)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		return 0, err
 	}
 
-	dm.SubmissionAutoMigrate(contest.Cid)
-
 	return contest.Cid, nil
+
 }
 
 func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType) error {
@@ -152,6 +169,22 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 	}
 
 	return &res, nil
+}
+
+func (dm *DatabaseManager) ContestGetType(cid int64) (sctypes.ContestType, error) {
+	var res Contest
+
+	err := dm.db.Select("type").First(&res, cid).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return 0, ErrUnknownContest
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	return res.Type, nil
 }
 
 func (dm *DatabaseManager) ContestCount(options ...[]interface{}) (int64, error) {

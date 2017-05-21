@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"reflect"
 	"strconv"
 
 	mgo "gopkg.in/mgo.v2"
@@ -22,6 +23,11 @@ type ContestProblemTestCase struct {
 	Name   string `gorm:"size:128"`
 	Input  string `gorm:"size:128"`
 	Output string `gorm:"size:128"`
+	Cid    int64  `gorm:"-"`
+}
+
+func (cptc ContestProblemTestCase) TableName() string {
+	return "contest_problem_test_cases_" + strconv.FormatInt(cptc.Cid, 10)
 }
 
 type ContestProblemScoreSetCasesString string
@@ -53,6 +59,11 @@ type ContestProblemScoreSet struct {
 	CasesRawString string `gorm:"size:6143"`
 	Score          int64
 	Cases          ContestProblemScoreSetCasesString `gorm:"-"`
+	Cid            int64                             `gorm:"-"`
+}
+
+func (cpss ContestProblemScoreSet) TableName() string {
+	return "contest_problem_score_sets_" + strconv.FormatInt(cpss.Cid, 10)
 }
 
 func (ss *ContestProblemScoreSet) BeforeSave() error {
@@ -67,7 +78,7 @@ func (ss *ContestProblemScoreSet) AfterFind() error {
 
 type ContestProblem struct {
 	Pid           int64                    `gorm:"primary_key"`
-	Cid           int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Cid           int64                    `gorm:"-"` //`gorm:"not null;index;unique_index:cid_and_pidx_index"`
 	Pidx          int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
 	Name          string                   `gorm:"not null;size:255"`
 	Time          int64                    `gorm:"not null"` // Second
@@ -81,12 +92,50 @@ type ContestProblem struct {
 	Scores        []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
 }
 
+func setCidForContestProblems(cid int64, arr []ContestProblem) {
+	for i := range arr {
+		arr[i].Cid = cid
+	}
+}
+
+func (cp ContestProblem) TableName() string {
+	return "contest_problems_" + strconv.FormatInt(cp.Cid, 10)
+}
+
+func (dm *DatabaseManager) CreateContestProblemTable() error {
+	/*err := dm.db.AutoMigrate(&ContestProblem{}, &ContestProblemTestCase{}, &ContestProblemScoreSet{}).Error
+	if err != nil {
+		return err
+	}*/
+
+	prevHandler := gorm.DefaultTableNameHandler
+
+	gorm.DefaultTableNameHandler = func(db *gorm.DB, defaultTableName string) string {
+		if v, ok := db.Get("gorm:association:source"); ok {
+			if reflect.TypeOf(db.Value) == reflect.TypeOf(&[]ContestProblemTestCase{}) {
+				return "contest_problem_test_cases_" + strconv.FormatInt(v.(*ContestProblem).Cid, 10)
+			}
+			if reflect.TypeOf(db.Value) == reflect.TypeOf(&[]ContestProblemScoreSet{}) {
+				return "contest_problem_score_sets_" + strconv.FormatInt(v.(*ContestProblem).Cid, 10)
+			}
+		}
+
+		return prevHandler(db, defaultTableName)
+	}
+
+	return nil
+}
+
+func (dm *DatabaseManager) ContestProblemAutoMigrate(cid int64) error {
+	return dm.db.AutoMigrate(ContestProblem{Cid: cid}, ContestProblemTestCase{Cid: cid}, ContestProblemScoreSet{Cid: cid}).Error
+}
+
 // TODO: テストケースの情報を乗っけるようにする途中でORMの変更が入ったので中断
 // 適当にSQLに乗っけるように変更
 
 func (cp *ContestProblem) UpdateStatement(text string) error {
 	return mainDB.Begin(func(db *gorm.DB) error {
-		var res ContestProblem
+		res := *cp
 		err := db.Select("statement_file").First(&res, cp.Pid).Error
 
 		if err != nil {
@@ -112,7 +161,7 @@ func (cp *ContestProblem) UpdateStatement(text string) error {
 }
 
 func (cp *ContestProblem) LoadStatement() (string, error) {
-	var res ContestProblem
+	res := *cp
 	err := mainDB.db.Select("statement_file").First(&res, cp.Pid).Error
 
 	if err != nil {
@@ -141,7 +190,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 	}
 
 	return mainDB.Begin(func(db *gorm.DB) error {
-		var res ContestProblem
+		res := *cp
 		err := db.Select("checker_file").First(&res, cp.Pid).Error
 
 		if err != nil {
@@ -168,7 +217,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 
 func (cp *ContestProblem) LoadChecker() (lid int64, code string, ret error) {
 	ret = mainDB.Begin(func(db *gorm.DB) error {
-		var res ContestProblem
+		res := *cp
 		err := db.Select("checker_file").First(&res, cp.Pid).Error
 
 		if err != nil {
@@ -207,7 +256,7 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 		var cases []ContestProblemTestCase
 		var scores []ContestProblemScoreSet
 
-		if err := db.Model(&cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+		if err := db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 			return err
 		}
 
@@ -240,24 +289,28 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 			}
 			newCases[i].Name = newCaseNames[i]
 			newCases[i].Pid = cp.Pid
+			newCases[i].Cid = cp.Cid
 		}
 
-		for i := 0; i < len(newScores) && i < len(scores); i++ {
-			newScores[i].Id = scores[i].Id
-			newScores[i].Pid = scores[i].Pid
+		for i := 0; i < len(newScores); i++ {
+			if i < len(scores) {
+				newScores[i].Id = scores[i].Id
+				newScores[i].Pid = scores[i].Pid
+			}
+			newScores[i].Cid = cp.Cid
 		}
 
-		if err := db.Model(cp).Association("Cases").Replace(newCases).Error; err != nil {
+		if err := db.Model(cp).Association("Cases").Replace(&newCases).Error; err != nil {
 			return err
 		}
-		if err := db.Model(cp).Association("Scores").Replace(newScores).Error; err != nil {
+		if err := db.Model(cp).Association("Scores").Replace(&newScores).Error; err != nil {
 			return err
 		}
 
-		db.Model(&cp).Update("score", scoreSum)
+		db.Model(cp).Update("score", scoreSum)
 
 		f()
-		mainDB.ClearUnassociatedDataWithDB(db)
+		mainDB.Clone(db).ClearUnassociatedData(cp.Cid)
 		return nil
 	})
 }
@@ -276,7 +329,7 @@ func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
 func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.Reader) error {
 	return mainDB.Begin(func(db *gorm.DB) error {
 		var cpcase ContestProblemTestCase
-		if err := db.Model(&cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+		if err := db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 			return err
 		}
 
@@ -306,7 +359,7 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser, error) {
 	var cpcase ContestProblemTestCase
 
-	if err := mainDB.db.Model(&cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrUnknownTestcase
 		}
@@ -337,7 +390,7 @@ func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestPr
 	var scores []ContestProblemScoreSet
 	var cases []ContestProblemTestCase
 
-	if err := mainDB.db.Model(&cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+	if err := mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -347,7 +400,7 @@ func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestPr
 func (cp *ContestProblem) LoadTestCaseInfo(caseID int) (int64, int64, error) {
 	var cpcase ContestProblemTestCase
 
-	if err := mainDB.db.Model(&cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, 0, ErrUnknownTestcase
 		}
@@ -381,7 +434,7 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSe
 	var scores []ContestProblemScoreSet
 	var cases []ContestProblemTestCase
 
-	if err := mainDB.db.Model(&cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+	if err := mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -394,17 +447,8 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSe
 	return caseNames, scores, nil
 }
 
-func (dm *DatabaseManager) CreateContestProblemTable() error {
-	err := dm.db.AutoMigrate(&ContestProblem{}, &ContestProblemTestCase{}, &ContestProblemScoreSet{}).Error
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeLimit, mem int64, jtype sctypes.JudgeType) (int64, error) {
-	cp := ContestProblem{
+	cp := &ContestProblem{
 		Cid:  cid,
 		Pidx: pidx,
 		Name: name,
@@ -413,7 +457,7 @@ func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeL
 		Type: jtype,
 	}
 
-	err := mainDB.db.Create(&cp).Error
+	err := mainDB.db.Create(cp).Error
 
 	if err != nil {
 		return 0, err
@@ -426,17 +470,17 @@ func (dm *DatabaseManager) ContestProblemUpdate(prob ContestProblem) error {
 	return dm.db.Save(&prob).Error
 }
 
-func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
-	log := dm.Logger().WithField("pid", pid)
+func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
+	log := dm.Logger().WithField("cid", cid).WithField("pid", pid)
 
-	cp, err := dm.ContestProblemFind(pid)
+	cp, err := dm.ContestProblemFind(cid, pid)
 
 	if err != nil {
 		return err
 	}
 
 	var cases []ContestProblemTestCase
-	if err := dm.db.Model(&cp).Related(cases, "Cases").Error; err != nil {
+	if err := dm.db.Model(cp).Related(cases, "Cases").Error; err != nil {
 		return err
 	}
 
@@ -445,7 +489,7 @@ func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
 		mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output)
 	}
 
-	model := dm.db.Model(&cp)
+	model := dm.db.Model(cp)
 
 	if err := model.Association("Cases").Clear().Error; err != nil {
 		log.WithError(err).Error("Delete associations of cases")
@@ -454,23 +498,24 @@ func (dm *DatabaseManager) ContestProblemDelete(pid int64) error {
 		log.WithError(err).Error("Delete associations of scores")
 	}
 
-	if err := dm.ClearUnassociatedData(); err != nil {
+	if err := dm.ClearUnassociatedData(cid); err != nil {
 		log.WithError(err).Error("Failed Deleting unassociated data")
 	}
 
-	return dm.db.Delete(&cp).Error
+	if err := dm.SubmissionRemoveAll(cid, cp.Pid); err != nil {
+		log.WithError(err).WithField("cid", cid).WithField("pid", cp.Pid).Error("SubmissionRemoveAll() error")
+	}
+
+	return dm.db.Delete(cp).Error
 }
 
-func (dm *DatabaseManager) ClearUnassociatedDataWithDB(db *gorm.DB) error {
-	return db.Where("pid IS NULL").Delete(ContestProblemTestCase{}).Delete(ContestProblemScoreSet{}).Error
+func (dm *DatabaseManager) ClearUnassociatedData(cid int64) error {
+	return dm.db.Where("pid IS NULL").Delete(ContestProblemTestCase{Cid: cid}).Delete(ContestProblemScoreSet{Cid: cid}).Error
 }
 
-func (dm *DatabaseManager) ClearUnassociatedData() error {
-	return dm.ClearUnassociatedDataWithDB(dm.db)
-}
-
-func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error) {
+func (dm *DatabaseManager) ContestProblemFind(cid, pid int64) (*ContestProblem, error) {
 	var res ContestProblem
+	res.Cid = cid
 
 	err := dm.db.First(&res, pid).Error
 
@@ -487,8 +532,9 @@ func (dm *DatabaseManager) ContestProblemFind(pid int64) (*ContestProblem, error
 
 func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem, error) {
 	var res ContestProblem
+	res.Cid = cid
 
-	err := dm.db.Where("pidx=?", pidx).Where("cid=?", cid).First(&res).Error
+	err := dm.db.Model(ContestProblem{Cid: cid}).Where("pidx=?", pidx).First(&res).Error
 
 	if err == gorm.ErrRecordNotFound {
 		return nil, ErrUnknownProblem
@@ -503,11 +549,14 @@ func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem
 func (dm *DatabaseManager) ContestProblemList(cid int64) ([]ContestProblem, error) {
 	var results []ContestProblem
 
-	err := dm.db.Where("cid=?", cid).Order("pidx asc").Find(&results).Error
+	err := dm.db.Table(ContestProblem{Cid: cid}.TableName()).Order("pidx asc").Find(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
+
+	// set cid
+	setCidForContestProblems(cid, results)
 
 	return results, nil
 }
@@ -515,7 +564,7 @@ func (dm *DatabaseManager) ContestProblemList(cid int64) ([]ContestProblem, erro
 func (dm *DatabaseManager) ContestProblemCount(cid int64) (int64, error) {
 	var count int64
 
-	err := dm.db.Model(&ContestProblem{}).Where("cid=?", cid).Count(&count).Error
+	err := dm.db.Model(ContestProblem{Cid: cid}).Count(&count).Error
 
 	if err != nil {
 		return 0, err
@@ -527,11 +576,14 @@ func (dm *DatabaseManager) ContestProblemCount(cid int64) (int64, error) {
 func (dm *DatabaseManager) ContestProblemListLight(cid int64) ([]ContestProblem, error) {
 	var results []ContestProblem
 
-	err := dm.db.Select("pidx, name").Where("cid=?", cid).Find(&results).Error
+	err := dm.db.Table(ContestProblem{Cid: cid}.TableName()).Select("pidx, name").Find(&results).Error
 
 	if err != nil {
 		return nil, err
 	}
+
+	// set cid
+	setCidForContestProblems(cid, results)
 
 	return results, nil
 }
@@ -539,12 +591,12 @@ func (dm *DatabaseManager) ContestProblemListLight(cid int64) ([]ContestProblem,
 func (dm *DatabaseManager) ContestProblemDeleteAll(cid int64) error {
 	var results []ContestProblem
 
-	if err := dm.db.Select("pid").Where("cid=?", cid).Find(&results).Error; err != nil {
+	if err := dm.db.Table(ContestProblem{Cid: cid}.TableName()).Select("pid").Find(&results).Error; err != nil {
 		return err
 	}
 
 	for i := range results {
-		dm.ContestProblemDelete(results[i].Pid)
+		dm.ContestProblemDelete(cid, results[i].Pid)
 	}
 	return nil
 }

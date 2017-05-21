@@ -55,12 +55,7 @@ func main() {
 	environmentalSetting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
 	environmentalSetting.microServicesAddr = os.Getenv("PP_MS_ADDR")
 	environmentalSetting.internalToken = os.Getenv("PP_TOKEN")
-	environmentalSetting.listeningEndpoint = os.Getenv("PP_LISTEN")
 	environmentalSetting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
-
-	if len(environmentalSetting.listeningEndpoint) == 0 {
-		environmentalSetting.listeningEndpoint = ":80"
-	}
 
 	// ロガー作成
 	InitLogger(os.Stdout, environmentalSetting.debugMode)
