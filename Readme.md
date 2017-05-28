@@ -6,7 +6,7 @@
 - Mainly, made to be used in my club activities.
 - Main: Pure Go
 - Web: Bootstrap3
-- I'll make this more confortable than the previous project, [popcon](https://github.com/cs3238-tsuzu/popcon) by using Docker.
+- I'll make this more useful than the previous project, [popcon](https://github.com/cs3238-tsuzu/popcon) by using Docker.
 
 ## Features
 - Scalable web server & judging system

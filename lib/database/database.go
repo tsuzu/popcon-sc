@@ -25,10 +25,11 @@ func SetDefaultManager(dm *DatabaseManager) {
 
 // DatabaseManager is a connector to this database
 type DatabaseManager struct {
-	db     *gorm.DB
-	fs     *fs.MongoFSManager
-	redis  *redis.RedisManager
-	logger func() *logrus.Entry
+	db                 *gorm.DB
+	fs                 *fs.MongoFSManager
+	redis              *redis.RedisManager
+	logger             func() *logrus.Entry
+	transactionStarted bool
 }
 
 func (dm *DatabaseManager) Close() {
@@ -150,13 +151,19 @@ RETRY:
 }
 
 func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {
+	if dm.transactionStarted {
+		return ErrAlreadyTransactionBegun
+	}
 	db := dm.db.Begin()
 
 	if db.Error != nil {
 		return db.Error
 	}
 
-	err := f(dm.Clone(db))
+	clone := dm.Clone(db)
+	clone.transactionStarted = true
+
+	err := f(clone)
 
 	if err != nil {
 		db.Rollback()
@@ -179,10 +186,34 @@ func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {
 	return err
 }
 
+func (dm *DatabaseManager) BeginDMIfNotStarted(f func(dm *DatabaseManager) error) error {
+	if err := dm.BeginDM(f); err != nil {
+		if err == ErrAlreadyTransactionBegun {
+			return f(dm)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 func (dm *DatabaseManager) Begin(f func(db *gorm.DB) error) error {
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		return f(dm.db)
 	})
+}
+
+func (dm *DatabaseManager) BeginIfNotStarted(f func(dm *gorm.DB) error) error {
+	if err := dm.Begin(f); err != nil {
+		if err == ErrAlreadyTransactionBegun {
+			return f(dm.db)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (dm *DatabaseManager) Logger() *logrus.Entry {

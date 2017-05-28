@@ -1,10 +1,9 @@
 package database
 
 import (
+	"io"
 	"strconv"
 	"time"
-
-	"fmt"
 
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
@@ -181,11 +180,11 @@ func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sc
 		result.Score = score
 
 		if status == sctypes.SubmissionStatusJudging {
-			if err := dm.redis.JudgingProgressUpdate(sid, strconv.FormatInt(fin, 10)+"/"+strconv.FormatInt(all, 10)); err != nil {
+			if err := dm.redis.JudgeProgressUpdate(cid, sid, strconv.FormatInt(fin, 10)+"/"+strconv.FormatInt(all, 10)); err != nil {
 				dm.Logger().WithError(err).Error("JudgingProgressUpdate() error")
 			}
 		} else if result.Status == sctypes.SubmissionStatusJudging {
-			if err := dm.redis.JudgingProgressDelete(sid); err != nil {
+			if err := dm.redis.JudgeProgressDelete(cid, sid); err != nil {
 				dm.Logger().WithError(err).Error("JudgingProgressDelete() error")
 			}
 		}
@@ -263,14 +262,14 @@ func (dm *DatabaseManager) SubmissionSetMsg(cid, sid int64, msg string) error {
 
 func (dm *DatabaseManager) SubmissionGetCase(cid, sid int64) ([]SubmissionTestCase, error) {
 	var results []SubmissionTestCase
-	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
+	if err := dm.db.Table(Submission{Sid: sid, Cid: cid}.TableName()).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
 		return nil, err
 	}
 
 	return results, nil
 }
 
-func (dm *DatabaseManager) SubmissionSetCase(cid, sid int64, caseId int, stc SubmissionTestCase) error {
+func (dm *DatabaseManager) SubmissionAppendCase(cid, sid int64, stc SubmissionTestCase) error {
 	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Append(stc).Error; err != nil {
 		return err
 	}
@@ -279,11 +278,12 @@ func (dm *DatabaseManager) SubmissionSetCase(cid, sid int64, caseId int, stc Sub
 }
 
 func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
-	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
-		return err
-	}
-
-	return dm.SubmissionTestCaseDeleteUnassociated(cid)
+	return dm.BeginDMIfNotStarted(func(dm *DatabaseManager) error {
+		if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
+			return err
+		}
+		return dm.SubmissionTestCaseDeleteUnassociated(cid)
+	})
 }
 
 func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated(cid int64) error {
@@ -396,7 +396,7 @@ func (dm *DatabaseManager) SubmissionViewList(cid, iid, lid, pidx, stat, offset,
 		results[i].Status = results[i].RawStatus.String()
 
 		if results[i].RawStatus == sctypes.SubmissionStatusJudging {
-			status, err := dm.redis.JudgingProgressGet(results[i].Sid)
+			status, err := dm.redis.JudgeProgressGet(cid, results[i].Sid)
 
 			if err != nil {
 				dm.Logger().WithField("sid", results[i].Sid).WithField("cid", results[i].Cid).WithError(err).Error("JudgingProgressGet error")
@@ -425,11 +425,10 @@ func (dm *DatabaseManager) SubmissionViewFind(sid, cid int64) (*SubmissionView, 
 	}
 
 	result.Status = result.RawStatus.String()
-	fmt.Println(result)
 	result.Cid = cid
 
 	if result.RawStatus == sctypes.SubmissionStatusJudging {
-		status, err := dm.redis.JudgingProgressGet(result.Sid)
+		status, err := dm.redis.JudgeProgressGet(cid, result.Sid)
 
 		if err != nil {
 			dm.Logger().WithField("sid", result.Sid).WithField("cid", result.Cid).WithError(err).Error("JudgingProgressGet error")
@@ -464,4 +463,86 @@ func (dm *DatabaseManager) SubmissionMaximumScore(cid, iid, pid int64) (*Submiss
 	}
 
 	return &sm, nil
+}
+
+func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, message io.Reader) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		var sm Submission
+		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
+			return err
+		}
+
+		if sm.Jid > jid {
+			return nil
+		}
+
+		if sm.Jid < jid {
+			if err := dm.SubmissionClearCase(cid, sid); err != nil {
+				return err
+			}
+		}
+
+		suc, name, err := dm.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_SUBMISSION_MSG, sm.MessageFile, message)
+
+		if err != nil {
+			dm.Logger().WithError(err).WithField("cid", cid).WithField("sid", sid).WithField("jid", jid).Error("FileSecureUpdateWithReader() error")
+		}
+
+		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).Updates(map[string]interface{}{
+			"jid":          jid,
+			"status":       status,
+			"score":        score,
+			"message_file": name,
+		}).Error; err != nil {
+			return err
+		}
+
+		if suc != nil {
+			suc()
+		}
+		return nil
+	})
+}
+
+func (dm *DatabaseManager) SubmissionUpdateTestCase(cid, sid, jid int64, status string, res SubmissionTestCase) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		var sm Submission
+		sm.Cid = cid
+		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
+			return err
+		}
+
+		if sm.Jid > jid {
+			return nil
+		}
+
+		if sm.Jid < jid {
+			if err := dm.SubmissionClearCase(cid, sid); err != nil {
+				return err
+			}
+		}
+
+		if err := dm.SubmissionAppendCase(cid, sid, res); err != nil {
+			return err
+		}
+
+		if err := dm.redis.JudgeProgressUpdate(cid, sid, status); err != nil {
+			dm.Logger().WithError(err).WithField("cid", cid).WithField("sid", sid).Error("JudgeProgressUpdate() error(redis)")
+		}
+
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION_MSG, sm.MessageFile); err != nil {
+			dm.Logger().WithError(err).WithField("path", sm.MessageFile).Error("RemoveLater() error")
+		}
+
+		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).Updates(map[string]interface{}{
+			"jid":          jid,
+			"status":       sctypes.SubmissionStatusJudging,
+			"score":        0,
+			"message_file": "",
+		}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

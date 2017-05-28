@@ -390,11 +390,10 @@ func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestPr
 	var scores []ContestProblemScoreSet
 	var cases []ContestProblemTestCase
 
-	if err := mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
-		return nil, nil, err
-	}
+	return cases, scores, mainDB.BeginIfNotStarted(func(dm *gorm.DB) error {
 
-	return cases, scores, nil
+		return mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error
+	})
 }
 
 func (cp *ContestProblem) LoadTestCaseInfo(caseID int) (int64, int64, error) {

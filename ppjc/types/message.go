@@ -3,5 +3,5 @@ package ppjctypes
 type PollingMessage string
 
 const (
-	JudgeOneFinished PollingMessage = "finished"
+	JudgeOneFinished PollingMessage = "one judge finished"
 )

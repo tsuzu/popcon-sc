@@ -193,29 +193,29 @@ func (rm *RedisManager) UniqueFileID(category string) (int64, error) {
 	return redis.Int64(conn.Do("INCR", "unique_"+category+"_file_id_incr_"+category))
 }
 
-func (rm *RedisManager) JudgingProgressUpdate(sid int64, status string) error {
+func (rm *RedisManager) JudgeProgressUpdate(cid, sid int64, status string) error {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	if err := conn.Send("SET", "judging_progress_"+strconv.FormatInt(sid, 10), status); err != nil {
+	if err := conn.Send("SET", "judging_progress_"+strconv.FormatInt(cid, 10)+"_"+strconv.FormatInt(sid, 10), status); err != nil {
 		return err
 	}
 
 	return conn.Flush()
 }
 
-func (rm *RedisManager) JudgingProgressGet(sid int64) (string, error) {
+func (rm *RedisManager) JudgeProgressGet(cid, sid int64) (string, error) {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	return redis.String(conn.Do("GET", "judging_progress_"+strconv.FormatInt(sid, 10)))
+	return redis.String(conn.Do("GET", "judging_progress_"+strconv.FormatInt(cid, 10)+"_"+strconv.FormatInt(sid, 10)))
 }
 
-func (rm *RedisManager) JudgingProgressDelete(sid int64) error {
+func (rm *RedisManager) JudgeProgressDelete(cid, sid int64) error {
 	conn := rm.pool.Get()
 	defer conn.Close()
 
-	if err := conn.Send("DEL", "judging_progress_"+strconv.FormatInt(sid, 10)); err != nil {
+	if err := conn.Send("DEL", "judging_progress_"+strconv.FormatInt(cid, 10)+"_"+strconv.FormatInt(sid, 10)); err != nil {
 		return err
 	}
 

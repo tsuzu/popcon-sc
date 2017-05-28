@@ -307,9 +307,12 @@ type RankingRow struct {
 func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow, error) {
 	var str string
 	if offset != -1 {
-		str = strconv.FormatInt(offset, 10) + ","
+		str = strconv.FormatInt(offset, 10)
 	}
 	if limit != -1 {
+		if len(str) != 0 {
+			str = str + ","
+		}
 		str = str + strconv.FormatInt(limit, 10)
 	}
 
