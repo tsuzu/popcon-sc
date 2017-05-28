@@ -12,6 +12,7 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
+	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	"github.com/facebookgo/grace/gracehttp"
 	gorilla "github.com/gorilla/handlers"
 	"github.com/sebest/xff"
@@ -20,8 +21,10 @@ import (
 var mainDB *database.DatabaseManager
 var mainRM *redis.RedisManager
 var mainFS *fs.MongoFSManager
+var ppjcClient *ppjc.Client
 
 func main() {
+	var err error
 	// 標準時
 	time.Local = Location
 
@@ -57,10 +60,15 @@ func main() {
 	environmentalSetting.internalToken = os.Getenv("PP_TOKEN")
 	environmentalSetting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
 
+	ppjcClient, err = ppjc.NewClient(environmentalSetting.judgeControllerAddr, environmentalSetting.internalToken)
+
+	if err != nil {
+		panic(err)
+	}
+
 	// ロガー作成
 	InitLogger(os.Stdout, environmentalSetting.debugMode)
 
-	var err error
 	// Redis
 	mainRM, err = redis.NewRedisManager(environmentalSetting.redisAddr, environmentalSetting.redisPass, DBLog)
 	if err != nil {
@@ -107,7 +115,7 @@ func main() {
 	handlers, err := CreateHandlers()
 
 	if err != nil {
-		HttpLog().Fatal(err)
+		HttpLog().WithError(err).Fatal("CreateHandlers() error")
 	}
 
 	for k, v := range handlers {
@@ -115,7 +123,6 @@ func main() {
 	}
 
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
-	//mux.Handle("/judge", JudgeTransfer{})
 	mux.HandleFunc("/favicon.ico", func(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("Location", "/static/popcon.ico")
 		rw.WriteHeader(http.StatusMovedPermanently)

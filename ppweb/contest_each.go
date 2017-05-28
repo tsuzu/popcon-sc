@@ -633,7 +633,7 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 				}
 			}
 
-			subm, err := mainDB.SubmissionAdd(cid, prob.Pid, std.Iid, lid, code)
+			sid, err := mainDB.SubmissionAdd(cid, prob.Pid, std.Iid, lid, code)
 
 			if err != nil {
 				DBLog().WithError(err).Error("SubmissionAdd error")
@@ -641,9 +641,13 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 
 				return
 			}
-			//SJQueue.Push(subm)
+			if err := ppjcClient.JudgeSubmit(cid, sid); err != nil {
+				HttpLog().WithError(err).WithField("cid", cid).WithField("sid", sid).Error("JudgeSubmit() error")
 
-			RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/submissions/"+strconv.FormatInt(subm, 10))
+				mainDB.SubmissionUpdateResult(cid, sid, 0, sctypes.SubmissionStatusInternalError, 0, strings.NewReader("internal server error(judge queue is down)"))
+			}
+
+			RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/submissions/"+strconv.FormatInt(sid, 10))
 		} else {
 
 		}
@@ -780,9 +784,10 @@ func (ceh *ContestEachHandler) GetHandler(cid int64, std database.SessionTemplat
 						return
 					}
 
-					for _ = range sml {
-						// TODO: JudgeQueue処理
-						//SJQueue.Push((*sml)[i].Sid)
+					for i := range sml {
+						if err := ppjcClient.JudgeSubmit(cid, sml[i].Sid); err != nil {
+							HttpLog().WithError(err).WithField("cid", cid).WithField("sid", sml[i].Sid).Error("JudgeSubmit() error")
+						}
 					}
 
 					RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/management/")

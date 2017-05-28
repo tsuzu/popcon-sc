@@ -1,0 +1,6 @@
+{
+    "name": "test-server",
+    "parallelism": 2,
+    "cpu_usage": 100,
+    "version": "0.01"
+}

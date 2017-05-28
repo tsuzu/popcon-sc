@@ -39,7 +39,7 @@ func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.Rank
 	if err != nil {
 		return nil, err
 	}
-	u.Path = "/contests/" + strconv.FormatInt(cid, 10) + "/ranking"
+	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"
 
 	val := url.Values{}
 	val.Add("limit", strconv.FormatInt(limit, 10))
@@ -86,7 +86,7 @@ func (client *Client) ContestsNew(cid int64) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/contests/" + strconv.FormatInt(cid, 10) + "/new"
+	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/new"
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 
@@ -117,7 +117,7 @@ func (client *Client) ContestsProblemsAdd(cid, pid int64) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"
+	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -151,7 +151,7 @@ func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"
+	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -185,7 +185,7 @@ func (client *Client) JudgeSubmit(cid, sid int64) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/judge/submit"
+	u.Path = "/v1/judge/submit"
 
 	val := url.Values{}
 	val.Add("cid", strconv.FormatInt(cid, 10))
@@ -220,7 +220,7 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 	if err != nil {
 		return err
 	}
-	u.Path = "/judge/submissions/updateCase"
+	u.Path = "/v1/judge/submissions/updateCase"
 
 	b, _ := json.Marshal(ppjctypes.JudgeTestcaseResult{
 		Cid:      cid,
@@ -261,7 +261,7 @@ func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status s
 	if err != nil {
 		return err
 	}
-	u.Path = "/judge/submissions/updateResult"
+	u.Path = "/v1/judge/submissions/updateResult"
 
 	b, _ := json.Marshal(ppjctypes.JudgeSubmissionResult{
 		Cid:    cid,
@@ -311,7 +311,7 @@ func (client *Client) FileDownload(category, name string) (io.ReadCloser, error)
 	if err != nil {
 		return nil, err
 	}
-	u.Path = "/file_download"
+	u.Path = "/v1/file_download"
 
 	val := url.Values{}
 	val.Add("category", category)
@@ -345,7 +345,7 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 	if err != nil {
 		return nil, nil, err
 	}
-	u.Path = "/workers/ws/polling"
+	u.Path = "/v1/workers/ws/polling"
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), http.Header{"Popcon-Parallel-Judge": []string{strconv.FormatInt(parallel, 10)}})
 
 	if err != nil {
