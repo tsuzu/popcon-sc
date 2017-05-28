@@ -14,7 +14,7 @@ import (
 	"encoding/json"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/cs3238-tsuzu/popcon-sc/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	mgo "gopkg.in/mgo.v2"
 )
 

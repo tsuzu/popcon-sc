@@ -7,9 +7,6 @@ dump.rdb
 log
 .VSCode/
 ssl/
-contests/
-contest_problems/
-submissions/
 vendor/
 !html/contests/
 *.png
@@ -22,3 +19,4 @@ env_exec.sh
 mysql_exec.sh
 redis_exec.sh
 vendor_bk/
+.env

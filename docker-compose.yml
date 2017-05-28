@@ -36,6 +36,17 @@ services:
     # ランキング/ジャッジコントローラ
     ppjc:
         build: ppjc
+        ports:
+            5050:80
+        environment:
+            PP_MYSQL_ADDR: "root:${PP_DB_PASSWORD}@tcp(mysql:3306)/popcon?charset=utf8mb4&parseTime=True"
+            PP_REDIS_ADDR: "redis:6379"
+            PP_REDIS_PASS: "${PP_DB_PASSWORD}"
+            PP_MONGO_ADDR: "mongo:27017"
+            PP_JC_ADDR: "http://ppcj:80"
+            PP_MS_ADDR: "http://ppms:7502"
+            PP_TOKEN: ${PP_TOKEN}
+            PP_DEBUG_MODE: 1
 
     ppms:
         build: ppms
@@ -47,7 +58,6 @@ services:
     ppweb:
         build: ppweb
         volumes_from:
-            - ppdata
             - sendmail
         ports: 
             - 1234:80
@@ -60,7 +70,6 @@ services:
             PP_MS_ADDR: "http://ppms:7502"
             PP_TOKEN: ${PP_TOKEN}
             PP_LISTEN: ":80"
-            PP_SETTING: "/data/ppweb/setting.json"
             PP_DEBUG_MODE: 1
 volumes:
     mysql-volume:
