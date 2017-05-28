@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+{{$top := .}}
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{html .ContestName}} Submissions| popcon</title>
+    <!--Bootstrap CSS-->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!--jQuery-->
+    <script src="/static/js/jquery-1.12.2.min.js"></script>
+    <!--Bootstrap JS-->
+    <script src="/static/js/bootstrap.min.js"></script>
+    <!--footerFixed JS-->
+    <script src="/static/js/footer-fixed.js"></script>
+    <style>
+        #footer {
+            text-align: center;
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbarEexample">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">popcon</a>
+                </div>
+
+                <div class="collapse navbar-collapse" id="navbarEexample">
+                    <ul class="nav navbar-nav">
+                        <li><a href="/contests/{{.Cid}}/">コンテストトップ</a></li>
+                        <li><a href="/contests/{{.Cid}}/problems/">問題一覧</a></li>
+                        <li class="active"><a href="/contests/{{.Cid}}/submissions/">提出一覧</a></li>
+                        <li><a href="/contests/{{.Cid}}/ranking">ランキング</a></li>
+                        <p class="navbar-text"><a href="/contests/">コンテスト一覧へ</a></p>
+                    </ul>
+                    <div class="navbar-right">
+                        <p class="navbar-text">User: <a href="/userinfo">{{html .UserName}}</a></p>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="contents">
+        <div class="container">
+            <div class="page-header">
+                <h1>提出一覧</h1>
+            </div>
+
+            <ul class="nav nav-pills">
+                {{if .AllEnabled}}
+	            <li role="presentation" {{if (eq .User "")}}class="active"{{end}}><a href="/contests/{{.Cid}}/submissions/">全提出</a></li>
+	            {{end}}
+                <li role="presentation" {{if (eq .User .Uid)}}class="active"{{end}}><a href="/contests/{{.Cid}}/submissions/?user={{.Uid}}">自分</a></li>
+                {{if (eq (eq .User "" .Uid) false)}}<li role="presentation" class="active"><a href="/contests/{{.Cid}}/submissions/?user={{urlquery .User}}">他<span class="badge">{{html .User}}</span></a></li>{{end}}
+            </ul>
+            <div style="margin-top:5px;">
+                <form class="well form-inline" method="get" action="/contests/{{.Cid}}/submissions/">
+                    <div class="form-group">
+                		<label for="language_select">問題: </label>
+                		<select style="width: 140px;" name="prob" class="form-control input-sm" id="language_select">
+			                <option value="-1">-</option>
+                            {{range .Problems}}
+                            <option{{if (eq $top.Prob .Pidx)}} selected{{end}} value="{{.Pidx}}">{{.Pidx}} - {{html .Name}}</option>
+                            {{end}}
+                		</select>
+	                </div>
+                    <div class="form-group">
+                		<label for="language_select">言語: </label>
+                		<select style="width: 140px;" name="lang" class="form-control input-sm" id="language_select">
+			                <option value="-1">-</option>
+                            {{range .Languages}}
+                            <option{{if (eq $top.Lang .Lid)}} selected{{end}} value="{{.Lid}}">{{html .Name}}</option>
+                            {{end}}
+                		</select>
+	                </div>
+                    <div class="form-group">
+                		<label for="status_select">状態: </label>
+                		<select name="status" class="form-control input-sm" id="status_select">
+			                <option value="-1" selected>-</option>
+                            <option{{if (eq .Status 2)}} selected{{end}} value="2">AC</option>
+                            <option{{if (eq .Status 3)}} selected{{end}} value="3">WA</option>
+                            <option{{if (eq .Status 4)}} selected{{end}} value="4">TLE</option>
+                            <option{{if (eq .Status 5)}} selected{{end}} value="5">MLE</option>
+                            <option{{if (eq .Status 6)}} selected{{end}} value="6">RE</option>
+                            <option{{if (eq .Status 7)}} selected{{end}} value="7">CE</option>
+                            <option{{if (eq .Status 8)}} selected{{end}} value="8">IE</option>
+                		</select>
+	                </div>
+                    <input type="hidden" name="user" value="{{.User}}">
+                    <button type="submit" class="btn btn-default input-sm">検索</button>
+                </form>
+            </div>
+
+            <div style="margin-top:5px;" class="panel panel-default">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>提出日時</th>
+                            <th>問題名</th>
+                            <th>ユーザ名</th>
+                            <th>言語</th>
+                            <th>スコア</th>
+                            <th>結果</th>
+                            <th>時間</th>
+                            <th>メモリ</th>
+                            <th>-</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {{range .Submissions}}
+                        <tr>
+                            <td>{{timeToString .SubmitTime}}</td>
+                            <td><a href="/contests/{{.Cid}}/problems/{{.Pidx}}">{{.Pidx}} - {{html .Name}}</a></td>
+                            <td><a href="/contests/{{.Cid}}/submissions/?user={{html .Uid}}">{{html .UserName}}</a></td>
+                            <td>{{html .Lang}}</td>
+                            <td>{{if (ne .Score -1)}}{{.Score}}{{else}}-{{end}}</td>
+                            <td>
+                                {{if (eq .Status "AC")}}
+                                <span class="label label-success">AC</span> {{else}}
+                                {{if (eq .Status "IE")}}<span class="label label-danger">IE</span> {{else}}
+                                    {{if (eq .Status "MLE" "TLE" "CE" "RE" "WA")}}<span class="label label-warning">{{.Status}}</span> {{else}}
+                                    <span class="label label-default">{{.Status}}</span> {{end}}
+                                {{end}}{{end}}
+                            </td>
+                            <td>{{if (ne .Time -1)}}{{.Time}}ms{{else}}-{{end}}</td>
+                            <td>{{if (ne .Mem -1)}}{{.Mem}}KB{{else}}-{{end}}</td>
+                            <td><a href="/contests/{{.Cid}}/submissions/{{.Sid}}">詳細</a></td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td>提出がありません。</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="text-align: center;">
+                <ul class="pagination">
+                    {{if ne .Current 1}}
+                    <li>
+                        <a href="./?lang={{$top.Lang}}&prob={{$top.Prob}}&status={{$top.Status}}&user={{html $top.User}}&p={{add .Current -1}}" aria-label="前のページへ">
+                            <span aria-hidden="true">«</span>
+                        </a>
+                    </li>
+                    {{end}}
+                    {{range $page := .Pagination}}
+                        {{if (eq $page.Page -1)}}
+                            <li class="disabled"><a href="./?lang={{$top.Lang}}&prob={{$top.Prob}}&status={{$top.Status}}&user={{html $top.User}}&p={{$page.Page}}">...</a></li>
+                        {{else}}
+                            <li {{if $page.IsActive}}class="active" {{end}}>
+                                <a href="./?lang={{html $top.Lang}}&prob={{$top.Prob}}&status={{$top.Status}}&user={{html $top.User}}&p={{$page.Page}}">{{$page.Page}}</a>
+                            </li>
+                        {{end}}
+                    {{end}}
+                    {{if ne .Current .MaxPage}}
+                        <li>
+                            <a href="./?lang={{html $top.Lang}}&prob={{html $top.Prob}}&status={{html $top.Status}}&user={{html $top.User}}&p={{add .Current 1}}" aria-label="次のページへ">
+                            <span aria-hidden="true">»</span>
+                        </a>
+                    </li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+        <div style="margin-top:10px;" class="container">
+            <footer class="container-fluid" id="footer">
+                <small>© 2017 Tsuzu</small>
+            </footer>
+        </div>
+    </div>
+</body>
+
+</html>
