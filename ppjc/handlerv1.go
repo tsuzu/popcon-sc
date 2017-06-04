@@ -37,7 +37,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 	router := mux.NewRouter()
 
 	stripped := http.StripPrefix("/v1", router)
-	outer.HandleFunc("/v1/", func(rw http.ResponseWriter, req *http.Request) {
+	outer.PathPrefix("/v1/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		stripped.ServeHTTP(rw, req)
 	})
 
@@ -108,6 +108,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 			return
 		}
+		DBLog().WithField("cid", cid).WithField("pid", pid).Debug("RankingProblemAdd() succeeded.")
 	})
 	router.HandleFunc("/contests/{cid}/problems/delete", func(rw http.ResponseWriter, req *http.Request) {
 		err := req.ParseForm()

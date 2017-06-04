@@ -31,6 +31,16 @@ func NewRedisManager(addr, pass string, logger func() *logrus.Entry) (*RedisMana
 		},
 	}
 
+	for i := 0; i < 10; i++ {
+		if c, err := pool.Dial(); err != nil {
+			logger().Error("Waiting for redis server to be launched")
+			time.Sleep(3 * time.Second)
+		}else {
+			c.Close()
+			break
+		}
+	}
+
 	sm, err := ppconfiguration.NewRedisSettingManager(pool)
 
 	if err != nil {

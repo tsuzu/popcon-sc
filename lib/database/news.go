@@ -12,13 +12,16 @@ type News struct {
 }
 
 func (dm *DatabaseManager) CreateNewsTable() error {
-	err := dm.db.AutoMigrate(&News{}).Error
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		err := dm.db.AutoMigrate(&News{}).Error
 
-	if err != nil {
-		return err
-	}
+		if err != nil && !IsAlreadyExistsError(err) {
+			return err
+		}
 
-	return nil
+		return nil
+
+	})
 }
 
 // NewsAdd adds a news displayed on "/"

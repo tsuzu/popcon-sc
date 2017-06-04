@@ -97,34 +97,34 @@ func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string)
 }
 
 func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
-	return dm.Begin(func(db *gorm.DB) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result *Submission
 		var err error
 		result.Cid = cid
 
-		if result, err = dm.Clone(db).SubmissionFind(cid, sid); err != nil {
+		if result, err = dm.SubmissionFind(cid, sid); err != nil {
 			if err == ErrUnknownSubmission {
 				return nil
 			}
 			return err
 		}
 
-		if err := db.Model(result).Association("Cases").Clear().Error; err != nil {
+		if err := dm.db.Model(result).Association("Cases").Clear().Error; err != nil {
 			return err
 		}
-		if err := dm.Clone(db).SubmissionTestCaseDeleteUnassociated(cid); err != nil {
+		if err := dm.SubmissionTestCaseDeleteUnassociated(cid); err != nil {
 			dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
 		}
 
-		if err := db.Delete(result).Error; err != nil {
+		if err := dm.db.Delete(result).Error; err != nil {
 			return err
 		}
 
-		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION, result.CodeFile); err != nil {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION, result.CodeFile); err != nil {
 			dm.fs.Logger().WithError(err).Error("RemoveLater() error")
 		}
 
-		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile); err != nil {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile); err != nil {
 			dm.fs.Logger().WithError(err).Error("RemoveLater() error")
 		}
 
@@ -163,10 +163,10 @@ func (dm *DatabaseManager) SubmissionFind(cid, sid int64) (*Submission, error) {
 }
 
 func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sctypes.SubmissionStatusType, fin, all int64, score int64) (ret error) {
-	return dm.Begin(func(db *gorm.DB) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result Submission
 		result.Cid = cid
-		if err := db.First(&result, sid).Error; err != nil {
+		if err := dm.db.First(&result, sid).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return ErrUnknownSubmission
 			}
@@ -189,7 +189,7 @@ func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sc
 			}
 		}
 
-		return db.Save(&result).Error
+		return dm.db.Save(&result).Error
 	})
 }
 
@@ -238,20 +238,20 @@ func (dm *DatabaseManager) SubmissionGetMsg(cid, sid int64) (string, error) {
 }
 
 func (dm *DatabaseManager) SubmissionSetMsg(cid, sid int64, msg string) error {
-	return dm.Begin(func(db *gorm.DB) error {
+	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result Submission
 		result.Cid = cid
-		if err := db.Select("message_file").First(&result, sid).Error; err != nil {
+		if err := dm.db.Select("message_file").First(&result, sid).Error; err != nil {
 			return err
 		}
 
-		f, path, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile, msg)
+		f, path, err := dm.fs.FileSecureUpdate(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile, msg)
 
 		if err != nil {
 			return err
 		}
 
-		if err := db.Model(&Submission{Sid: sid, Cid: cid}).Update("message_file", path).Error; err != nil {
+		if err := dm.db.Model(&Submission{Sid: sid, Cid: cid}).Update("message_file", path).Error; err != nil {
 			return err
 		}
 

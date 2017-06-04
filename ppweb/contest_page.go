@@ -10,16 +10,26 @@ import (
 	"text/template"
 	"time"
 
+	"context"
+
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	"github.com/gorilla/mux"
 )
 
 const ContentsPerPage = 50
+
+type ContestsTopContextKeyType int
+
+const (
+	ContestsTopContextKey ContestsTopContextKeyType = iota
+)
 
 type ContestsTopHandler struct {
 	Temp        *template.Template
 	NewContest  *template.Template
 	EachHandler *ContestEachHandler
+	Router      *mux.Router
 }
 
 func CreateContestsTopHandler() (*ContestsTopHandler, error) {
@@ -56,7 +66,117 @@ func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 		return nil, err
 	}
 
-	return &ContestsTopHandler{temp, newContest, ceh}, nil
+	router := mux.NewRouter()
+	ch := &ContestsTopHandler{temp, newContest, ceh, router}
+
+	router.HandleFunc("/{status:(?:|coming|closed)}", func(rw http.ResponseWriter, req *http.Request) {
+		std := req.Context().Value(ContestsTopContextKey).(database.SessionTemplateData)
+		status := mux.Vars(req)["status"]
+
+		var cond []interface{}
+		timeNow := time.Now()
+		var reqType int
+		if status == "" {
+			reqType = 0
+			cond = ArgumentsToArray("start_time<=? and finish_time>?", timeNow, timeNow)
+		} else if status == "coming" {
+			reqType = 1
+			cond = ArgumentsToArray("start_time>?", timeNow)
+		} else {
+			reqType = 2
+			cond = ArgumentsToArray("finish_time<=?", timeNow)
+		}
+
+		wrapForm := createWrapFormInt64(req)
+
+		page := int(wrapForm("p"))
+
+		if page == -1 {
+			page = 1
+		}
+
+		count, err := mainDB.ContestCount(cond)
+
+		if err != nil {
+			HttpLog().Println(std.Iid, err)
+			return
+		}
+
+		canCreateContest, err := mainRM.CanCreateContest()
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+			DBLog().WithError(err).Error("CanCreateContest() error")
+
+			return
+		}
+
+		type TemplateVal struct {
+			Contests         []database.Contest
+			UserName         string
+			Type             int
+			Current          int
+			MaxPage          int
+			Pagination       []PaginationHelper
+			CanCreateContest bool
+		}
+		var templateVal TemplateVal
+		templateVal.UserName = std.UserName
+		templateVal.Type = reqType
+		templateVal.Current = 1
+		templateVal.CanCreateContest = (canCreateContest || std.Gid == 0)
+
+		templateVal.MaxPage = int(count) / ContentsPerPage
+
+		if int(count)%ContentsPerPage != 0 {
+			templateVal.MaxPage++
+		} else if templateVal.MaxPage == 0 {
+			templateVal.MaxPage = 1
+		}
+
+		if count > 0 {
+			if (page-1)*ContentsPerPage > int(count) {
+				page = 1
+			}
+
+			templateVal.Current = page
+
+			contests, err := mainDB.ContestList((page-1)*ContentsPerPage, ContentsPerPage, cond)
+
+			if err == nil {
+				templateVal.Contests = *contests
+			} else {
+				DBLog().WithError(err).WithField("iid", std.Iid).Error("ContestList error")
+			}
+		}
+
+		templateVal.Pagination = NewPaginationHelper(templateVal.Current, templateVal.MaxPage, 3)
+
+		rw.WriteHeader(http.StatusOK)
+		ch.Temp.Execute(rw, templateVal)
+	})
+	router.HandleFunc("/new", func(rw http.ResponseWriter, req *http.Request) {
+		std := req.Context().Value(ContestsTopContextKey).(database.SessionTemplateData)
+		ch.newContestHandler(rw, req, std)
+	})
+	router.PathPrefix("/{cid:[0-9]+}/").HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		cid_ := mux.Vars(req)["cid"]
+		cid, _ := strconv.ParseInt(cid_, 10, 64)
+		std := req.Context().Value(ContestsTopContextKey).(database.SessionTemplateData)
+
+		req, err := ch.EachHandler.PrepareVariables(req, cid, std)
+
+		if err != nil {
+			HttpLog().WithError(err).Error("PrepareVariables() error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+
+		http.StripPrefix("/"+cid_, ch.EachHandler).ServeHTTP(rw, req)
+	})
+
+	return ch, nil
 }
 
 func TimeRangeToStringInt64(start, finish int64) string {
@@ -66,10 +186,10 @@ func TimeRangeToStringInt64(start, finish int64) string {
 	return startTime.In(Location).Format("2006/01/02 15:04:05") + "-" + finishTime.In(Location).Format("2006/01/02 15:04:05")
 }
 
-func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std *database.SessionTemplateData) {
+func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std database.SessionTemplateData) {
 	type TemplateVal struct {
 		UserName    string
-		Msg         *string
+		Msg         string
 		StartDate   string
 		StartTime   string
 		FinishDate  string
@@ -107,7 +227,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 			msg := "コンテスト名が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -120,7 +240,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if err != nil {
 			msg := "開始日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -133,7 +253,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if err != nil {
 			msg := "終了日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -144,7 +264,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if start.Unix() >= finish.Unix() || start.Unix() < time.Now().Unix() {
 			msg := "開始日時または終了日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -152,13 +272,17 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			return
 		}
 
-		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, 0)
+		ppjcNew := func(cid int64) error {
+			return ppjcClient.ContestsNew(cid)
+		}
+
+		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, 0, ppjcNew)
 
 		if err != nil {
 			if strings.Index(err.Error(), "Duplicate") != -1 {
 				msg := "すでに存在するコンテスト名です。"
 				templateVal := TemplateVal{
-					std.UserName, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+					std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
 				}
 
 				ch.NewContest.Execute(rw, templateVal)
@@ -177,7 +301,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		}).DescriptionUpdate(description)
 
 		if err != nil {
-			HttpLog().Println(std.Iid, err)
+			HttpLog().WithError(err).WithField("cid", cid).Error("DescriptionUpdate() error")
 		}
 
 		RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/")
@@ -204,12 +328,14 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 			return
 		}
 
-		DBLog().WithError(err).Error("ParseRequestForSession failed")
+		DBLog().WithError(err).Error("ParseRequestForSession() error")
 
 		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 		return
 	}
+
+	req = req.WithContext(context.WithValue(req.Context(), ContestsTopContextKey, *std))
 
 	err = req.ParseForm()
 
@@ -219,127 +345,5 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	var cond []interface{}
-	timeNow := time.Now()
-	var reqType int
-
-	switch req.URL.Path {
-	case "/":
-		reqType = 0
-		cond = ArgumentsToArray("start_time<=? and finish_time>?", timeNow, timeNow)
-	case "/coming/":
-		reqType = 1
-		cond = ArgumentsToArray("start_time>?", timeNow)
-	case "/closed/":
-		reqType = 2
-		cond = ArgumentsToArray("finish_time<=?", timeNow)
-	case "/new":
-		ch.newContestHandler(rw, req, std)
-
-		return
-	default:
-		if len(req.URL.Path) == 0 {
-			RespondRedirection(rw, "/contests/")
-
-			return
-		}
-
-		idx := strings.Index(req.URL.Path[1:], "/")
-
-		if idx == -1 {
-			RespondRedirection(rw, "/contests"+req.URL.Path+"/")
-
-			return
-		}
-
-		cidStr := req.URL.Path[1:][:idx]
-
-		cid, err := strconv.ParseInt(cidStr, 10, 64)
-
-		if err != nil {
-			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
-
-			return
-		}
-
-		handler, err := ch.EachHandler.GetHandler(cid, *std)
-
-		if err != nil {
-			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
-
-			return
-		}
-
-		http.StripPrefix("/"+cidStr, handler).ServeHTTP(rw, req)
-
-		return
-	}
-
-	wrapForm := createWrapFormInt64(req)
-
-	page := int(wrapForm("p"))
-
-	if page == -1 {
-		page = 1
-	}
-
-	count, err := mainDB.ContestCount(cond)
-
-	if err != nil {
-		HttpLog().Println(std.Iid, err)
-		return
-	}
-
-	canCreateContest, err := mainRM.CanCreateContest()
-
-	if err != nil {
-		sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-		DBLog().WithError(err).Error("CanCreateContest() error")
-
-		return
-	}
-
-	type TemplateVal struct {
-		Contests         []database.Contest
-		UserName         string
-		Type             int
-		Current          int
-		MaxPage          int
-		Pagination       []PaginationHelper
-		CanCreateContest bool
-	}
-	var templateVal TemplateVal
-	templateVal.UserName = std.UserName
-	templateVal.Type = reqType
-	templateVal.Current = 1
-	templateVal.CanCreateContest = (canCreateContest || std.Gid == 0)
-
-	templateVal.MaxPage = int(count) / ContentsPerPage
-
-	if int(count)%ContentsPerPage != 0 {
-		templateVal.MaxPage++
-	} else if templateVal.MaxPage == 0 {
-		templateVal.MaxPage = 1
-	}
-
-	if count > 0 {
-		if (page-1)*ContentsPerPage > int(count) {
-			page = 1
-		}
-
-		templateVal.Current = page
-
-		contests, err := mainDB.ContestList((page-1)*ContentsPerPage, ContentsPerPage, cond)
-
-		if err == nil {
-			templateVal.Contests = *contests
-		} else {
-			DBLog().WithError(err).WithField("iid", std.Iid).Error("ContestList error")
-		}
-	}
-
-	templateVal.Pagination = NewPaginationHelper(templateVal.Current, templateVal.MaxPage, 3)
-
-	rw.WriteHeader(http.StatusOK)
-	ch.Temp.Execute(rw, templateVal)
+	ch.Router.ServeHTTP(rw, req)
 }

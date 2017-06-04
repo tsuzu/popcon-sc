@@ -13,15 +13,17 @@ type Group struct {
 }
 
 func (dm *DatabaseManager) CreateGroupTable() error {
-	err := dm.db.AutoMigrate(&Group{}).Error
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		err := dm.db.AutoMigrate(&Group{}).Error
 
-	if err != nil {
-		return err
-	}
+		if err != nil && !IsAlreadyExistsError(err) {
+			return err
+		}
 
-	dm.GroupAdd("General")
+		dm.GroupAdd("General")
 
-	return nil
+		return nil
+	})
 }
 
 // GroupAdd adds a new group

@@ -86,7 +86,6 @@ RETRY:
 		dm.db.Close()
 		goto RETRY
 	}
-
 	// user_and_group.go
 	// Create Users Table
 	err = dm.CreateUserTable()
@@ -147,7 +146,7 @@ RETRY:
 		return nil, specifyError("language", err)
 	}
 
-	return dm, nil
+	return dm, err
 }
 
 func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {

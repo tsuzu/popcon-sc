@@ -20,13 +20,15 @@ type SessionTemplateData struct {
 }
 
 func (dm *DatabaseManager) CreateSessionTable() error {
-	err := dm.db.AutoMigrate(&Session{}).Error
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		err := dm.db.AutoMigrate(&Session{}).Error
 
-	if err != nil {
-		return err
-	}
+		if err != nil && !IsAlreadyExistsError(err) {
+			return err
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetSessionTemplateData returns a SessionTemplateData object

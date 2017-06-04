@@ -12,13 +12,16 @@ type Language struct {
 }
 
 func (dm *DatabaseManager) CreateLanguageTable() error {
-	err := dm.db.AutoMigrate(&Language{}).Error
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		err := dm.db.AutoMigrate(&Language{}).Error
 
-	if err != nil {
-		return err
-	}
+		if err != nil && !IsAlreadyExistsError(err) {
+			return err
+		}
 
-	return nil
+		return nil
+
+	})
 }
 
 func (dm *DatabaseManager) LanguageAdd(name, highlightType string, active bool) (int64, error) {

@@ -22,13 +22,15 @@ type User struct {
 }
 
 func (dm *DatabaseManager) CreateUserTable() error {
-	err := dm.db.AutoMigrate(&User{}).Error
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		err := dm.db.AutoMigrate(&User{}).Error
 
-	if err != nil {
-		return err
-	}
+		if err != nil && !IsAlreadyExistsError(err) {
+			return err
+		}
 
-	return err
+		return nil
+	})
 }
 
 // UserAdd adds a new user

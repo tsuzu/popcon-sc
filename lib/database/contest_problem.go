@@ -357,7 +357,7 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 }
 
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser, error) {
-	var cpcase ContestProblemTestCase
+	var cpcase []ContestProblemTestCase
 
 	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -367,11 +367,15 @@ func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser,
 		return nil, err
 	}
 
+	if len(cpcase) == 0 {
+		return nil, ErrUnknownTestcase
+	}
+
 	var path string
 	if isInput {
-		path = cpcase.Input
+		path = cpcase[0].Input
 	} else {
-		path = cpcase.Output
+		path = cpcase[0].Output
 	}
 	if len(path) == 0 {
 		return &utility.FakeEmptyReadCloser{}, nil
@@ -391,13 +395,12 @@ func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestPr
 	var cases []ContestProblemTestCase
 
 	return cases, scores, mainDB.BeginIfNotStarted(func(dm *gorm.DB) error {
-
 		return mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error
 	})
 }
 
-func (cp *ContestProblem) LoadTestCaseInfo(caseID int) (int64, int64, error) {
-	var cpcase ContestProblemTestCase
+func (cp *ContestProblem) LoadTestCaseInfo(caseID int64) (int64, int64, error) {
+	var cpcase []ContestProblemTestCase
 
 	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -406,10 +409,13 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseID int) (int64, int64, error) {
 
 		return 0, 0, err
 	}
+	if len(cpcase) == 0 {
+		return 0, 0, ErrUnknownTestcase
+	}
 
 	var in, out int64 = 0, 0
-	if len(cpcase.Input) != 0 {
-		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Input)
+	if len(cpcase[0].Input) != 0 {
+		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Input)
 
 		if err == nil {
 			in = fp.Size()
@@ -417,8 +423,8 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseID int) (int64, int64, error) {
 		fp.Close()
 	}
 
-	if len(cpcase.Output) != 0 {
-		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Output)
+	if len(cpcase[0].Output) != 0 {
+		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Output)
 
 		if err == nil {
 			out = fp.Size()
@@ -479,7 +485,7 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 	}
 
 	var cases []ContestProblemTestCase
-	if err := dm.db.Model(cp).Related(cases, "Cases").Error; err != nil {
+	if err := dm.db.Model(cp).Related(&cases, "Cases").Error; err != nil {
 		return err
 	}
 
@@ -563,7 +569,7 @@ func (dm *DatabaseManager) ContestProblemList(cid int64) ([]ContestProblem, erro
 func (dm *DatabaseManager) ContestProblemCount(cid int64) (int64, error) {
 	var count int64
 
-	err := dm.db.Model(ContestProblem{Cid: cid}).Count(&count).Error
+	err := dm.db.Table(ContestProblem{Cid: cid}.TableName()).Count(&count).Error
 
 	if err != nil {
 		return 0, err

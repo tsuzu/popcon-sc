@@ -3,6 +3,8 @@ package database
 import (
 	"time"
 
+	"sync"
+
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/jinzhu/gorm"
@@ -72,14 +74,14 @@ func (c *Contest) DescriptionLoad() (string, error) {
 func (dm *DatabaseManager) CreateContestTable() error {
 	err := dm.db.AutoMigrate(&Contest{}).Error
 
-	if err != nil {
+	if err != nil && !IsAlreadyExistsError(err) {
 		return err
 	}
 
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType) (int64, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, backgroundPreparation func(cid int64) error) (int64, error) {
 	contest := Contest{
 		Name:       name,
 		StartTime:  start,
@@ -88,22 +90,34 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		Type:       ctype,
 	}
 
-	if err := dm.Begin(func(db *gorm.DB) error {
+	if err := dm.BeginDM(func(dm *DatabaseManager) error {
 		err := dm.db.Create(&contest).Error
 
 		if err != nil {
 			return err
 		}
 
-		err = dm.Clone(db).SubmissionAutoMigrate(contest.Cid)
+		var bgError error
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			bgError = backgroundPreparation(contest.Cid)
+		}()
+		err = dm.SubmissionAutoMigrate(contest.Cid)
 
 		if err != nil {
 			return err
 		}
-		err = dm.Clone(db).ContestProblemAutoMigrate(contest.Cid)
+		err = dm.ContestProblemAutoMigrate(contest.Cid)
 
 		if err != nil {
 			return err
+		}
+
+		wg.Wait()
+		if bgError != nil {
+			return bgError
 		}
 
 		return nil

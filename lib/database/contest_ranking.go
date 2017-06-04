@@ -99,7 +99,7 @@ func (dm *DatabaseManager) RankingAutoMigrate(cid int64) error {
 
 	query = query + "(" + strings.Join(pidsStr, ",") + ")"
 
-	_, err := dm.db.DB().Exec(query)
+	_, err := dm.db.CommonDB().Exec(query)
 
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (dm *DatabaseManager) RankingProblemAdd(cid, pid int64) error {
 	// 	pidsStr = append(pidsStr, dm.RankingCellName(pids[i])+" VARCHAR(256)")
 	// }
 	return dm.Begin(func(db *gorm.DB) error {
-		_, err := db.DB().Exec("ALTER TABLE " + dm.RankingTableName(cid) + " ADD COLUMN " + dm.RankingCellName(pid) + " VARCHAR(256)")
+		_, err := db.CommonDB().Exec("ALTER TABLE " + dm.RankingTableName(cid) + " ADD COLUMN " + dm.RankingCellName(pid) + " VARCHAR(256)")
 
 		if err != nil {
 			return err
@@ -128,7 +128,7 @@ func (dm *DatabaseManager) RankingProblemDelete(cid, pid int64) error {
 	// 	pidsStr = append(pidsStr, dm.RankingCellName(pids[i])+" VARCHAR(256)")
 	// }
 	return dm.Begin(func(db *gorm.DB) error {
-		_, err := db.DB().Exec("ALTER TABLE " + dm.RankingTableName(cid) + " DROP COLUMN " + dm.RankingCellName(pid))
+		_, err := db.CommonDB().Exec("ALTER TABLE " + dm.RankingTableName(cid) + " DROP COLUMN " + dm.RankingCellName(pid))
 
 		if err != nil {
 			return err
@@ -139,7 +139,7 @@ func (dm *DatabaseManager) RankingProblemDelete(cid, pid int64) error {
 }
 
 func (dm *DatabaseManager) RankingUserAdd(cid, iid int64) error {
-	_, err := dm.db.DB().Exec("INSERT INTO "+dm.RankingTableName(cid)+"(iid) VALUES (?)", iid)
+	_, err := dm.db.CommonDB().Exec("INSERT INTO "+dm.RankingTableName(cid)+"(iid) VALUES (?)", iid)
 
 	if err != nil {
 		if strings.Index(err.Error(), "Duplicate") != -1 {
@@ -153,7 +153,7 @@ func (dm *DatabaseManager) RankingUserAdd(cid, iid int64) error {
 }
 
 func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*RankingCell, error) {
-	rows, err := dm.db.DB().Query("SELECT "+dm.RankingCellName(pid)+" FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
+	rows, err := dm.db.CommonDB().Query("SELECT "+dm.RankingCellName(pid)+" FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
 
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*RankingCell, er
 }
 
 func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*RankingCell, *RankingCell, error) {
-	rows, err := dm.db.DB().Query("SELECT "+dm.RankingCellName(pid)+", general FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
+	rows, err := dm.db.CommonDB().Query("SELECT "+dm.RankingCellName(pid)+", general FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
 
 	if err != nil {
 		return nil, nil, err
@@ -195,13 +195,13 @@ func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*Ranki
 }
 
 func (dm *DatabaseManager) RankingCellUpdate(cid, iid, pid int64, rc RankingCell) error {
-	_, err := dm.db.DB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET "+dm.RankingCellName(pid)+"=? WHERE iid=?", rc.String(), iid)
+	_, err := dm.db.CommonDB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET "+dm.RankingCellName(pid)+"=? WHERE iid=?", rc.String(), iid)
 
 	return err
 }
 
 func (dm *DatabaseManager) RankingGeneralUpdate(cid, iid int64, value1, value2 int64, rc RankingCell) error {
-	_, err := dm.db.DB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET general=?, score=?, value1=?, value2=? WHERE iid=?", rc.String(), rc.Score, value1, value2, iid)
+	_, err := dm.db.CommonDB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET general=?, score=?, value1=?, value2=? WHERE iid=?", rc.String(), rc.Score, value1, value2, iid)
 
 	return err
 }
@@ -321,7 +321,7 @@ func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow
 	if len(str) != 0 {
 		query = query + "LIMIT " + str
 	}
-	rows, err := dm.db.DB().Query(query)
+	rows, err := dm.db.CommonDB().Query(query)
 
 	if err != nil {
 		return nil, err
