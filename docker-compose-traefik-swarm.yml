@@ -1,7 +1,6 @@
-version: '2'
+version: '3'
 services:
     mysql: # MySQL
-        restart: always
         volumes:
             - mysql-volume:/var/lib/mysql
         image: mysql
@@ -15,7 +14,6 @@ services:
             MYSQL_DATABASE: popcon
     
     redis:
-        restart: always
         image: redis
         entrypoint: 
             - redis-server
@@ -23,7 +21,6 @@ services:
             - ${PP_DB_PASSWORD}
 
     traefik:
-        restart: always
         image: traefik
         depends_on: 
             - consul-manager
@@ -38,7 +35,6 @@ services:
             - --debug
 
     consul-manager:
-        restart: always
         image: consul 
         command: 
             - agent
@@ -49,17 +45,16 @@ services:
             - -datacenter=popcon
 
     mongo:
-        restart: always
         image: mongo
         volumes: 
             - mongo-volume:/data/db
         
     sendmail:
-        build: sendmail
+        build: tsuzu/popcon-sc-sendmail
 
     # ランキング/ジャッジコントローラ
     ppjc:
-        image: ppjc
+        image: tsuzu/popcon-sc-ppjc
         ports:
             - 5050:80
         environment:
@@ -72,14 +67,14 @@ services:
             PP_DEBUG_MODE: 1
 
     ppms:
-        image: ppms
+        image: tsuzu/tsuzu/popcon-sc-ppms
         environment:
             PP_MONGO_ADDR: "mongo:27017"
             PP_TOKEN: ${PP_TOKEN}
 
     # Webサーバ
     ppweb:
-        image: ppweb
+        image: tsuzu/popcon-sc-ppweb
         depends_on: 
             - consul-manager
         ports:

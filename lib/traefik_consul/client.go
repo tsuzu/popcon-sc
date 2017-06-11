@@ -64,7 +64,7 @@ func (c *Client) BackupBackend(backend, serverName string) ([]byte, error) {
 
 func (c *Client) RestoreBackup(backend, serverName string, backup []byte) error {
 	keyPrefix := c.prefix + "/backends/" + backend + "/servers/" + serverName + "/"
-	m := make(map[string][]byte)
+	var m map[string][]byte
 	if err := json.Unmarshal(backup, &m); err != nil {
 		return err
 	}

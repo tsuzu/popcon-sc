@@ -246,7 +246,7 @@ func main() {
 		}
 		serverName := "ppweb-" + host + "-" + string(result)
 
-		if b, err := ioutil.ReadFile("./traefik_config_backup"); err != nil {
+		if b, err := ioutil.ReadFile("./traefik_config_backup"); err == nil {
 			if err := client.RestoreBackup(backend, serverName, b); err != nil {
 				HttpLog().WithError(err).Error("RestoreBackup() error")
 			}
@@ -285,14 +285,14 @@ func main() {
 		}()
 	}()
 
-	go func() {
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan,
-			syscall.SIGHUP,
-			syscall.SIGINT,
-			syscall.SIGTERM,
-			syscall.SIGQUIT)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
 
+	go func() {
 		<-signalChan
 
 		traefikShutdown()
