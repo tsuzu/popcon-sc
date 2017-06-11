@@ -240,6 +240,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			FinishTime             int64
 			Enabled                bool
 			ManagementButtonActive bool
+			ContestTypeStr         string
 		}
 
 		desc, err := (&database.Contest{Cid: pdata.Cid}).DescriptionLoad()
@@ -266,6 +267,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			FinishTime:             pdata.Contest.FinishTime.Unix(),
 			Enabled:                pdata.Accessible,
 			ManagementButtonActive: pdata.IsAdmin,
+			ContestTypeStr:         sctypes.ContestTypeToString[pdata.Contest.Type],
 		}
 
 		rw.WriteHeader(http.StatusOK)
@@ -656,7 +658,19 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 
 		if req.Method == "GET" && !pdata.IsAdmin && !pdata.Accessible {
-			mainDB.ContestParticipationAdd(pdata.Std.Iid, pdata.Cid)
+			if err := mainDB.ContestParticipationAdd(pdata.Std.Iid, pdata.Cid); err != nil {
+				DBLog().WithError(err).Error("ContestParticipationAdd() error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+			}
+
+			if err := ppjcClient.ContestsJoin(pdata.Cid, pdata.Std.Iid); err != nil {
+				DBLog().WithError(err).Error("ContestsJoin() error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+			}
 
 			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/")
 		} else {
@@ -943,32 +957,52 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		sub.HandleFunc("/setting", func(rw http.ResponseWriter, req *http.Request) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 			type TemplateVal struct {
-				Cid         int64
-				UserName    string
-				Msg         *string
-				StartDate   string
-				StartTime   string
-				FinishDate  string
-				FinishTime  string
-				Description string
-				ContestName string
+				Cid            int64
+				UserName       string
+				Msg            *string
+				StartDate      string
+				StartTime      string
+				FinishDate     string
+				FinishTime     string
+				Description    string
+				ContestName    string
+				ContestTypes   map[sctypes.ContestType]string
+				ContestTypeStr string
+				Penalty        int64
 			}
 
 			if req.Method == "POST" {
 				wrapFormStr := createWrapFormStr(req)
+				wrapFormInt64 := createWrapFormInt64(req)
 
 				startDate, startTime := wrapFormStr("start_date"), wrapFormStr("start_time")
 				finishDate, finishTime := wrapFormStr("finish_date"), wrapFormStr("finish_time")
 				description := wrapFormStr("description")
 				contestName := wrapFormStr("contest_name")
-
+				contestTypeStr := wrapFormStr("contest_type")
+				penalty := wrapFormInt64("penalty")
 				startStr := startDate + " " + startTime
 				finishStr := finishDate + " " + finishTime
+
+				var contestType sctypes.ContestType
+				if !func() bool {
+					for k, v := range sctypes.ContestTypeToString {
+						if v == contestTypeStr {
+							contestType = k
+							return true
+						}
+					}
+					return false
+				}() {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				}
 
 				if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 					msg := "コンテスト名が不正です。"
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -981,7 +1015,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				if err != nil {
 					msg := "開始日時の値が不正です。"
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -996,7 +1030,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					startTime = pdata.Contest.StartTime.In(Location).Format("15:04")
 
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, pdata.Contest.StartTime.In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, pdata.Contest.StartTime.In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -1009,7 +1043,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				if err != nil {
 					msg := "終了日時の値が不正です。"
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -1024,7 +1058,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					finishTime = pdata.Contest.FinishTime.In(Location).Format("15:04")
 
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -1035,7 +1069,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				if start.Unix() >= finish.Unix() || (pdata.Contest.StartTime.Unix() != start.Unix() && start.Unix() < time.Now().Unix()) || (pdata.Contest.FinishTime.Unix() != finish.Unix() && finish.Unix() < time.Now().Unix()) {
 					msg := "開始日時及び終了日時の値が不正です。"
 					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -1043,13 +1077,13 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					return
 				}
 
-				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, 0)
+				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, contestType, penalty)
 
 				if err != nil {
 					if strings.Index(err.Error(), "Duplicate") != -1 {
 						msg := "すでに存在するコンテスト名です。"
 						templateVal := TemplateVal{
-							pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName,
+							pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 						}
 
 						ceh.ManagementSettingPage.Execute(rw, templateVal)
@@ -1074,16 +1108,20 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				desc, _ := (&database.Contest{Cid: pdata.Cid}).DescriptionLoad()
 
 				templateVal := TemplateVal{
-					Cid:         pdata.Cid,
-					UserName:    pdata.Std.UserID,
-					StartDate:   pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
-					StartTime:   pdata.Contest.StartTime.In(Location).Format("15:04"),
-					FinishDate:  pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
-					FinishTime:  pdata.Contest.FinishTime.In(Location).Format("15:04"),
-					ContestName: pdata.Contest.Name,
-					Description: desc,
+					Cid:            pdata.Cid,
+					UserName:       pdata.Std.UserID,
+					StartDate:      pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
+					StartTime:      pdata.Contest.StartTime.In(Location).Format("15:04"),
+					FinishDate:     pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
+					FinishTime:     pdata.Contest.FinishTime.In(Location).Format("15:04"),
+					ContestName:    pdata.Contest.Name,
+					Description:    desc,
+					ContestTypes:   sctypes.ContestTypeToString,
+					ContestTypeStr: sctypes.ContestTypeToString[pdata.Contest.Type],
+					Penalty:        pdata.Contest.Penalty,
 				}
-				ceh.ManagementSettingPage.Execute(rw, templateVal)
+
+				HttpLog().WithError(ceh.ManagementSettingPage.Execute(rw, templateVal)).Debug("Execute() error")
 			} else {
 				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 

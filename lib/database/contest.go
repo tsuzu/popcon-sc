@@ -81,13 +81,14 @@ func (dm *DatabaseManager) CreateContestTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, backgroundPreparation func(cid int64) error) (int64, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, backgroundPreparation func(cid int64) error) (int64, error) {
 	contest := Contest{
 		Name:       name,
 		StartTime:  start,
 		FinishTime: finish,
 		Admin:      admin,
 		Type:       ctype,
+		Penalty:    penalty,
 	}
 
 	if err := dm.BeginDM(func(dm *DatabaseManager) error {
@@ -129,7 +130,7 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 
 }
 
-func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType) error {
+func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64) error {
 	cont := Contest{
 		Cid:        cid,
 		Name:       name,
@@ -137,6 +138,7 @@ func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time
 		FinishTime: finish,
 		Admin:      admin,
 		Type:       ctype,
+		Penalty:    penalty,
 	}
 
 	err := dm.db.Omit("description_file").Save(&cont).Error

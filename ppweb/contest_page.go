@@ -188,14 +188,17 @@ func TimeRangeToStringInt64(start, finish int64) string {
 
 func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std database.SessionTemplateData) {
 	type TemplateVal struct {
-		UserName    string
-		Msg         string
-		StartDate   string
-		StartTime   string
-		FinishDate  string
-		FinishTime  string
-		Description string
-		ContestName string
+		UserName       string
+		Msg            string
+		StartDate      string
+		StartTime      string
+		FinishDate     string
+		FinishTime     string
+		Description    string
+		ContestName    string
+		ContestTypes   map[sctypes.ContestType]string
+		ContestTypeStr string
+		Penalty        int64
 	}
 
 	canCreateContest, err := mainRM.CanCreateContest()
@@ -215,19 +218,43 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 	if req.Method == "POST" {
 		wrapFormStr := createWrapFormStr(req)
+		wrapFormInt64 := createWrapFormInt64(req)
 
 		startDate, startTime := wrapFormStr("start_date"), wrapFormStr("start_time")
 		finishDate, finishTime := wrapFormStr("finish_date"), wrapFormStr("finish_time")
+
 		description := wrapFormStr("description")
 		contestName := wrapFormStr("contest_name")
-
+		contestTypeStr := wrapFormStr("contest_type")
+		penalty := wrapFormInt64("penalty")
 		startStr := startDate + " " + startTime
 		finishStr := finishDate + " " + finishTime
+
+		var contestType sctypes.ContestType
+		if !func() bool {
+			for k, v := range sctypes.ContestTypeToString {
+				if v == contestTypeStr {
+					contestType = k
+					return true
+				}
+			}
+			return false
+		}() {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
+		}
+
+		if penalty < 0 || penalty > 10000 {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
+		}
 
 		if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 			msg := "コンテスト名が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -240,7 +267,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if err != nil {
 			msg := "開始日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -253,7 +280,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if err != nil {
 			msg := "終了日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -264,7 +291,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		if start.Unix() >= finish.Unix() || start.Unix() < time.Now().Unix() {
 			msg := "開始日時または終了日時の値が不正です。"
 			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
+				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 			}
 
 			ch.NewContest.Execute(rw, templateVal)
@@ -276,13 +303,13 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			return ppjcClient.ContestsNew(cid)
 		}
 
-		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, 0, ppjcNew)
+		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, contestType, penalty, ppjcNew)
 
 		if err != nil {
 			if strings.Index(err.Error(), "Duplicate") != -1 {
 				msg := "すでに存在するコンテスト名です。"
 				templateVal := TemplateVal{
-					std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName,
+					std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
 				}
 
 				ch.NewContest.Execute(rw, templateVal)
@@ -307,7 +334,8 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 		RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/")
 	} else if req.Method == "GET" {
 		templateVal := TemplateVal{
-			UserName: std.UserName,
+			UserName:     std.UserName,
+			ContestTypes: sctypes.ContestTypeToString,
 		}
 
 		ch.NewContest.Execute(rw, templateVal)

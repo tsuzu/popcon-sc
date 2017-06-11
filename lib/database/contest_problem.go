@@ -490,8 +490,12 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 	}
 
 	for i := range cases {
-		mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input)
-		mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output)
+		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input); err != nil {
+			log.WithError(err).WithField(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input).Error("RemoveLater() error")
+		}
+		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output); err != nil {
+			log.WithError(err).WithField(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output).Error("RemoveLater() error")
+		}
 	}
 
 	model := dm.db.Model(cp)

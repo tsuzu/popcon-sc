@@ -2,18 +2,28 @@ package main
 
 import (
 	"flag"
+	"math/rand"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
+
+	"io/ioutil"
+
+	"context"
+
+	"net/url"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/traefik_consul"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
-	"github.com/facebookgo/grace/gracehttp"
 	gorilla "github.com/gorilla/handlers"
 	"github.com/sebest/xff"
 )
@@ -31,6 +41,8 @@ func main() {
 	pprof := os.Getenv("PP_PPROF") == "1"
 
 	help := flag.Bool("help", false, "Show help")
+	traefikRegistrationFlag := flag.Bool("enable-traefik-registration", false, "Register/Unregister the address of this server to consul for traefik automatically.")
+	debugFlag := flag.Bool("debug", false, "Debug logging")
 
 	flag.Parse()
 
@@ -58,7 +70,7 @@ func main() {
 	environmentalSetting.judgeControllerAddr = os.Getenv("PP_JC_ADDR")
 	environmentalSetting.microServicesAddr = os.Getenv("PP_MS_ADDR")
 	environmentalSetting.internalToken = os.Getenv("PP_TOKEN")
-	environmentalSetting.debugMode = os.Getenv("PP_DEBUG_MODE") == "1"
+	environmentalSetting.debugMode = *debugFlag
 
 	ppjcClient, err = ppjc.NewClient(environmentalSetting.judgeControllerAddr, environmentalSetting.internalToken)
 
@@ -168,9 +180,131 @@ func main() {
 		server.TLSConfig = config
 	}*/
 
-	err = gracehttp.Serve(server)
+	var traefikShutdown func()
+	func() {
+		if !*traefikRegistrationFlag {
+			return
+		}
+		addr := os.Getenv("PP_CONSUL_ADDR")
+		prefix := os.Getenv("PP_TRAEFIK_PREFIX")
+		if len(prefix) == 0 {
+			prefix = "traefik"
+		}
 
-	if err != nil {
-		HttpLog().Fatal(err)
+		client, err := traefikConsul.NewClient(prefix, addr)
+		if err != nil {
+			HttpLog().WithError(err).Error("traefikConsul.NewClient() error")
+
+			return
+		}
+
+		var advertiseAddr string
+		if addr := os.Getenv("PP_ADVERTISE_ADDR"); len(addr) != 0 {
+			u, err := url.Parse(addr)
+			if err != nil {
+				HttpLog().WithError(err).Errorf("URL format is illegal. The default one will be used.", addr)
+
+			} else {
+				if u.Scheme == "" {
+					u.Scheme = "http"
+				}
+				advertiseAddr = u.String()
+			}
+		} else if iface := os.Getenv("PP_IFACE"); len(iface) != 0 {
+			addr, err := traefikConsul.IPAddressFromIface(iface)
+
+			if err != nil {
+				HttpLog().WithError(err).Errorf("Network interface(%s) was not found. The default one will be used.", iface)
+			} else {
+				advertiseAddr = "http://" + addr
+			}
+
+		}
+
+		if len(advertiseAddr) == 0 {
+			addr, err := traefikConsul.DefaultIPAddress()
+
+			if err != nil {
+				HttpLog().WithError(err).Error("traefikConsul.DefaultIPAddress() error")
+				return
+			}
+
+			advertiseAddr = "http://" + addr
+		}
+
+		backend := os.Getenv("PP_TRAEFIK_BACKEND")
+		if len(backend) == 0 {
+			backend = "backend1"
+		}
+
+		host, _ := os.Hostname()
+		const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+		rgen := rand.New(rand.NewSource(time.Now().UnixNano()))
+		result := make([]byte, 6)
+		for i := range result {
+			result[i] = chars[rgen.Intn(len(chars))]
+		}
+		serverName := "ppweb-" + host + "-" + string(result)
+
+		if b, err := ioutil.ReadFile("./traefik_config_backup"); err != nil {
+			if err := client.RestoreBackup(backend, serverName, b); err != nil {
+				HttpLog().WithError(err).Error("RestoreBackup() error")
+			}
+		}
+		var wg sync.WaitGroup
+		once := sync.Once{}
+		shutdown := func() {
+			wg.Wait()
+			backup, err := client.BackupBackend(backend, serverName)
+
+			if err != nil {
+				HttpLog().WithError(err).Error("BackupBackend() error")
+
+				return
+			}
+
+			ioutil.WriteFile("./traefik_config_backup", backup, 0777)
+
+			if err := client.DeleteBackend(backend, serverName); err != nil {
+				HttpLog().WithError(err).Error("BackupBackend() error")
+
+				return
+			}
+		}
+		traefikShutdown = func() {
+			once.Do(shutdown)
+		}
+
+		wg.Add(1)
+		go func() {
+			if err := client.RegisterNewBackend(backend, serverName, advertiseAddr); err != nil {
+				HttpLog().WithError(err).Error("RegisterNewBackend() error")
+			}
+
+			wg.Done()
+		}()
+	}()
+
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan,
+			syscall.SIGHUP,
+			syscall.SIGINT,
+			syscall.SIGTERM,
+			syscall.SIGQUIT)
+
+		<-signalChan
+
+		traefikShutdown()
+		time.Sleep(1 * time.Second)
+		ctx, f := context.WithTimeout(context.Background(), 60*time.Second)
+		server.Shutdown(ctx)
+		f()
+	}()
+	if err := server.ListenAndServe(); err != nil {
+		if err != nil {
+			HttpLog().Error(err)
+		}
 	}
+	traefikShutdown()
 }

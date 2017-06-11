@@ -26,11 +26,12 @@ func (dm *DatabaseManager) CreateContestParticipationTable() error {
 }
 
 func (dm *DatabaseManager) ContestParticipationAdd(iid, cid int64) error {
-	if err := dm.db.Create(ContestParticipation{
+	cp := ContestParticipation{
 		Iid:   iid,
 		Cid:   cid,
 		Admin: false,
-	}).Error; err != nil {
+	}
+	if err := dm.db.Create(&cp).Error; err != nil {
 		if IsDuplicateError(err) {
 			return nil
 		}
@@ -41,8 +42,17 @@ func (dm *DatabaseManager) ContestParticipationAdd(iid, cid int64) error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestParticipationMakeAdmin(iid, cid int64) error {
-	if err := dm.db.Model(ContestParticipation{}).Where("iid=? and cid=?", iid, cid).Update("admin", true).Error; err != nil {
+func (dm *DatabaseManager) ContestParticipationAddAsAdmin(iid, cid int64) error {
+	cp := ContestParticipation{
+		Iid:   iid,
+		Cid:   cid,
+		Admin: true,
+	}
+	if err := dm.db.Create(&cp).Error; err != nil {
+		if IsDuplicateError(err) {
+			return nil
+		}
+
 		return err
 	}
 

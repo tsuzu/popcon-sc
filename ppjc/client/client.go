@@ -179,6 +179,40 @@ func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
 	return nil
 }
 
+func (client *Client) ContestsJoin(cid, iid int64) error {
+	u, err := url.Parse(client.addr)
+
+	if err != nil {
+		return err
+	}
+	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/join"
+
+	val := url.Values{}
+	val.Add("iid", strconv.FormatInt(iid, 10))
+
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(val.Encode()))
+
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set(sctypes.InternalHTTPToken, client.auth)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return errors.New("error: " + resp.Status)
+	}
+	return nil
+}
+
 func (client *Client) JudgeSubmit(cid, sid int64) error {
 	u, err := url.Parse(client.addr)
 

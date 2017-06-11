@@ -6,6 +6,7 @@ popcon.json
 dump.rdb
 log
 .VSCode/
+.vscode/
 ssl/
 vendor/
 !html/contests/

@@ -31,15 +31,17 @@ var ContestTypeToString = map[ContestType]string{
 	ContestTypeAtCoder: "AtCoder",
 }
 
-var ContestTypeToEvaluationFunction1 = map[ContestType]func(score, penalty int64, time time.Duration) int64{
-	ContestTypeJOI:     func(score, penalty int64, time time.Duration) int64 { return 0 },
-	ContestTypePCK:     func(score, penalty int64, time time.Duration) int64 { return 0 },
-	ContestTypeAtCoder: func(score, penalty int64, time time.Duration) int64 { return 0 },
+var ContestTypeToEvaluationFunction1 = map[ContestType]func(score, penalty, penaltySetting int64, time time.Duration) int64{
+	ContestTypeJOI: func(score, penalty, penaltySetting int64, time time.Duration) int64 { return int64(-time) },
+	ContestTypePCK: func(score, penalty, penaltySetting int64, time time.Duration) int64 { return -penalty },
+	ContestTypeAtCoder: func(score, penalty, penaltySetting int64, t time.Duration) int64 {
+		return -int64(t) - penalty*int64(time.Minute)
+	},
 }
-var ContestTypeToEvaluationFunction2 = map[ContestType]func(score, penalty int64, time time.Duration) int64{
-	ContestTypeJOI:     func(score, penalty int64, time time.Duration) int64 { return 0 },
-	ContestTypePCK:     func(score, penalty int64, time time.Duration) int64 { return 0 },
-	ContestTypeAtCoder: func(score, penalty int64, time time.Duration) int64 { return 0 },
+var ContestTypeToEvaluationFunction2 = map[ContestType]func(score, penalty, penaltySetting int64, time time.Duration) int64{
+	ContestTypeJOI:     func(score, penalty, penaltySetting int64, time time.Duration) int64 { return 0 },
+	ContestTypePCK:     func(score, penalty, penaltySetting int64, time time.Duration) int64 { return int64(-time) },
+	ContestTypeAtCoder: func(score, penalty, penaltySetting int64, time time.Duration) int64 { return 0 },
 }
 
 var ContestTypeFromString = map[string]ContestType{

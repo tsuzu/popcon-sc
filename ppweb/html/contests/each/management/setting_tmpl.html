@@ -90,7 +90,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-xs-12 col-md-4 col-md-offset-2">
+                        <div class="col-xs-12 col-md-5 col-md-offset-2">
                             <div class="control-group">
                                 <label class="control-label" for="start-date-picker">開始日時: </label>
                                 <div class="controls form-inline">
@@ -109,13 +109,20 @@
                                 <label class="control-label" for="contest_type_select">コンテスト形式: </label>
                                 <div class="controls">
                                     <select name="contest_type" class="form-control input-sm" id="contest_type_select">
-                                        <option value="0">JOI</option>
-                                        <option value="1">ICPC</option>
-                                        <option value="2">AtCoder</option>
-                                        <option value="3">PCK</option>
+                                        {{$top := .}}
+                                        {{range $idx := .ContestTypes}}
+                                            <option value="{{html $idx}}" {{if (eq $idx $top.ContestTypeStr)}}selected{{end}}>{{html $idx}}</option>
+                                        {{end}}
                                     </select>
                                 </div>
                             </div>
+                            <div class="control-group">
+                                <label class="control-label">ペナルティ(単位: 分): </label>
+                                <div class="controls form-inline">
+                                    <input type="number" class="form-control number-input" name="penalty" value="{{.Penalty}}"　min="0" max="10000"/>
+                                </div>
+                            </div>
+                            <label>※ペナルティを使用しないコンテスト形式では無視されます。</label>
                         </div>
                     </div>
                     <div class="row">

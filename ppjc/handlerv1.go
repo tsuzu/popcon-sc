@@ -156,6 +156,38 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		}
 	})
 
+	router.HandleFunc("/contests/{cid}/join", func(rw http.ResponseWriter, req *http.Request) {
+		err := req.ParseForm()
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
+		}
+
+		vars := mux.Vars(req)
+
+		cid, err := strconv.ParseInt(vars["cid"], 10, 64)
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+			return
+		}
+		iid, err := strconv.ParseInt(req.FormValue("iid"), 10, 64)
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+			return
+		}
+
+		if err := dm.RankingUserAdd(cid, iid); err != nil {
+			DBLog().WithError(err).WithField("cid", cid).WithField("iid", iid).Error("RankingUserAdd() error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+		return
+	})
+
 	router.HandleFunc("/file_download", func(rw http.ResponseWriter, req *http.Request) {
 		err := req.ParseForm()
 

@@ -92,7 +92,7 @@ func (dm *DatabaseManager) RankingAutoMigrate(cid int64) error {
 	pidsStr = append(pidsStr, "score BIGINT DEFAULT 0")
 	pidsStr = append(pidsStr, "value1 BIGINT")
 	pidsStr = append(pidsStr, "value2 BIGINT")
-	pidsStr = append(pidsStr, "rid BIGINT NOT NULL PRIMARY KEY")
+	pidsStr = append(pidsStr, "rid BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT")
 	pidsStr = append(pidsStr, "INDEX(score)")
 	pidsStr = append(pidsStr, "INDEX(value1)")
 	pidsStr = append(pidsStr, "INDEX(value2)")
@@ -284,8 +284,8 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 		general.Time += timeDiff
 		general.Penalty += penaltyDiff
 
-		value1 := sctypes.ContestTypeToEvaluationFunction1[cont.Type](general.Score, general.Penalty, general.Time)
-		value2 := sctypes.ContestTypeToEvaluationFunction2[cont.Type](general.Score, general.Penalty, general.Time)
+		value1 := sctypes.ContestTypeToEvaluationFunction1[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
+		value2 := sctypes.ContestTypeToEvaluationFunction2[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
 
 		if err := dm.RankingCellUpdate(cid, iid, pid, rc); err != nil {
 			return err
