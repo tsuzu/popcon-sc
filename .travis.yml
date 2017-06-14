@@ -5,5 +5,7 @@ language: go
 go:
   - "1.8"
 
+install:
+  # do nothing
 script:
   - ./docker-build-all.sh
