@@ -31,7 +31,7 @@ services:
             - ./pp_data:/data
         
     sendmail:
-        build: sendmail
+        build: ./modules/sendmail
 
     # ランキング/ジャッジコントローラ
     ppjc:

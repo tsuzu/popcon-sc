@@ -67,7 +67,7 @@ services:
             PP_DEBUG_MODE: 1
 
     ppms:
-        image: tsuzu/tsuzu/popcon-sc-ppms
+        image: tsuzu/popcon-sc-ppms
         environment:
             PP_MONGO_ADDR: "mongo:27017"
             PP_TOKEN: ${PP_TOKEN}

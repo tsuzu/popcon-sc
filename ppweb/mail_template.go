@@ -22,8 +22,6 @@ func MailCreateConfirmUser(userName, confURL string) (string, string) {
 var MAILCONFTOKENSERVICE = "mail_conf"
 var MAILLASTSENDSERVICE = "mail_ls"
 
-const MAIL_MINIMUM_INTERVAL = 10 * time.Minute
-
 var ErrMailWasSent = errors.New("The mail was sent recently, try later.")
 
 func MailSendConfirmUser(iid int64, userName, email string) error {
@@ -33,8 +31,12 @@ func MailSendConfirmUser(iid int64, userName, email string) error {
 		return ErrMailWasSent
 	}
 
-	if err := mainRM.TokenRegister(MAILLASTSENDSERVICE, email, MAIL_MINIMUM_INTERVAL); err != nil {
-		DBLog().WithError(err).WithField("email", email).Error("TokenRegister error")
+	interval, err := mainRM.MailMinInterval()
+
+	if err != nil {
+		DBLog().WithError(err).Error("MailMinInterval() error")
+
+		return err
 	}
 
 	exp, err := mainRM.MailConfTokenExpiration()
@@ -43,6 +45,10 @@ func MailSendConfirmUser(iid int64, userName, email string) error {
 		DBLog().WithError(err).Error("CSRFConfTokenExpiration() error")
 
 		return err
+	}
+
+	if err := mainRM.TokenRegister(MAILLASTSENDSERVICE, email, time.Duration(interval)*time.Minute); err != nil {
+		DBLog().WithError(err).WithField("email", email).Error("TokenRegister error")
 	}
 
 	ph, err := mainRM.PublicHost()

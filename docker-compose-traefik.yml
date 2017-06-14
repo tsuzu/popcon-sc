@@ -55,7 +55,7 @@ services:
             - mongo-volume:/data/db
         
     sendmail:
-        build: sendmail
+        build: ./modules/sendmail
 
     # ランキング/ジャッジコントローラ
     ppjc:

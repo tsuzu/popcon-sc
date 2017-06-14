@@ -1,4 +1,5 @@
 # popcon-sc
+[![Build Status](https://travis-ci.org/cs3238-tsuzu/popcon-sc.svg?branch=swarm)](https://travis-ci.org/cs3238-tsuzu/popcon-sc)
 
 ## What is popcon-sc?
 - Programming OPen(source) CONtest Server - SCalable
