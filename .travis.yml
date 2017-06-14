@@ -1,9 +1,9 @@
 sudo: required
 services:
-	- docker
+  - docker
 languages: go
 go:
-	- "1.8"
+  - "1.8"
 
 script:
-	- ./docker-build-all.sh
+  - ./docker-build-all.sh
