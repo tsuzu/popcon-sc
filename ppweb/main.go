@@ -1,22 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-
-	"io/ioutil"
-
-	"context"
-
-	"net/url"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"

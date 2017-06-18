@@ -1,20 +1,21 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
-	"os"
-
 	"log"
-	"strconv"
-
-	"context"
+	"os"
 
 	transfer "github.com/cs3238-tsuzu/popcon-judge-go/Transfer"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/types"
-	"github.com/docker/engine-api/client"
+	"github.com/docker/docker/client"
+	// TODO: This will be updated to moby/moby/client
+
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 // SettingsTemplate is a template of a setting json
@@ -51,17 +52,32 @@ func CreateStringPointer(str string) *string {
 
 func main() {
 	help := flag.Bool("help", false, "Display all options")
-	wdir := flag.String("used-dir", "/tmp/pj", "Directory to execute programs and save files")
-	server := flag.String("server", "http://192.168.2.1:8080/", "popcon-sc server address")
-	parallel := flag.Int64("parallel", 1, "execution is parallel")
-	auth := flag.String("auth", "", "authentication token")
+	wdir := flag.String("exec-dir", "/tmp/pj", "Directory to execute programs and save files")
+	server := flag.String("server", "http://192.168.2.1:8080/", "popcon-sc server address for ppjc node")
+	auth := flag.String("auth", "", "authentication token for popcon-sc ppjc")
+	parallel := flag.Int64("parallel", 1, "the number of executions in parallel")
 	cgroup := flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
-	docker := flag.String("docker", "unix:///var/run/docker.sock", "docker host")
+	docker := flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
+	cpuUsage := flag.Int("cpu-util", 100, "restriction of CPU utilization(expressed with per-cent, so must be 1-100)")
+	winmacMode := flag.Bool("winmac", false, "whether this is running on Docker for Mac or Windows")
+	langSetting := flag.String("lang", "./languages.json", "the path to configuration file of languages(json/yaml)")
+	echoLangSettingTemplate := flag.String("echo-lang-setting", "none", "Display the template of configuration of languages(none/json/yaml/etc...)")
+	debug := flag.Bool("debug", false, "debug mode")
 
 	flag.Parse()
 
 	if help != nil && *help {
 		flag.PrintDefaults()
+
+		return
+	}
+
+	if EchoLanguageConfigurationTemplate(os.Stdout, *echoLangSettingTemplate) {
+		return
+	}
+
+	if *cpuUsage < 1 || *cpuUsage > 100 {
+		log.Fatal("--cpu-util option must be [1, 100]")
 
 		return
 	}
@@ -78,51 +94,53 @@ func main() {
 		return
 	}
 
-	var languages map[int64]Language
-
-	if true {
-		fp, err := os.OpenFile(*settings, os.O_RDONLY, 0664)
-
-		if err != nil {
-			log.Println(err.Error())
-
-			os.Exit(1)
-
-			return
-		}
-
-		dec := json.NewDecoder(fp)
-
-		err = dec.Decode(&settingData)
-
-		if err != nil {
-			log.Println("Failed to decode a json: " + err.Error())
-
-			os.Exit(1)
-
-			return
-		}
-
-		languages = make(map[int64]Language)
-
-		for k, v := range settingData.Languages {
-			lid, err := strconv.ParseInt(k, 10, 64)
-
-			if err != nil {
-				panic(err)
-			}
-
-			languages[lid] = v
-		}
+	if *debug {
+		InitLogger(os.Stderr, true)
 	}
 
 	headers := map[string]string{"User-Agent": "popcon-judge/v1.00"}
 
-	cli, err = client.NewClient(*docker, "v1.22", nil, headers)
+	cli, err = client.NewClient(*docker, "v1.29", nil, headers)
 
 	if err != nil {
 		panic(err)
 	}
+
+	var lmutex sync.RWMutex
+	var languages LanguageConfiguration
+
+	if l, err := LoadLanguageConfiguration(*langSetting); err != nil {
+		FSLog().WithError(err).Fatal(*langSetting, "has syntax errors")
+
+		return
+	} else {
+		languages = l
+	}
+
+	// Reload language configurations
+	go func() {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGUSR1)
+
+		for {
+			select {
+			case <-ch:
+				l, err := LoadLanguageConfiguration(*langSetting)
+				if err != nil {
+					FSLog().WithError(err).Error(*langSetting, "has syntax errors")
+
+					continue
+				}
+
+				lmutex.Lock()
+				languages = l
+				lmutex.Unlock()
+
+				FSLog().WithField("config", l).Info("Succeed in reloading the configuration file of languages")
+				// TODO: Add case for ExitedNotifier
+			}
+		}
+	}()
 
 	pclient, err := ppjc.NewClient(*server, *auth)
 
@@ -151,7 +169,9 @@ func main() {
 		go func() {
 			j := Judge{}
 
-			lang, has := languages[req.Lang]
+			mux.RLock()
+			lang, has := languages[req.Submission.Lang]
+			mux.RUnlock()
 
 			if !has {
 				trans.ResponseChan <- transfer.JudgeResponse{

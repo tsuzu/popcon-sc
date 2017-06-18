@@ -20,7 +20,7 @@
 - $ git clone https://github.com/cs3238-tsuzu/popcon-sc.git
 - $ cd popcon-sc && dockcer-compose build
 - Prepare pp_data/ppweb/setting.json and pp_data/sendmail/config.json
-- $ PP_DB_PASSWORD="password" PP_TOKEN="password" docker-compose up
+- $ PP_DB_PASSWORD="your password" PP_TOKEN="your password" docker-compose up
 
 ## License
 - Under the MIT License

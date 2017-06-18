@@ -36,7 +36,8 @@ services:
             - --consul.endpoint=http://consul-manager:8500
             - --consul.watch=true
             - --debug
-
+    
+    # If you need slave nodes, launch them like "docker run -d --name consul-test-node --link consul-test:consul consul agent -node=consul2 -join=consul -bind=0.0.0.0 -node-id=$(cat /proc/sys/kernel/random/uuid) -datacenter=dc1 -dev"
     consul-manager:
         restart: always
         image: consul 

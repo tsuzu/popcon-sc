@@ -1,13 +1,16 @@
 package main
 
-import "github.com/docker/engine-api/types"
-import "github.com/docker/engine-api/types/container"
-import "golang.org/x/net/context"
-import "errors"
-import "bytes"
-import "strconv"
-import "strings"
-import "archive/tar"
+import (
+	"archive/tar"
+	"bytes"
+	"errors"
+	"strconv"
+	"strings"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"golang.org/x/net/context"
+)
 
 type Executor struct {
 	Name string
