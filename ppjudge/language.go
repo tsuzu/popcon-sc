@@ -20,6 +20,7 @@ type LanguageConfiguration map[int64]struct {
 	ExecImage      string   `yaml:"exec_image" json:"exec_image"`
 	CompileCommand []string `yaml:"compile_command" json:"compile_command"`
 	ExecCommand    []string `yaml:"exec_command" json:"exec_command"`
+	SourceFileName string
 }
 
 func LoadLanguageConfiguration(path string) (LanguageConfiguration, error) {
@@ -54,9 +55,12 @@ func EchoLanguageConfigurationTemplate(w io.Writer, fileType string) bool {
 			CompileImage:   "popcon-cpp",
 			CompileCommand: []string{"g++", "-O2", "-o", "/work/a.out", "-std=c++14", "/work/main.cpp"},
 			ExecCommand:    []string{"/work/a.out"},
+			SourceFileName: "main.cpp",
 		},
 	}
 	fmt.Fprintln(w, "NOTE: The key is lid(language id) on the database of popcon-sc.")
+	fmt.Fprintln(w, "NOTE: If compilation is not neccesary, make compile_image empty.")
+
 	switch fileType {
 	case "none:":
 		return false

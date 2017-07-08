@@ -314,7 +314,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			}
 		}()
 
-		if err := dm.SubmissionUpdateResult(res.Cid, res.Sid, res.Jid, res.Status, res.Score, f); err != nil {
+		if err := dm.SubmissionUpdateResult(res.Cid, res.Sid, res.Jid, res.Status, res.Score, res.Time, res.Mem, f); err != nil {
 			DBLog().WithError(err).WithField("res", pp.Sprint(res)).Error("SubmissionUpdateResult() error")
 
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)

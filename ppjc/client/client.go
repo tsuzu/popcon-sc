@@ -289,7 +289,7 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 	return nil
 }
 
-func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, message io.Reader) error {
+func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, time, mem int64, message io.Reader) error {
 	u, err := url.Parse(client.addr)
 
 	if err != nil {
@@ -303,6 +303,8 @@ func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status s
 		Jid:    jid,
 		Status: status,
 		Score:  score,
+		Time:   time,
+		Mem:    mem,
 	})
 
 	pread, pwrite := io.Pipe()

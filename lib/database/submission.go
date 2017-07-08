@@ -465,7 +465,7 @@ func (dm *DatabaseManager) SubmissionMaximumScore(cid, iid, pid int64) (*Submiss
 	return &sm, nil
 }
 
-func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, message io.Reader) error {
+func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score, time, mem int64, message io.Reader) error {
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var sm Submission
 		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
@@ -493,6 +493,8 @@ func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sc
 			"status":       status,
 			"score":        score,
 			"message_file": name,
+			"time":         time,
+			"mem":          mem,
 		}).Error; err != nil {
 			return err
 		}

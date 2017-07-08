@@ -1,12 +1,14 @@
 package main
 
-import "os"
-import "math/rand"
+import ( //import "os/exec"
+	"io"
+	"math/rand"
+	"os"
+	"time"
 
-//import "os/exec"
-import "github.com/seehuhn/mt19937"
-import "time"
-import "github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	"github.com/seehuhn/mt19937"
+)
 
 //import "os/user"
 
@@ -22,7 +24,7 @@ type ExecRequest struct {
 }
 
 type Judge struct {
-	Code    string
+	Code    io.Reader
 	Compile *ExecRequest
 	Exec    ExecRequest
 	Time    int64
@@ -100,16 +102,10 @@ func (j *Judge) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		return
 	}
 
-	l, err := fp.Write([]byte(j.Code))
+	_, err = io.Copy(fp, j.Code)
 
 	if err != nil {
 		ch <- CreateInternalError(TotalResultCaseID, "Failed to write your code on your file. "+err.Error())
-
-		return
-	}
-
-	if l != len(j.Code) {
-		ch <- CreateInternalError(TotalResultCaseID, "Failed to write your code on your file.")
 
 		return
 	}

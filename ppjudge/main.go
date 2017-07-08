@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	transfer "github.com/cs3238-tsuzu/popcon-judge-go/Transfer"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
@@ -16,6 +17,21 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"strings"
+
+	"strconv"
+
+	"io"
+
+	"io/ioutil"
+
+	"encoding/json"
+
+	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
 )
 
 // SettingsTemplate is a template of a setting json
@@ -148,6 +164,14 @@ func main() {
 		panic(err)
 	}
 
+	ppd, err := NewPPDownloader(pclient, *wdir)
+
+	ppd.RunAutomaticalyDeleter(context.Background(), 30*time.Minute /*TODO: can change by prgoram options*/)
+
+	if err != nil {
+		panic(err)
+	}
+
 	jinfoChan := make(chan ppjctypes.JudgeInformation, 100)
 	ctx, canceller := context.WithCancel(context.Background())
 
@@ -169,101 +193,216 @@ func main() {
 		go func() {
 			j := Judge{}
 
-			mux.RLock()
+			code, err := pclient.FileDownload(fs.FS_CATEGORY_SUBMISSION, req.Submission.CodeFile)
+
+			if err != nil {
+				pclient.JudgeSubmissionsUpdateResult(
+					req.Submission.Cid,
+					req.Submission.Sid,
+					req.Submission.Jid,
+					sctypes.SubmissionStatusInternalError,
+					0, 0, 0,
+					strings.NewReader("Failed downloading the source code"),
+				)
+
+				return
+			}
+			defer code.Close()
+
+			var checker io.ReadCloser
+			if req.Problem.Type == sctypes.JudgeInteractive || req.Problem.Type == sctypes.JudgeRunningCode {
+				checker, err = pclient.FileDownload(fs.FS_CATEGORY_PROBLEM_CHECKER, req.Problem.CheckerFile)
+
+				if err != nil {
+					pclient.JudgeSubmissionsUpdateResult(
+						req.Submission.Cid,
+						req.Submission.Sid,
+						req.Submission.Jid,
+						sctypes.SubmissionStatusInternalError,
+						0, 0, 0,
+						strings.NewReader("Failed downloading the checker"),
+					)
+
+					return
+				}
+			}
+			defer checker.Close()
+
+			lmutex.RLock()
 			lang, has := languages[req.Submission.Lang]
-			mux.RUnlock()
+			lmutex.RUnlock()
 
 			if !has {
-				trans.ResponseChan <- transfer.JudgeResponse{
-					Sid:    req.Sid,
-					Status: transfer.InternalError,
-					Msg:    "Unknown Language",
-					Case:   -1,
-				}
+				pclient.JudgeSubmissionsUpdateResult(
+					req.Submission.Cid,
+					req.Submission.Sid,
+					req.Submission.Jid,
+					sctypes.SubmissionStatusInternalError,
+					0, 0, 0,
+					strings.NewReader("Unknown language(with lid:"+strconv.FormatInt(req.Submission.Lang, 10)+")"),
+				)
 
 				return
 			}
 
-			j.Code = req.Code
-			j.Time = req.Time * 1000      // sec -> ms
-			j.Mem = req.Mem * 1000 * 1000 // MB ->bytes
+			j.Code = code
+			j.Time = req.Problem.Time * 1000      // sec -> ms
+			j.Mem = req.Problem.Mem * 1000 * 1000 // MB ->bytes
 
-			if lang.Compile {
+			if lang.CompileImage != "" {
 				j.Compile = &ExecRequest{
 					Image:          lang.CompileImage,
-					Cmd:            lang.CompileCmd,
+					Cmd:            lang.CompileCommand,
 					SourceFileName: lang.SourceFileName,
 				}
 			}
 
 			j.Exec = ExecRequest{
 				Image:          lang.ExecImage,
-				Cmd:            lang.ExecCmd,
+				Cmd:            lang.ExecCommand,
 				SourceFileName: "",
 			}
 
-			casesChan := make(chan TCType, len(req.Cases))
+			casesChan := make(chan TestCase, len(req.Cases))
 			statusChan := make(chan JudgeStatus, 10)
 
 			var check Judge
-			var checkerCasesChan chan TCType
+			var checkerCasesChan chan TestCase
 			var checkerStatusChan chan JudgeStatus
 
-			if req.Type == transfer.JudgeRunningCode {
-				check.Time = 3 * 1000
-				check.Code = req.Checker
-				check.Mem = 256 * 1000 * 1000
+			if req.Problem.Type == sctypes.JudgeRunningCode {
+				checkerCodeBytes, err := ioutil.ReadAll(checker)
 
-				lang, has := languages[req.CheckerLang]
+				if err != nil {
+					pclient.JudgeSubmissionsUpdateResult(
+						req.Submission.Cid,
+						req.Submission.Sid,
+						req.Submission.Jid,
+						sctypes.SubmissionStatusInternalError,
+						0, 0, 0,
+						strings.NewReader("ReadAll(checker) error"),
+					)
 
-				if !has {
-					trans.ResponseChan <- transfer.JudgeResponse{
-						Sid:    req.Sid,
-						Status: transfer.InternalError,
-						Msg:    "Unknown Language for Checker Program",
-						Case:   -1,
-					}
+					return
+				}
+				var checkerInfo database.CheckerSavedFormat
+
+				if err := json.Unmarshal(checkerCodeBytes, &checkerInfo); err != nil {
+					pclient.JudgeSubmissionsUpdateResult(
+						req.Submission.Cid,
+						req.Submission.Sid,
+						req.Submission.Jid,
+						sctypes.SubmissionStatusInternalError,
+						0, 0, 0,
+						strings.NewReader("checker's format is illegal"),
+					)
 
 					return
 				}
 
-				if lang.Compile {
+				check.Time = 3 * 1000
+				check.Code = strings.NewReader(checkerInfo.Code)
+				check.Mem = 256 * 1000 * 1000
+
+				lmutex.RLock()
+				lang, has := languages[checkerInfo.Lid]
+				lmutex.RUnlock()
+
+				if !has {
+					pclient.JudgeSubmissionsUpdateResult(
+						req.Submission.Cid,
+						req.Submission.Sid,
+						req.Submission.Jid,
+						sctypes.SubmissionStatusInternalError,
+						0, 0, 0,
+						strings.NewReader("Unknown language(with lid:"+strconv.FormatInt(checkerInfo.Lid, 10)+") for checker"),
+					)
+
+					return
+				}
+
+				if lang.CompileImage != "" {
 					check.Compile = &ExecRequest{
 						Image:          lang.CompileImage,
-						Cmd:            lang.CompileCmd,
+						Cmd:            lang.CompileCommand,
 						SourceFileName: lang.SourceFileName,
 					}
 				}
 
 				check.Exec = ExecRequest{
 					Image:          lang.ExecImage,
-					Cmd:            lang.ExecCmd,
+					Cmd:            lang.ExecCommand,
 					SourceFileName: "",
 				}
 
-				checkerCasesChan = make(chan TCType, len(req.Cases))
+				checkerCasesChan = make(chan TestCase, len(req.Cases))
 				checkerStatusChan = make(chan JudgeStatus, 10)
 			}
 
-			go j.Run(statusChan, casesChan)
-
-			go func() {
-				for k, v := range req.Cases {
-					casesChan <- TCType{ID: k, In: v.Input}
+			var lastResultResponded bool
+			var releaser func()
+			/*TODO:
+			defer func() {
+				if releaser != nil {
+					releaser()
 				}
-				close(casesChan)
+			}
+			*/
+			go func() {
+				defer close(casesChan)
+				for i := range req.Problem.Cases {
+					if err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
+						pclient.JudgeSubmissionsUpdateResult(
+							req.Submission.Cid,
+							req.Submission.Sid,
+							req.Submission.Jid,
+							sctypes.SubmissionStatusInternalError,
+							0, 0, 0,
+							strings.NewReader("Download of testcases error("+req.Problem.Cases[i].Input+")"),
+						)
+						lastResultResponded = true
+						return
+					} else {
+						locker, _ := ppd.NewLocker(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input)
+
+						releaser = utility.FunctionJoin(releaser, func() {
+							locker.Unlock()
+						})
+					}
+
+					if err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
+						pclient.JudgeSubmissionsUpdateResult(
+							req.Submission.Cid,
+							req.Submission.Sid,
+							req.Submission.Jid,
+							sctypes.SubmissionStatusInternalError,
+							0, 0, 0,
+							strings.NewReader("Download of testcases error("+req.Problem.Cases[i].Input+")"),
+						)
+						lastResultResponded = true
+						return
+					} else {
+						locker, _ := ppd.NewLocker(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input)
+
+						releaser = utility.FunctionJoin(releaser, func() {
+							locker.Unlock()
+						})
+					}
+				}
 			}()
+
+			go j.Run(statusChan, casesChan)
 
 			respArr := make([]transfer.JudgeResponse, len(req.Cases)+1)
 
 			respArr[len(respArr)-1] = transfer.JudgeResponse{
-				Sid:    req.Sid,
+				Sid:    req.Submission.Sid,
 				Status: transfer.InternalError,
 				Case:   -1,
 			}
 
 			go func() {
-				totalStatus := transfer.Accepted
+				totalStatus := sctypes.SubmissionStatusAccepted
 
 				defer close(checkerCasesChan)
 
@@ -275,32 +414,18 @@ func main() {
 					}
 
 					if stat.Case == -1 {
-						if stat.JR == MemoryLimitExceeded {
-							totalStatus = transfer.MemoryLimitExceeded
-						} else if stat.JR == TimeLimitExceeded {
-							totalStatus = transfer.MemoryLimitExceeded
-						} else if stat.JR == RuntimeError {
-							totalStatus = transfer.RuntimeError
-						} else if stat.JR == InternalError {
-							totalStatus = transfer.InternalError
-						} else if stat.JR >= 6 && stat.JR <= 8 {
-							totalStatus = transfer.CompileError
+						totalStatus = stat.Status
 
-							if stat.JR == CompileTimeLimitExceeded {
-								stat.Stderr = "Compile Time Limit Exceeded"
-							} else if stat.JR == CompileMemoryLimitExceeded {
-								stat.Stderr = "Compile Memory Limit Exceeded"
-							}
-						}
-
-						res := transfer.JudgeResponse{
-							Sid:    req.Sid,
-							Status: totalStatus,
-							Case:   -1,
-							Msg:    stat.Stderr,
-							Time:   stat.Time,
-							Mem:    stat.Mem / 1000,
-						}
+						res := pclient.JudgeSubmissionsUpdateResult(
+							req.Problem.Cid,
+							req.Submission.Cid,
+							req.Submission.Jid,
+							totalStatus,
+							0,
+							stat.Time,
+							stat.Mem,
+							strings.NewReader(stat.Stderr),
+						)
 
 						if req.Type == transfer.JudgePerfectMatch {
 							trans.ResponseChan <- res

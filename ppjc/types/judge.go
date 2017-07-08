@@ -25,5 +25,7 @@ type JudgeSubmissionResult struct {
 	Sid    int64
 	Jid    int64
 	Status sctypes.SubmissionStatusType
+	Time   int64
+	Mem    int64
 	Score  int64
 }
