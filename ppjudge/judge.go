@@ -4,6 +4,7 @@ import ( //import "os/exec"
 	"io"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
@@ -67,7 +68,7 @@ func (j *Judge) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 	id := RandomName()
 
 	// Working Directory
-	path := workingDirectory + "/" + id
+	path := filepath.Join(workingDirectory, id)
 
 	err := os.Mkdir(path, 0777)
 

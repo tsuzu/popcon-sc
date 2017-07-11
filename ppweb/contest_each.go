@@ -794,7 +794,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			if err := ppjcClient.JudgeSubmit(pdata.Cid, sid); err != nil {
 				HttpLog().WithError(err).WithField("cid", pdata.Cid).WithField("sid", sid).Error("JudgeSubmit() error")
 
-				mainDB.SubmissionUpdateResult(pdata.Cid, sid, 0, sctypes.SubmissionStatusInternalError, 0, strings.NewReader("internal server error(judge queue is down)"))
+				mainDB.SubmissionUpdateResult(pdata.Cid, sid, 0, sctypes.SubmissionStatusInternalError, 0, 0, 0, strings.NewReader("internal server error(judge queue is down)"))
 			}
 
 			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/submissions/"+strconv.FormatInt(sid, 10))

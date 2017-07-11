@@ -1,16 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
-
 	"path/filepath"
-
-	"errors"
-
-	"encoding/json"
-
-	"fmt"
 
 	"gopkg.in/yaml.v2"
 )

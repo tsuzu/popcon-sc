@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	transfer "github.com/cs3238-tsuzu/popcon-judge-go/Transfer"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/types"
 	"github.com/docker/docker/client"
@@ -393,14 +392,6 @@ func main() {
 
 			go j.Run(statusChan, casesChan)
 
-			respArr := make([]transfer.JudgeResponse, len(req.Cases)+1)
-
-			respArr[len(respArr)-1] = transfer.JudgeResponse{
-				Sid:    req.Submission.Sid,
-				Status: transfer.InternalError,
-				Case:   -1,
-			}
-
 			go func() {
 				totalStatus := sctypes.SubmissionStatusAccepted
 
@@ -418,7 +409,7 @@ func main() {
 
 						res := pclient.JudgeSubmissionsUpdateResult(
 							req.Problem.Cid,
-							req.Submission.Cid,
+							req.Submission.Sid,
 							req.Submission.Jid,
 							totalStatus,
 							0,
@@ -427,45 +418,24 @@ func main() {
 							strings.NewReader(stat.Stderr),
 						)
 
-						if req.Type == transfer.JudgePerfectMatch {
-							trans.ResponseChan <- res
-						} else {
-							respArr[len(respArr)-1] = res
-						}
-
+						// TODO: RunningCode
 						return
 					} else {
-						status := transfer.Accepted
-						if stat.JR == Judging {
-							trans.ResponseChan <- transfer.JudgeResponse{
-								Sid:    req.Sid,
-								Status: transfer.Judging,
-								Case:   stat.Case,
-								Msg:    fmt.Sprint(stat.Case, "/", len(req.Cases)),
+						pclient.JudgeSubmissionsUpdateCase(
+							req.Problem.Cid,
+							req.Submission.Sid,
+							req.Submission.Jid,
+							fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
+							database.SubmissionTestCase{
+								Sid:    req.Submission.Sid,
+								Cid:    req.Problem.Cid,
+								Status: stat.Status,
+								CaseID: stat.Case,
+								Name:   req.Problem.Cases[stat.Case].Name,
 								Time:   stat.Time,
-								Mem:    stat.Mem / 1000,
-							}
-							continue
-						}
-
-						if stat.JR == MemoryLimitExceeded {
-							status = transfer.MemoryLimitExceeded
-						} else if stat.JR == TimeLimitExceeded {
-							status = transfer.MemoryLimitExceeded
-						} else if stat.JR == RuntimeError {
-							status = transfer.RuntimeError
-						} else if stat.JR == InternalError {
-							status = transfer.InternalError
-						}
-
-						res := transfer.JudgeResponse{
-							Sid:      req.Sid,
-							Status:   status,
-							Case:     stat.Case,
-							CaseName: req.Cases[stat.Case].Name,
-							Time:     stat.Time,
-							Mem:      stat.Mem / 1000,
-						}
+								Mem:    stat.Mem,
+							},
+						)
 
 						if status != transfer.Accepted {
 							trans.ResponseChan <- res
