@@ -6,6 +6,8 @@ go:
   - "1.8"
 
 before_install:
+  - "env"
+  - "echo $TRAVIS_BRANCH"
   - "git rev-parse --abbrev-ref HEAD"
 install:
   - ":" # do nothing

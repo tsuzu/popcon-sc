@@ -1,5 +1,10 @@
 #! /bin/bash
 
+if [[ -z "${TRAVIS_BRANCH}" ]]; then
+    export BRANCH=$(git rev-parse --abbrev-ref HEAD)
+else
+    export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+fi
 set -eu
 
 export RDIR=$(dirname $0)
@@ -8,4 +13,4 @@ cd $DIR
 rm ./ppms 2>/dev/null || :
 GOOS=linux GOARCH=amd64 go get -v -d ../...
 GOOS=linux GOARCH=amd64 go build -o ./ppms ..
-docker build --build-arg GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) -t ppms -f ./Dockerfile ..
+docker build --build-arg GIT_BRANCH=$BRANCH -t ppms -f ./Dockerfile ..
