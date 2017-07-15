@@ -2,33 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/types"
 	"github.com/docker/docker/client"
 	// TODO: This will be updated to moby/moby/client
-
-	"os/signal"
-	"sync"
-	"syscall"
-
-	"strings"
-
-	"strconv"
-
-	"io/ioutil"
-
-	"encoding/json"
-
-	"regexp"
-
-	"errors"
-
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
