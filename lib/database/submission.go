@@ -320,7 +320,6 @@ type SubmissionView struct {
 	Status        string
 }
 
-// TODO: Gormに切り替え
 func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*gorm.DB, error) {
 	table := Submission{Cid: cid}.TableName()
 	db := dm.db.Table(table + " as submissions").Joins("inner join " + ContestProblem{Cid: cid}.TableName() + " as contest_problems on submissions.pid = contest_problems.pid").Joins("inner join users on submissions.iid = users.iid").Joins("inner join languages on submissions.lang=languages.lid")

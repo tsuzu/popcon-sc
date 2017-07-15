@@ -4,8 +4,6 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-// TODO: 処理をppjqに移動するため不要となる
-
 type ContestParticipation struct {
 	Cpid  int64 `gorm:"primary_key"`
 	Iid   int64 `gorm:"index"`

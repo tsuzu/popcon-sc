@@ -130,9 +130,6 @@ func (dm *DatabaseManager) ContestProblemAutoMigrate(cid int64) error {
 	return dm.db.AutoMigrate(ContestProblem{Cid: cid}, ContestProblemTestCase{Cid: cid}, ContestProblemScoreSet{Cid: cid}).Error
 }
 
-// TODO: テストケースの情報を乗っけるようにする途中でORMの変更が入ったので中断
-// 適当にSQLに乗っけるように変更
-
 func (cp *ContestProblem) UpdateStatement(text string) error {
 	return mainDB.Begin(func(db *gorm.DB) error {
 		res := *cp

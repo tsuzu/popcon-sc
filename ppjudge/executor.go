@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"golang.org/x/net/context"
 )
+
+var CgroupParentPrefix = "/" // Will be exchanged if running on Docker
 
 type Executor struct {
 	Name string
@@ -92,7 +95,7 @@ func (e *Executor) Run(input string) ExecResult {
 			}
 
 			if err != nil {
-				if err.Error() == "EOF" {
+				if err == io.EOF {
 					done <- nil
 				} else {
 					done <- err
@@ -214,13 +217,14 @@ func NewExecutor(name string, mem int64, time int64, cmd []string, img string, b
 		return nil, errors.New("Failed to set memory.limit_in_bytes")
 	}
 
-	err = cg.getSubsys("memory").setValInt(mem, "memory.memsw.limit_in_bytes")
+	// Usage of swapping should not be restricted.
+	/*err = cg.getSubsys("memory").setValInt(mem, "memory.memsw.limit_in_bytes")
 
 	if err != nil {
 		cg.Delete()
 
 		return nil, errors.New("Failed to set memory.memsw.limit_in_bytes")
-	}
+	}*/
 
 	cfg := container.Config{}
 

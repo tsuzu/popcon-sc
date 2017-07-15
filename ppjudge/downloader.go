@@ -63,27 +63,42 @@ func (ppd *PPDownloader) newFileName() string {
 	return "ppj_" + strconv.FormatInt(atomic.AddInt64(&ppd.fileNameCounter, 1), 10) + ".txt"
 }
 
-func (ppd *PPDownloader) Download(category, name string) error {
+func (ppd *PPDownloader) Download(category, name string) (string, *PPLocker, error) {
+	enc := encodeFileName(category, name)
+	var path string
+	ppd.mutexProcess(func() {
+		if cnt, ok := ppd.counter[enc]; ok {
+			ppd.counter[enc] = cnt + 1
+			path = ppd.encodedNameToFileName[enc]
+			ppd.lastUpdateTime[enc] = time.Now()
+		}
+	})
+
+	if len(path) != 0 {
+		a, b := ppd.NewLocker(category, name)
+
+		return filepath.Join(ppd.dirToSave, path), a, b
+	}
+
 	readCloser, err := ppd.client.FileDownload(category, name)
 
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer readCloser.Close()
 
-	enc := encodeFileName(category, name)
-	path := ppd.newFileName()
+	path = ppd.newFileName()
 	fp, err := os.Create(filepath.Join(ppd.dirToSave, path))
 
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer fp.Close()
 
 	_, err = io.Copy(fp, readCloser)
 
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	fp.Close()
@@ -94,13 +109,22 @@ func (ppd *PPDownloader) Download(category, name string) error {
 			ppd.counter[enc] = 0
 			ppd.encodedNameToFileName[enc] = path
 			ppd.lastUpdateTime[enc] = time.Now()
+		} else {
+			os.Remove(filepath.Join(ppd.dirToSave, path))
+			path = ppd.encodedNameToFileName[enc]
 		}
 	})
 
-	return nil
+	a, b := ppd.NewLocker(category, name)
+
+	return filepath.Join(ppd.dirToSave, path), a, b
 }
 
-func (ppd *PPDownloader) RunAutomaticalyDeleter(ctx context.Context, expire time.Duration) {
+func (ppd *PPDownloader) RunAutomaticallyDeleter(ctx context.Context, expire time.Duration) {
+	if expire < 1*time.Minute {
+		expire = 1 * time.Minute
+	}
+
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()

@@ -21,16 +21,19 @@ import (
 
 	"strconv"
 
-	"io"
-
 	"io/ioutil"
 
 	"encoding/json"
+
+	"regexp"
+
+	"errors"
 
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
+	"github.com/k0kubun/pp"
 )
 
 // SettingsTemplate is a template of a setting json
@@ -51,30 +54,18 @@ type Language struct {
 	ExecImage      string   `json:"exec_image"`
 }
 
-// SettingsInterface is a interface of setting file
-// Generated at https://mholt.github.io/json-to-go/
-type SettingsInterface struct {
-	Name        string              `json:"name"`
-	Parallelism int                 `json:"parallelism"`
-	CPUUsage    int                 `json:"cpu_usage"`
-	Auth        string              `json:"auth"`
-	Languages   map[string]Language // string(lid int64)
-}
-
-func CreateStringPointer(str string) *string {
-	return &str
-}
-
 func main() {
+	cgroup := os.Getenv("PPJUDGE_CGROUP")             //flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
+	docker := os.Getenv("PPJUDGE_DOCKER")             //flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
+	dockerVer := os.Getenv("PPJUDGE_DOCKER_VER")      //flag.String("docker-ver", "v1.29", "version of docker api")
+	onDocker := os.Getenv("PPJUDGE_ON_DOCKER") == "1" //flag.Bool("on-docker", false, "whether this is running on Docker")
+
 	help := flag.Bool("help", false, "Display all options")
 	wdir := flag.String("exec-dir", "/tmp/pj", "Directory to execute programs and save files")
 	server := flag.String("server", "http://192.168.2.1:8080/", "popcon-sc server address for ppjc node")
 	auth := flag.String("auth", "", "authentication token for popcon-sc ppjc")
 	parallel := flag.Int64("parallel", 1, "the number of executions in parallel")
-	cgroup := flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
-	docker := flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
 	cpuUsage := flag.Int("cpu-util", 100, "restriction of CPU utilization(expressed with per-cent, so must be 1-100)")
-	winmacMode := flag.Bool("winmac", false, "whether this is running on Docker for Mac or Windows")
 	langSetting := flag.String("lang", "./languages.json", "the path to configuration file of languages(json/yaml)")
 	echoLangSettingTemplate := flag.String("echo-lang-setting", "none", "Display the template of configuration of languages(none/json/yaml/etc...)")
 	debug := flag.Bool("debug", false, "debug mode")
@@ -96,8 +87,40 @@ func main() {
 
 		return
 	}
+	CPUUtilization = *cpuUsage
 
-	cgroupDir = *cgroup
+	if onDocker {
+		b, err := ioutil.ReadFile("/proc/self/cgroup")
+
+		if err != nil {
+			FSLog().WithError(err).Fatal("Failed to read /proc/self/cgroup")
+		}
+
+		if a := regexp.MustCompilePOSIX("(/docker/.*)$").FindStringSubmatch(string(b)); len(a) == 0 {
+			FSLog().WithError(errors.New("cgroup not found")).Fatal("Failed to prepare cgroup environemnt")
+		} else {
+			CgroupParentPrefix = a[1] + "/"
+		}
+	}
+
+	cgroupDir = cgroup
+
+	// Cgroup Test
+	if true {
+		cg := NewCgroup("test_cgroup")
+
+		if err := cg.addSubsys("memory").Modify(); err != nil {
+			GeneralLog().WithError(err).Fatal("Failed to create a cgroup")
+		}
+
+		if err := cg.getSubsys("memory").setValInt(100*1024*1024, "memory.limit_in_bytes"); err != nil {
+			GeneralLog().WithError(err).Fatal("Failed to setup a cgroup")
+		}
+
+		if err := cg.Delete(); err != nil {
+			GeneralLog().WithError(err).Fatal("Failed to delete a cgroup")
+		}
+	}
 
 	err := os.MkdirAll(*wdir, 0664)
 
@@ -115,7 +138,7 @@ func main() {
 
 	headers := map[string]string{"User-Agent": "popcon-judge/v1.00"}
 
-	cli, err = client.NewClient(*docker, "v1.29", nil, headers)
+	cli, err = client.NewClient(docker, dockerVer, nil, headers)
 
 	if err != nil {
 		panic(err)
@@ -133,6 +156,7 @@ func main() {
 	}
 
 	// Reload language configurations
+	reloadLanguagesCtx, reloadLanguagesCtxCanceller := context.WithCancel(context.Background())
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGUSR1)
@@ -152,7 +176,8 @@ func main() {
 				lmutex.Unlock()
 
 				FSLog().WithField("config", l).Info("Succeed in reloading the configuration file of languages")
-				// TODO: Add case for ExitedNotifier
+			case <-reloadLanguagesCtx.Done():
+				break
 			}
 		}
 	}()
@@ -165,7 +190,7 @@ func main() {
 
 	ppd, err := NewPPDownloader(pclient, *wdir)
 
-	ppd.RunAutomaticalyDeleter(context.Background(), 30*time.Minute /*TODO: can change by prgoram options*/)
+	ppd.RunAutomaticallyDeleter(context.Background(), 30*time.Minute /*TODO: can change by prgoram options*/)
 
 	if err != nil {
 		panic(err)
@@ -176,11 +201,24 @@ func main() {
 
 	defer canceller()
 
-	exited, oneFinish, err := pclient.StartWorkersWSPolling(*parallel, jinfoChan, ctx)
+	_, oneFinish, err := pclient.StartWorkersWSPolling(*parallel, jinfoChan, ctx)
 
 	if err != nil {
 		panic(err)
 	}
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+
+	go func() {
+		<-signalChan
+		reloadLanguagesCtxCanceller()
+		canceller()
+	}()
 
 	for {
 		req, ok := <-jinfoChan
@@ -190,9 +228,27 @@ func main() {
 		}
 
 		go func() {
-			j := Judge{}
+			GeneralLog().WithField("req", pp.Sprint(req)).Debug("A new judge has started!")
 
-			code, err := pclient.FileDownload(fs.FS_CATEGORY_SUBMISSION, req.Submission.CodeFile)
+			defer oneFinish()
+
+			// TODO: Support interactive
+			if req.Problem.Type == sctypes.JudgeInteractive {
+				pclient.JudgeSubmissionsUpdateResult(
+					req.Submission.Cid,
+					req.Submission.Sid,
+					req.Submission.Jid,
+					sctypes.SubmissionStatusInternalError,
+					0, 0, 0,
+					strings.NewReader("Unsupported judge type"),
+				)
+
+				return
+			}
+
+			j := JudgeRunCode{}
+
+			codePath, codeLocker, err := ppd.Download(fs.FS_CATEGORY_SUBMISSION, req.Submission.CodeFile)
 
 			if err != nil {
 				pclient.JudgeSubmissionsUpdateResult(
@@ -206,11 +262,12 @@ func main() {
 
 				return
 			}
-			defer code.Close()
+			defer codeLocker.Unlock()
 
-			var checker io.ReadCloser
+			var checkerPath string
+			var checkerLocker *PPLocker
 			if req.Problem.Type == sctypes.JudgeInteractive || req.Problem.Type == sctypes.JudgeRunningCode {
-				checker, err = pclient.FileDownload(fs.FS_CATEGORY_PROBLEM_CHECKER, req.Problem.CheckerFile)
+				checkerPath, checkerLocker, err = ppd.Download(fs.FS_CATEGORY_PROBLEM_CHECKER, req.Problem.CheckerFile)
 
 				if err != nil {
 					pclient.JudgeSubmissionsUpdateResult(
@@ -225,7 +282,7 @@ func main() {
 					return
 				}
 			}
-			defer checker.Close()
+			defer checkerLocker.Unlock()
 
 			lmutex.RLock()
 			lang, has := languages[req.Submission.Lang]
@@ -244,6 +301,22 @@ func main() {
 				return
 			}
 
+			code, err := os.Open(codePath)
+
+			if err != nil {
+				pclient.JudgeSubmissionsUpdateResult(
+					req.Submission.Cid,
+					req.Submission.Sid,
+					req.Submission.Jid,
+					sctypes.SubmissionStatusInternalError,
+					0, 0, 0,
+					strings.NewReader("open source code files error"),
+				)
+
+				return
+			}
+			defer code.Close()
+
 			j.Code = code
 			j.Time = req.Problem.Time * 1000      // sec -> ms
 			j.Mem = req.Problem.Mem * 1000 * 1000 // MB ->bytes
@@ -259,18 +332,14 @@ func main() {
 			j.Exec = ExecRequest{
 				Image:          lang.ExecImage,
 				Cmd:            lang.ExecCommand,
-				SourceFileName: "",
+				SourceFileName: lang.SourceFileName,
 			}
 
 			casesChan := make(chan TestCase, len(req.Cases))
 			statusChan := make(chan JudgeStatus, 10)
 
-			var check Judge
-			var checkerCasesChan chan TestCase
-			var checkerStatusChan chan JudgeStatus
-
 			if req.Problem.Type == sctypes.JudgeRunningCode {
-				checkerCodeBytes, err := ioutil.ReadAll(checker)
+				checkerCodeBytes, err := ioutil.ReadFile(checkerPath)
 
 				if err != nil {
 					pclient.JudgeSubmissionsUpdateResult(
@@ -299,9 +368,7 @@ func main() {
 					return
 				}
 
-				check.Time = 3 * 1000
-				check.Code = strings.NewReader(checkerInfo.Code)
-				check.Mem = 256 * 1000 * 1000
+				j.CheckerCode = strings.NewReader(checkerInfo.Code)
 
 				lmutex.RLock()
 				lang, has := languages[checkerInfo.Lid]
@@ -321,36 +388,45 @@ func main() {
 				}
 
 				if lang.CompileImage != "" {
-					check.Compile = &ExecRequest{
+					j.CheckerCompile = &ExecRequest{
 						Image:          lang.CompileImage,
 						Cmd:            lang.CompileCommand,
 						SourceFileName: lang.SourceFileName,
 					}
 				}
 
-				check.Exec = ExecRequest{
+				j.CheckerExec = ExecRequest{
 					Image:          lang.ExecImage,
 					Cmd:            lang.ExecCommand,
-					SourceFileName: "",
+					SourceFileName: lang.SourceFileName,
 				}
+			}
 
-				checkerCasesChan = make(chan TestCase, len(req.Cases))
-				checkerStatusChan = make(chan JudgeStatus, 10)
+			var judge Judge
+			switch req.Problem.Type {
+			case sctypes.JudgePerfectMatch:
+				judge = &j.JudgeSimple
+			case sctypes.JudgeRunningCode:
+				judge = &j
 			}
 
 			var lastResultResponded bool
 			var releaser func()
-			/*TODO:
+
+			var releaserWG sync.WaitGroup
 			defer func() {
+				releaserWG.Wait()
 				if releaser != nil {
 					releaser()
 				}
-			}
-			*/
+			}()
+
 			go func() {
+				defer releaserWG.Done()
 				defer close(casesChan)
 				for i := range req.Problem.Cases {
-					if err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
+					var inputPath string
+					if path, locker, err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
 						pclient.JudgeSubmissionsUpdateResult(
 							req.Submission.Cid,
 							req.Submission.Sid,
@@ -362,40 +438,39 @@ func main() {
 						lastResultResponded = true
 						return
 					} else {
-						locker, _ := ppd.NewLocker(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input)
-
+						inputPath = path
 						releaser = utility.FunctionJoin(releaser, func() {
 							locker.Unlock()
 						})
 					}
 
-					if err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
+					if _, locker, err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Output); err != nil {
 						pclient.JudgeSubmissionsUpdateResult(
 							req.Submission.Cid,
 							req.Submission.Sid,
 							req.Submission.Jid,
 							sctypes.SubmissionStatusInternalError,
 							0, 0, 0,
-							strings.NewReader("Download of testcases error("+req.Problem.Cases[i].Input+")"),
+							strings.NewReader("Download of testcases error("+req.Problem.Cases[i].Output+")"),
 						)
 						lastResultResponded = true
 						return
 					} else {
-						locker, _ := ppd.NewLocker(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input)
-
 						releaser = utility.FunctionJoin(releaser, func() {
 							locker.Unlock()
 						})
+					}
+					casesChan <- TestCase{
+						ID:    int64(i),
+						Input: inputPath,
 					}
 				}
 			}()
 
-			go j.Run(statusChan, casesChan)
+			go judge.Run(statusChan, casesChan)
 
 			go func() {
 				totalStatus := sctypes.SubmissionStatusAccepted
-
-				defer close(checkerCasesChan)
 
 				for {
 					stat, has := <-statusChan
@@ -405,9 +480,9 @@ func main() {
 					}
 
 					if stat.Case == -1 {
-						totalStatus = stat.Status
+						totalStatus = maxStatus(totalStatus, stat.Status)
 
-						res := pclient.JudgeSubmissionsUpdateResult(
+						if err := pclient.JudgeSubmissionsUpdateResult(
 							req.Problem.Cid,
 							req.Submission.Sid,
 							req.Submission.Jid,
@@ -416,92 +491,61 @@ func main() {
 							stat.Time,
 							stat.Mem,
 							strings.NewReader(stat.Stderr),
-						)
+						); err != nil {
+							HttpLog().WithError(err).Error("JudgeSubmissionsUpdateResult() error")
+						}
 
-						// TODO: RunningCode
 						return
 					} else {
-						pclient.JudgeSubmissionsUpdateCase(
-							req.Problem.Cid,
-							req.Submission.Sid,
-							req.Submission.Jid,
-							fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
-							database.SubmissionTestCase{
-								Sid:    req.Submission.Sid,
-								Cid:    req.Problem.Cid,
-								Status: stat.Status,
-								CaseID: stat.Case,
-								Name:   req.Problem.Cases[stat.Case].Name,
-								Time:   stat.Time,
-								Mem:    stat.Mem,
-							},
-						)
+						if stat.Status != sctypes.SubmissionStatusAccepted {
+							pclient.JudgeSubmissionsUpdateCase(
+								req.Problem.Cid,
+								req.Submission.Sid,
+								req.Submission.Jid,
+								fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
+								database.SubmissionTestCase{
+									Sid:    req.Submission.Sid,
+									Cid:    req.Problem.Cid,
+									Status: stat.Status,
+									CaseID: stat.Case,
+									Name:   req.Problem.Cases[stat.Case].Name,
+									Time:   stat.Time,
+									Mem:    stat.Mem,
+								},
+							)
+						} else if req.Problem.Type == sctypes.JudgePerfectMatch {
+							fp, err := ppd.OpenFile(fs.FS_CATEGORY_TESTCASE_INOUT, req.Cases[stat.Case].Output)
 
-						if status != transfer.Accepted {
-							trans.ResponseChan <- res
-						} else if req.Type == transfer.JudgeRunningCode {
-							respArr[stat.Case] = res
-							checkerCasesChan <- TCType{ID: stat.Case, In: "hogehoge"}
-						} else {
-							if stat.Stdout != req.Cases[stat.Case].Output {
-								res.Status = transfer.WrongAnswer
-								totalStatus = transfer.WrongAnswer
+							if err != nil {
+								stat.Status = sctypes.SubmissionStatusInternalError
+
+								FSLog().WithError(err).Error("File open error")
+							} else if b, err := ioutil.ReadAll(fp); err != nil {
+								stat.Status = sctypes.SubmissionStatusInternalError
+
+								FSLog().WithError(err).Error("File readall error")
+							} else if stat.Stdout != string(b) {
+								stat.Status = sctypes.SubmissionStatusWrongAnswer
 							}
-							trans.ResponseChan <- res
+							pclient.JudgeSubmissionsUpdateCase(
+								req.Problem.Cid,
+								req.Submission.Sid,
+								req.Submission.Jid,
+								fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
+								database.SubmissionTestCase{
+									Sid:    req.Submission.Sid,
+									Cid:    req.Problem.Cid,
+									Status: stat.Status,
+									CaseID: stat.Case,
+									Name:   req.Problem.Cases[stat.Case].Name,
+									Time:   stat.Time,
+									Mem:    stat.Mem,
+								},
+							)
 						}
 					}
 				}
 			}()
-
-			if req.Type == transfer.JudgeRunningCode {
-				go func() {
-					setupFinished := false
-					for {
-						stat, has := <-checkerStatusChan
-
-						if !has {
-							return
-						}
-
-						if stat.Case == -1 {
-							resp := respArr[len(respArr)-1]
-
-							if stat.JR == Finished {
-								if setupFinished {
-									resp.Status = transfer.Accepted
-								}
-							} else if stat.JR == RuntimeError {
-								resp.Status = transfer.WrongAnswer
-							} else {
-								resp.Msg = "Checker Program: " + JudgeResultCodeToStr[stat.JR]
-								resp.Status = transfer.InternalError
-
-								if stat.JR == CompileError {
-									resp.Msg = stat.Stderr
-								}
-							}
-
-							trans.ResponseChan <- resp
-
-							return
-						} else {
-							setupFinished = true
-							resp := respArr[stat.Case]
-
-							if stat.JR == Finished {
-								resp.Status = transfer.Accepted
-							} else if stat.JR == RuntimeError {
-								resp.Status = transfer.WrongAnswer
-							} else {
-								resp.Msg = "Checker Program: " + JudgeResultCodeToStr[stat.JR]
-								resp.Status = transfer.InternalError
-							}
-
-							trans.ResponseChan <- resp
-						}
-					}
-				}()
-			}
 		}()
 	}
 
