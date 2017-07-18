@@ -13,4 +13,4 @@ cd $DIR
 rm ./ppjudge 2> /dev/null || :
 GOOS=linux GOARCH=amd64 go get -v -d ../...
 GOOS=linux GOARCH=amd64 go build -o ./ppjudge ..
-docker build --build-arg GIT_BRANCH=$BRANCH -t ppweb -f ./Dockerfile ..
+docker build --build-arg GIT_BRANCH=$BRANCH -t ppjudge -f ./Dockerfile ..

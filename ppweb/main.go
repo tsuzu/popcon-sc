@@ -234,6 +234,17 @@ func main() {
 			backend = "backend1"
 		}
 
+		if has, err := client.HasFrontend(); err != nil {
+			HttpLog().WithError(err).Error("consul-manager.HasFrontend() error")
+			return
+		} else {
+			if !has {
+				if err := client.NewFrontend("frontend1" /*default frontend*/, backend); err != nil {
+					HttpLog().WithError(err).Error("consul-manager.NewFrontend() error")
+				}
+			}
+		}
+
 		host, _ := os.Hostname()
 		const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
 		rgen := rand.New(rand.NewSource(time.Now().UnixNano()))

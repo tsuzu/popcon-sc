@@ -95,3 +95,13 @@ func (c *Client) NewFrontend(frontendName, backendName string) error {
 
 	return err
 }
+
+func (c *Client) HasFrontend() (bool, error) {
+	pairs, _, err := c.client.KV().List(c.prefix+"/frontends/", nil)
+
+	if err != nil {
+		return false, err
+	}
+
+	return len(pairs) != 0, nil
+}
