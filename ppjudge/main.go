@@ -28,15 +28,6 @@ import (
 	"github.com/k0kubun/pp"
 )
 
-// SettingsTemplate is a template of a setting json
-const SettingsTemplate = `{
-    "name": "test-server",
-    "parallelism": 2,
-    "cpu_usage": 100,
-	"auth": "****",
-	"languages": {},
-}`
-
 type Language struct {
 	SourceFileName string   `json:"source_file_name"`
 	Compile        bool     `json:"compile_necessity"`
@@ -67,8 +58,15 @@ func main() {
 	if help != nil && *help {
 		flag.PrintDefaults()
 
+		fmt.Println()
+		fmt.Println(
+			"env list:", "PPJUDGE_CGROUP", "PPJUDGE_DOCKER", "PPJUDGE_DOCKER_VER", "PPJUDGE_ON_DOCKER",
+		)
+
 		return
 	}
+
+	InitLogger(os.Stderr, *debug)
 
 	if EchoLanguageConfigurationTemplate(os.Stdout, *echoLangSettingTemplate) {
 		return
@@ -124,11 +122,7 @@ func main() {
 		return
 	}
 
-	if *debug {
-		InitLogger(os.Stderr, true)
-	}
-
-	headers := map[string]string{"User-Agent": "popcon-judge/v1.00"}
+	headers := map[string]string{"User-Agent": "popcon-sc-ppjudge/v1.00"}
 
 	cli, err = client.NewClient(docker, dockerVer, nil, headers)
 
@@ -212,6 +206,7 @@ func main() {
 		canceller()
 	}()
 
+	GeneralLog().Info("Starting process finished successfully.")
 	for {
 		req, ok := <-jinfoChan
 
@@ -254,6 +249,9 @@ func main() {
 
 				return
 			}
+
+			GeneralLog().Debug("Download finished")
+
 			defer codeLocker.Unlock()
 
 			var checkerPath string
@@ -273,8 +271,8 @@ func main() {
 
 					return
 				}
+				defer checkerLocker.Unlock()
 			}
-			defer checkerLocker.Unlock()
 
 			lmutex.RLock()
 			lang, has := languages[req.Submission.Lang]
@@ -289,6 +287,8 @@ func main() {
 					0, 0, 0,
 					strings.NewReader("Unknown language(with lid:"+strconv.FormatInt(req.Submission.Lang, 10)+")"),
 				)
+
+				HttpLog().Debug("Update result")
 
 				return
 			}

@@ -16,7 +16,7 @@ type LanguageConfiguration map[int64]struct {
 	ExecImage      string   `yaml:"exec_image" json:"exec_image"`
 	CompileCommand []string `yaml:"compile_command" json:"compile_command"`
 	ExecCommand    []string `yaml:"exec_command" json:"exec_command"`
-	SourceFileName string
+	SourceFileName string   `yaml:"source_file_name" json:"source_file_name"`
 }
 
 func LoadLanguageConfiguration(path string) (LanguageConfiguration, error) {
@@ -29,12 +29,12 @@ func LoadLanguageConfiguration(path string) (LanguageConfiguration, error) {
 	}
 
 	switch filepath.Ext(path) {
-	case "yaml", "yml":
-		if err := yaml.Unmarshal(b, lc); err != nil {
+	case ".yaml", ".yml":
+		if err := yaml.Unmarshal(b, &lc); err != nil {
 			return nil, err
 		}
-	case "json":
-		if err := json.Unmarshal(b, lc); err != nil {
+	case ".json":
+		if err := json.Unmarshal(b, &lc); err != nil {
 			return nil, err
 		}
 	default:
@@ -54,18 +54,18 @@ func EchoLanguageConfigurationTemplate(w io.Writer, fileType string) bool {
 			SourceFileName: "main.cpp",
 		},
 	}
-	fmt.Fprintln(w, "NOTE: The key is lid(language id) on the database of popcon-sc.")
-	fmt.Fprintln(w, "NOTE: If compilation is not neccesary, make compile_image empty.")
 
 	switch fileType {
-	case "none:":
-		return false
 	case "json":
 		json.NewEncoder(w).Encode(temp)
 	case "yaml", "yml":
 		b, _ := yaml.Marshal(temp)
 		w.Write(b)
+	default:
+		return false
 	}
+	fmt.Fprintln(w, "NOTE: The key is lid(language id) on the database of popcon-sc.")
+	fmt.Fprintln(w, "NOTE: If compilation is not neccesary, make compile_image empty.")
 
 	return true
 }

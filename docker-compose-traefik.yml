@@ -68,7 +68,7 @@ services:
             PP_REDIS_ADDR: "redis:6379"
             PP_REDIS_PASS: "${PP_DB_PASSWORD}"
             PP_MONGO_ADDR: "mongo:27017"
-            PP_MS_ADDR: "http://ppms:7502"
+            PP_MS_ADDR: "http://ppms:7502/"
             PP_TOKEN: ${PP_TOKEN}
             PP_DEBUG_MODE: 1
 
@@ -93,9 +93,9 @@ services:
             PP_REDIS_ADDR: "redis:6379"
             PP_REDIS_PASS: "${PP_DB_PASSWORD}"
             PP_MONGO_ADDR: "mongo:27017"
-            PP_JC_ADDR: "http://ppjc"
-            PP_MS_ADDR: "http://ppms:7502"
-            PP_CONSUL_ADDR: "http://consul-manager:8500"
+            PP_JC_ADDR: "http://ppjc/"
+            PP_MS_ADDR: "http://ppms:7502/"
+            PP_CONSUL_ADDR: "http://consul-manager:8500/"
             PP_TRAEFIK_PREFIX: traefik
             PP_TRAEFIK_BACKEND: ppweb
             PP_TOKEN: ${PP_TOKEN}

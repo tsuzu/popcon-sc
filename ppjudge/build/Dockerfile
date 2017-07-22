@@ -6,6 +6,7 @@ ENV PPJUDGE_DOCKER=unix:///var/run/docker.sock
 ENV PPJUDGE_ON_DOCKER=1
 ENV PPJUDGE_DOCKER_VER=v1.29
 ARG GIT_BRANCH=${GIT_BRANCH:-swarm}
+RUN apt-get update && apt-get upgrade -y && apt-get install -y cgroup-bin
 
 RUN mkdir -p $GOPATH/src/github.com/cs3238-tsuzu/ && cd $GOPATH/src/github.com/cs3238-tsuzu/ && git clone -b $GIT_BRANCH https://github.com/cs3238-tsuzu/popcon-sc 
 COPY ./ $GOPATH/src/github.com/cs3238-tsuzu/popcon-sc/ppjudge

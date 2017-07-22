@@ -9,7 +9,9 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
+	gorilla "github.com/gorilla/handlers"
 	mux "github.com/gorilla/mux"
+	"github.com/sebest/xff"
 )
 
 func main() {
@@ -72,7 +74,24 @@ func main() {
 		router.ServeHTTP(rw, req)
 	})
 
-	if err := http.ListenAndServe(":80", handler); err != nil {
+	xffh, err := xff.Default()
+
+	if err != nil {
+		HTTPLog().Fatal(err)
+	}
+
+	logger := gorilla.LoggingHandler(
+		NewCustomizedWriter(
+			func(b []byte) (int, error) {
+				HTTPLog().Info(string(b))
+
+				return len(b), nil
+			},
+		),
+		xffh.Handler(handler),
+	)
+
+	if err := http.ListenAndServe(":80", logger); err != nil {
 		HTTPLog().WithError(err).Fatal("ListenAndServe() error")
 
 		return

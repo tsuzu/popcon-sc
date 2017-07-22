@@ -70,6 +70,7 @@ RETRY:
 		db:       db,
 		msClient: client,
 		redis:    redis,
+		logger:   logger,
 	}, err
 }
 
@@ -194,6 +195,9 @@ func (mfs *MongoFSManager) FileSecureUpdateWithReader(category, oldName string, 
 	}
 	defer fp.Close()
 
+	if reader == nil {
+		reader = strings.NewReader("")
+	}
 	_, err = io.Copy(fp, reader)
 
 	if err != nil {

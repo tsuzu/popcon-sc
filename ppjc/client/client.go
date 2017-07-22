@@ -2,24 +2,16 @@ package ppjc
 
 import (
 	"context"
-	"errors"
-	"net/http"
-
-	"net/url"
-
-	"strings"
-
-	"strconv"
-
-	"io/ioutil"
-
 	"encoding/json"
-
+	"errors"
 	"io"
-
-	"sync"
-
+	"io/ioutil"
 	"mime/multipart"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/chan-utils"
@@ -29,17 +21,23 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func mustParseURL(rawurl string) *url.URL {
+	u, err := url.Parse(rawurl)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return u
+}
+
 type Client struct {
 	addr, auth string
 }
 
 func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.RankingRow, error) {
-	u, err := url.Parse(client.addr)
-
-	if err != nil {
-		return nil, err
-	}
-	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
 
 	val := url.Values{}
 	val.Add("limit", strconv.FormatInt(limit, 10))
@@ -81,12 +79,9 @@ func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.Rank
 }
 
 func (client *Client) ContestsNew(cid int64) error {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/new"
+	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/new"))
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 
@@ -112,12 +107,9 @@ func (client *Client) ContestsNew(cid int64) error {
 }
 
 func (client *Client) ContestsProblemsAdd(cid, pid int64) error {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"
+	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"))
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -146,12 +138,8 @@ func (client *Client) ContestsProblemsAdd(cid, pid int64) error {
 }
 
 func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
-	u, err := url.Parse(client.addr)
-
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"))
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -180,12 +168,9 @@ func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
 }
 
 func (client *Client) ContestsJoin(cid, iid int64) error {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/contests/" + strconv.FormatInt(cid, 10) + "/join"
+	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/join"))
 
 	val := url.Values{}
 	val.Add("iid", strconv.FormatInt(iid, 10))
@@ -214,12 +199,8 @@ func (client *Client) ContestsJoin(cid, iid int64) error {
 }
 
 func (client *Client) JudgeSubmit(cid, sid int64) error {
-	u, err := url.Parse(client.addr)
-
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/judge/submit"
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("v1/judge/submit"))
 
 	val := url.Values{}
 	val.Add("cid", strconv.FormatInt(cid, 10))
@@ -249,12 +230,9 @@ func (client *Client) JudgeSubmit(cid, sid int64) error {
 }
 
 func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status string, res database.SubmissionTestCase) error {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/judge/submissions/updateCase"
+	u = u.ResolveReference(mustParseURL("/v1/judge/submissions/updateCase"))
 
 	b, _ := json.Marshal(ppjctypes.JudgeTestcaseResult{
 		Cid:      cid,
@@ -290,12 +268,9 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 }
 
 func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, time, mem int64, message io.Reader) error {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return err
-	}
-	u.Path = "/v1/judge/submissions/updateResult"
+	u = u.ResolveReference(mustParseURL("/v1/judge/submissions/updateResult"))
 
 	b, _ := json.Marshal(ppjctypes.JudgeSubmissionResult{
 		Cid:    cid,
@@ -309,15 +284,15 @@ func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status s
 
 	pread, pwrite := io.Pipe()
 	writer := multipart.NewWriter(pwrite)
-
 	go func() {
 		writer.WriteField("submission_result", string(b))
 
 		if message != nil {
-			msg, _ := writer.CreateFormField("message")
+			msg, _ := writer.CreateFormFile("message", "message.txt")
 			io.Copy(msg, message)
 		}
 		writer.Close()
+		pwrite.Close()
 	}()
 	req, err := http.NewRequest("POST", u.String(), pread)
 
@@ -342,12 +317,8 @@ func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status s
 }
 
 func (client *Client) FileDownload(category, name string) (io.ReadCloser, error) {
-	u, err := url.Parse(client.addr)
-
-	if err != nil {
-		return nil, err
-	}
-	u.Path = "/v1/file_download"
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("/v1/file_download"))
 
 	val := url.Values{}
 	val.Add("category", category)
@@ -376,13 +347,17 @@ func (client *Client) FileDownload(category, name string) (io.ReadCloser, error)
 }
 
 func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<- ppjctypes.JudgeInformation, ctx context.Context) (<-chan error, func(), error) {
-	u, err := url.Parse(client.addr)
+	u := mustParseURL(client.addr)
 
-	if err != nil {
-		return nil, nil, err
-	}
-	u.Path = "/v1/workers/ws/polling"
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), http.Header{"Popcon-Parallel-Judge": []string{strconv.FormatInt(parallel, 10)}})
+	u = u.ResolveReference(mustParseURL("/v1/workers/ws/polling"))
+	u.Scheme = "ws"
+	conn, _, err := websocket.DefaultDialer.Dial(
+		u.String(),
+		http.Header{
+			"Popcon-Parallel-Judge":   []string{strconv.FormatInt(parallel, 10)},
+			sctypes.InternalHTTPToken: []string{client.auth},
+		},
+	)
 
 	if err != nil {
 		return nil, nil, err
@@ -399,7 +374,7 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 		for {
 			ctx, canceller := context.WithCancel(context.Background())
 
-			done := make(chan bool)
+			done := make(chan bool, 1)
 			go func() {
 				defer close(done)
 				if err := messageSendingTrigger.WaitWithContext(ctx); err == nil {
@@ -452,6 +427,7 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 	return exitChan, ret, nil
 }
 
+// NewClient's addr must be ended with '/'
 func NewClient(addr, auth string) (*Client, error) {
 	_, err := url.Parse(addr)
 

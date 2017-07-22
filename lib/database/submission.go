@@ -262,7 +262,7 @@ func (dm *DatabaseManager) SubmissionSetMsg(cid, sid int64, msg string) error {
 
 func (dm *DatabaseManager) SubmissionGetCase(cid, sid int64) ([]SubmissionTestCase, error) {
 	var results []SubmissionTestCase
-	if err := dm.db.Table(Submission{Sid: sid, Cid: cid}.TableName()).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
+	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Order("case_id asc").Related(&results, "Cases").Error; err != nil {
 		return nil, err
 	}
 
@@ -311,13 +311,13 @@ type SubmissionView struct {
 	UserName      string
 	Lang          string
 	Score         int64
-	RawStatus     sctypes.SubmissionStatusType
+	RawStatus     sctypes.SubmissionStatusType `gorm:"column:status"`
 	Time          int64
 	Mem           int64
 	Sid           int64
 	HighlightType string
 	Iid           int64
-	Status        string
+	Status        string `gorm:"-"`
 }
 
 func (dm *DatabaseManager) submissionViewQueryCreate(cid, iid, lid, pidx, stat int64, order string, offset, limit int64) (*gorm.DB, error) {

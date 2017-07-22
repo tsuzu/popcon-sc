@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/chan-utils"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
@@ -223,7 +222,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		rw.Header().Set("Content-Length", strconv.FormatInt(fp.Size(), 10))
 		rw.Header().Set("Content-Type", "text/plain")
 
-		sctypes.ResponseTemplateWrite(http.StatusOK, rw)
 		io.Copy(rw, fp)
 	})
 
@@ -250,11 +248,10 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		err = rm.JudgeQueuePush(cid, sid)
 
 		if err != nil {
+			DBLog().WithError(err).Error("JudgeQueuePush() error")
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 			return
 		}
-
-		sctypes.ResponseTemplateWrite(http.StatusOK, rw)
 	})
 
 	router.HandleFunc("/judge/submissions/updateCase", func(rw http.ResponseWriter, req *http.Request) {
@@ -285,7 +282,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		return
 	})
 
-	router.HandleFunc("/judge/submissions/updeteResult", func(rw http.ResponseWriter, req *http.Request) {
+	router.HandleFunc("/judge/submissions/updateResult", func(rw http.ResponseWriter, req *http.Request) {
 		err := req.ParseMultipartForm(10 * 1024 * 1024)
 
 		if err != nil {
@@ -322,7 +319,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			return
 		}
 
-		sctypes.ResponseTemplateWrite(http.StatusOK, rw)
 		return
 	})
 
@@ -345,13 +341,14 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 
 		var availableThread int64
 		atomic.StoreInt64(&availableThread, parallelJudge)
-		trigger := chanUtils.NewSimpleTrigger()
 		closed := chanUtils.NewExitedNotifier()
 		wg := sync.WaitGroup{}
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			ticker := time.NewTicker(3 * time.Second)
+			defer ticker.Stop()
 			for {
 				if val := atomic.LoadInt64(&availableThread); val > 0 {
 					atomic.AddInt64(&availableThread, -1)
@@ -369,7 +366,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 							return
 						}
 
-						logrus.WithError(err).Error("JudgeQueuePopBlockingWithContext() error")
+						DBLog().WithError(err).Error("JudgeQueuePopBlockingWithContext() error")
 
 						atomic.AddInt64(&availableThread, 1)
 						time.Sleep(5 * time.Second)
@@ -403,7 +400,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 
 						return nil
 					}); err != nil {
-						logrus.WithField("cid", cid).WithField("sid", sid).WithError(err).Error("Get information for judge error")
+						DBLog().WithField("cid", cid).WithField("sid", sid).WithError(err).Error("Get information for judge error")
 
 						atomic.AddInt64(&availableThread, 1)
 						time.Sleep(5 * time.Second)
@@ -414,7 +411,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					jid, err := rm.JudgeIDGet()
 
 					if err != nil {
-						logrus.WithError(err).WithField("cid", cid).WithField("sid", sid).Error("JudgeIDGet() error")
+						DBLog().WithError(err).WithField("cid", cid).WithField("sid", sid).Error("JudgeIDGet() error")
 
 						atomic.AddInt64(&availableThread, 1)
 						time.Sleep(5 * time.Second)
@@ -425,7 +422,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					info.Submission.Jid = jid
 
 					if err := conn.WriteJSON(info); err != nil {
-						logrus.WithField("cid", cid).WithField("sid", sid).WithError(err).Error("WriteJSON error")
+						HTTPLog().WithField("cid", cid).WithField("sid", sid).WithError(err).Error("WriteJSON error")
 
 						atomic.AddInt64(&availableThread, 1)
 						time.Sleep(5 * time.Second)
@@ -438,11 +435,14 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					continue
 				}
 				select {
-				case <-trigger:
 				case <-programExitedNotifier.Channel:
 					return
 				case <-closed.Channel:
 					return
+				case <-ticker.C:
+					if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(8*time.Second)); err != nil {
+						conn.Close()
+					}
 				}
 			}
 		}()
@@ -458,6 +458,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 
 			switch msg {
 			case ppjctypes.JudgeOneFinished:
+				HTTPLog().Debug("JudgeOneFinished")
 				atomic.AddInt64(&availableThread, 1)
 			}
 		}

@@ -11,6 +11,16 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 )
 
+func mustParseURL(rawurl string) *url.URL {
+	u, err := url.Parse(rawurl)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return u
+}
+
 type Client struct {
 	addr, auth string
 }
@@ -21,7 +31,7 @@ func (client *Client) RemoveFile(category, name string) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/remove_file"
+	u = u.ResolveReference(mustParseURL("/remove_file"))
 
 	val := url.Values{}
 	val.Add("category", category)
