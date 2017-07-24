@@ -97,6 +97,12 @@ func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string)
 }
 
 func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
+	defer func() {
+		if err := dm.SubmissionTestCaseDeleteUnassociated(cid); err != nil {
+			 dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
+		}
+	}()
+
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result *Submission
 		var err error
@@ -111,9 +117,6 @@ func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 
 		if err := dm.db.Model(result).Association("Cases").Clear().Error; err != nil {
 			return err
-		}
-		if err := dm.SubmissionTestCaseDeleteUnassociated(cid); err != nil {
-			dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
 		}
 
 		if err := dm.db.Delete(result).Error; err != nil {
@@ -280,12 +283,7 @@ func (dm *DatabaseManager) SubmissionAppendCase(cid, sid int64, stc SubmissionTe
 }
 
 func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
-	return dm.BeginDMIfNotStarted(func(dm *DatabaseManager) error {
-		if err := dm.db.Model(&Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
-			return err
-		}
-		return dm.SubmissionTestCaseDeleteUnassociated(cid)
-	})
+	return dm.db.Model(&Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error
 }
 
 func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated(cid int64) error {
@@ -489,6 +487,10 @@ func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sc
 			dm.Logger().WithError(err).WithField("cid", cid).WithField("sid", sid).WithField("jid", jid).Error("FileSecureUpdateWithReader() error")
 		}
 
+		if err := dm.redis.JudgeProgressDelete(cid, sid); err != nil {
+			dm.Logger().WithError(err).Error("JudgeProgressDelete() error")
+		}
+
 		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).Updates(map[string]interface{}{
 			"jid":          jid,
 			"status":       status,
@@ -508,6 +510,15 @@ func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sc
 }
 
 func (dm *DatabaseManager) SubmissionUpdateTestCase(cid, sid, jid int64, status string, res SubmissionTestCase) error {
+	flag := false
+	defer func() {
+		if flag {
+			if err := dm.SubmissionTestCaseDeleteUnassociated(cid); err != nil {
+				dm.Logger().WithError(err).Error("SubmissionTestCaseDeleteUnassociated() error")
+			}
+		}
+	}()
+
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var sm Submission
 		sm.Cid = cid
@@ -523,10 +534,13 @@ func (dm *DatabaseManager) SubmissionUpdateTestCase(cid, sid, jid int64, status 
 			if err := dm.SubmissionClearCase(cid, sid); err != nil {
 				return err
 			}
+			flag = true
 		}
 
-		if err := dm.SubmissionAppendCase(cid, sid, res); err != nil {
-			return err
+		if res.Status != sctypes.SubmissionStatusJudging {
+			if err := dm.SubmissionAppendCase(cid, sid, res); err != nil {
+				return err
+			}
 		}
 
 		if err := dm.redis.JudgeProgressUpdate(cid, sid, status); err != nil {
@@ -541,6 +555,8 @@ func (dm *DatabaseManager) SubmissionUpdateTestCase(cid, sid, jid int64, status 
 			"jid":          jid,
 			"status":       sctypes.SubmissionStatusJudging,
 			"score":        0,
+			"mem":          0,
+			"time":         0,
 			"message_file": "",
 		}).Error; err != nil {
 			return err

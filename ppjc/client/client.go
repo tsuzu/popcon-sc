@@ -250,6 +250,7 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 		Sid:      sid,
 		Jid:      jid,
 		Testcase: res,
+		Status: status,
 	})
 
 	val := url.Values{}
