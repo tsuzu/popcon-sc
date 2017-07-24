@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -17,10 +19,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/types"
 	"github.com/docker/docker/client"
 	// TODO: This will be updated to moby/moby/client
+	_ "net/http/pprof"
+
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
@@ -28,20 +33,12 @@ import (
 	"github.com/k0kubun/pp"
 )
 
-type Language struct {
-	SourceFileName string   `json:"source_file_name"`
-	Compile        bool     `json:"compile_necessity"`
-	CompileCmd     []string `json:"compile_command"`
-	CompileImage   string   `json:"compile_image"`
-	ExecCmd        []string `json:"exec_command"`
-	ExecImage      string   `json:"exec_image"`
-}
-
 func main() {
 	cgroup := os.Getenv("PPJUDGE_CGROUP")             //flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
 	docker := os.Getenv("PPJUDGE_DOCKER")             //flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
 	dockerVer := os.Getenv("PPJUDGE_DOCKER_VER")      //flag.String("docker-ver", "v1.29", "version of docker api")
 	onDocker := os.Getenv("PPJUDGE_ON_DOCKER") == "1" //flag.Bool("on-docker", false, "whether this is running on Docker")
+	wdirHostPath := os.Getenv("PPJUDGE_WDIR_HOST")
 
 	help := flag.Bool("help", false, "Display all options")
 	wdir := flag.String("exec-dir", "/tmp/pj", "Directory to execute programs and save files")
@@ -68,6 +65,18 @@ func main() {
 
 	InitLogger(os.Stderr, *debug)
 
+	if os.Getenv("PP_PPROF") == "1" {
+		l, err := net.Listen("tcp", ":54345")
+
+		if err != nil {
+			logrus.Fatal(err.Error())
+
+			return
+		}
+		HttpLog().Info("pprof server is listening on %s\n", l.Addr())
+		go http.Serve(l, nil)
+	}
+
 	if EchoLanguageConfigurationTemplate(os.Stdout, *echoLangSettingTemplate) {
 		return
 	}
@@ -78,6 +87,10 @@ func main() {
 		return
 	}
 	CPUUtilization = *cpuUsage
+
+	if wdirHostPath == "" {
+		wdirHostPath = *wdir
+	}
 
 	if onDocker {
 		b, err := ioutil.ReadFile("/proc/self/cgroup")
@@ -121,6 +134,8 @@ func main() {
 
 		return
 	}
+	workingDirectory = *wdir
+	workingDirectoryHost = wdirHostPath
 
 	headers := map[string]string{"User-Agent": "popcon-sc-ppjudge/v1.00"}
 
@@ -202,6 +217,7 @@ func main() {
 
 	go func() {
 		<-signalChan
+		GeneralLog().Info("Shutting down...")
 		reloadLanguagesCtxCanceller()
 		canceller()
 	}()
@@ -244,7 +260,7 @@ func main() {
 					req.Submission.Jid,
 					sctypes.SubmissionStatusInternalError,
 					0, 0, 0,
-					strings.NewReader("Failed downloading the source code"),
+					strings.NewReader("Failed to download source code file "+err.Error()),
 				)
 
 				return
@@ -266,7 +282,7 @@ func main() {
 						req.Submission.Jid,
 						sctypes.SubmissionStatusInternalError,
 						0, 0, 0,
-						strings.NewReader("Failed downloading the checker"),
+						strings.NewReader("Failed downloading the checker "+err.Error()),
 					)
 
 					return
@@ -287,8 +303,6 @@ func main() {
 					0, 0, 0,
 					strings.NewReader("Unknown language(with lid:"+strconv.FormatInt(req.Submission.Lang, 10)+")"),
 				)
-
-				HttpLog().Debug("Update result")
 
 				return
 			}
@@ -318,6 +332,7 @@ func main() {
 					Image:          lang.CompileImage,
 					Cmd:            lang.CompileCommand,
 					SourceFileName: lang.SourceFileName,
+					Env:            lang.CompileEnv,
 				}
 			}
 
@@ -325,9 +340,10 @@ func main() {
 				Image:          lang.ExecImage,
 				Cmd:            lang.ExecCommand,
 				SourceFileName: lang.SourceFileName,
+				Env:            lang.ExecEnv,
 			}
 
-			casesChan := make(chan TestCase, len(req.Cases))
+			casesChan := make(chan TestCase, len(req.Problem.Cases))
 			statusChan := make(chan JudgeStatus, 10)
 
 			if req.Problem.Type == sctypes.JudgeRunningCode {
@@ -384,6 +400,7 @@ func main() {
 						Image:          lang.CompileImage,
 						Cmd:            lang.CompileCommand,
 						SourceFileName: lang.SourceFileName,
+						Env:            lang.CompileEnv,
 					}
 				}
 
@@ -391,6 +408,7 @@ func main() {
 					Image:          lang.ExecImage,
 					Cmd:            lang.ExecCommand,
 					SourceFileName: lang.SourceFileName,
+					Env:            lang.ExecEnv,
 				}
 			}
 
@@ -413,10 +431,13 @@ func main() {
 				}
 			}()
 
+			releaserWG.Add(1)
 			go func() {
 				defer releaserWG.Done()
 				defer close(casesChan)
 				for i := range req.Problem.Cases {
+					GeneralLog().WithField("idx", i).Debug("tc downloading")
+
 					var inputPath string
 					if path, locker, err := ppd.Download(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[i].Input); err != nil {
 						pclient.JudgeSubmissionsUpdateResult(
@@ -459,29 +480,46 @@ func main() {
 				}
 			}()
 
-			go judge.Run(statusChan, casesChan)
-
 			go func() {
+				retCases := make([]sctypes.SubmissionStatusType, len(req.Problem.Cases))
 				totalStatus := sctypes.SubmissionStatusAccepted
 
 				for {
+					GeneralLog().Info("waiting")
 					stat, has := <-statusChan
 
 					if !has {
 						return
 					}
 
+					GeneralLog().WithField("status", stat).Debug("new status")
 					if stat.Case == -1 {
+						var scoreSum int64
+						for i := range req.Problem.Scores {
+							ok := true
+							for _, v := range req.Problem.Scores[i].Cases.Get() {
+								if 0 <= v && int64(len(retCases)) > v && retCases[v] != sctypes.SubmissionStatusAccepted {
+									ok = false
+								}
+							}
+							if ok {
+								scoreSum += req.Problem.Scores[i].Score
+							}
+						}
 						totalStatus = maxStatus(totalStatus, stat.Status)
+
+						if lastResultResponded {
+							return
+						}
 
 						if err := pclient.JudgeSubmissionsUpdateResult(
 							req.Problem.Cid,
 							req.Submission.Sid,
 							req.Submission.Jid,
 							totalStatus,
-							0,
+							scoreSum,
 							stat.Time,
-							stat.Mem,
+							stat.Mem/1000,
 							strings.NewReader(stat.Stderr),
 						); err != nil {
 							HttpLog().WithError(err).Error("JudgeSubmissionsUpdateResult() error")
@@ -494,7 +532,7 @@ func main() {
 								req.Problem.Cid,
 								req.Submission.Sid,
 								req.Submission.Jid,
-								fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
+								fmt.Sprintf("%d/%d", stat.Case+1, len(req.Problem.Cases)),
 								database.SubmissionTestCase{
 									Sid:    req.Submission.Sid,
 									Cid:    req.Problem.Cid,
@@ -502,42 +540,67 @@ func main() {
 									CaseID: stat.Case,
 									Name:   req.Problem.Cases[stat.Case].Name,
 									Time:   stat.Time,
-									Mem:    stat.Mem,
+									Mem:    stat.Mem / 1000,
 								},
 							)
-						} else if req.Problem.Type == sctypes.JudgePerfectMatch {
-							fp, err := ppd.OpenFile(fs.FS_CATEGORY_TESTCASE_INOUT, req.Cases[stat.Case].Output)
+						} else {
+							switch req.Problem.Type {
+							case sctypes.JudgePerfectMatch:
+								fp, err := ppd.OpenFile(fs.FS_CATEGORY_TESTCASE_INOUT, req.Problem.Cases[stat.Case].Output)
 
-							if err != nil {
-								stat.Status = sctypes.SubmissionStatusInternalError
+								if err != nil {
+									stat.Status = sctypes.SubmissionStatusInternalError
 
-								FSLog().WithError(err).Error("File open error")
-							} else if b, err := ioutil.ReadAll(fp); err != nil {
-								stat.Status = sctypes.SubmissionStatusInternalError
+									FSLog().WithError(err).Error("File open error")
+								} else if b, err := ioutil.ReadAll(fp); err != nil {
+									stat.Status = sctypes.SubmissionStatusInternalError
 
-								FSLog().WithError(err).Error("File readall error")
-							} else if stat.Stdout != string(b) {
-								stat.Status = sctypes.SubmissionStatusWrongAnswer
+									FSLog().WithError(err).Error("File readall error")
+								} else if stat.Stdout != string(b) {
+									stat.Status = sctypes.SubmissionStatusWrongAnswer
+								}
+
+								fp.Close()
+								pclient.JudgeSubmissionsUpdateCase(
+									req.Problem.Cid,
+									req.Submission.Sid,
+									req.Submission.Jid,
+									fmt.Sprintf("%d/%d", stat.Case+1, len(req.Problem.Cases)),
+									database.SubmissionTestCase{
+										Sid:    req.Submission.Sid,
+										Cid:    req.Problem.Cid,
+										Status: stat.Status,
+										CaseID: stat.Case,
+										Name:   req.Problem.Cases[stat.Case].Name,
+										Time:   stat.Time,
+										Mem:    stat.Mem / 1000,
+									},
+								)
+							case sctypes.JudgeRunningCode:
+								pclient.JudgeSubmissionsUpdateCase(
+									req.Problem.Cid,
+									req.Submission.Sid,
+									req.Submission.Jid,
+									fmt.Sprintf("%d/%d", stat.Case+1, len(req.Problem.Cases)),
+									database.SubmissionTestCase{
+										Sid:    req.Submission.Sid,
+										Cid:    req.Problem.Cid,
+										Status: stat.Status,
+										CaseID: stat.Case,
+										Name:   req.Problem.Cases[stat.Case].Name,
+										Time:   stat.Time,
+										Mem:    stat.Mem / 1000,
+									},
+								)
 							}
-							pclient.JudgeSubmissionsUpdateCase(
-								req.Problem.Cid,
-								req.Submission.Sid,
-								req.Submission.Jid,
-								fmt.Sprintf("%d/%d", stat.Case, len(req.Problem.Cases)),
-								database.SubmissionTestCase{
-									Sid:    req.Submission.Sid,
-									Cid:    req.Problem.Cid,
-									Status: stat.Status,
-									CaseID: stat.Case,
-									Name:   req.Problem.Cases[stat.Case].Name,
-									Time:   stat.Time,
-									Mem:    stat.Mem,
-								},
-							)
 						}
+						retCases[stat.Case] = stat.Status
+						totalStatus = maxStatus(totalStatus, stat.Status)
 					}
 				}
 			}()
+
+			judge.Run(statusChan, casesChan)
 		}()
 	}
 

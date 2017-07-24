@@ -76,7 +76,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		b, _ := json.Marshal(rows)
 
 		rw.Header().Set("Content-Type", "application/json")
-		sctypes.ResponseTemplateWrite(http.StatusOK, rw)
 		rw.Write(b)
 	})
 
@@ -278,7 +277,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			return
 		}
 
-		sctypes.ResponseTemplateWrite(http.StatusOK, rw)
 		return
 	})
 
@@ -324,6 +322,8 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 
 	upgrader := websocket.Upgrader{}
 	router.HandleFunc("/workers/ws/polling", func(rw http.ResponseWriter, req *http.Request) {
+		HTTPLog().WithField("addr", req.RemoteAddr).Info("New ws connection established")
+
 		parallelJudge, err := strconv.ParseInt(req.Header.Get("Popcon-Parallel-Judge"), 10, 64)
 
 		if err != nil || parallelJudge <= 0 {
@@ -344,9 +344,27 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		closed := chanUtils.NewExitedNotifier()
 		wg := sync.WaitGroup{}
 
+		conn.SetCloseHandler(func(code int, text string) error {
+			if code != websocket.CloseNormalClosure {
+				HTTPLog().WithField("code", code).WithField("text", text).Error("ppjudge connection was closed unexpectedly.")
+			}
+
+			closed.Finish()
+			return nil
+		})
+
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
+			defer func() {
+				if err := conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(60*time.Second)); err != nil {
+					HTTPLog().WithError(err).Error("WriteControl(CloseMessage) error")
+				}
+				defer recover()
+				conn.Close()
+
+				HTTPLog().WithField("addr", req.RemoteAddr).Info("ppjudge connection closed")
+				defer wg.Done()
+			}()
 			ticker := time.NewTicker(3 * time.Second)
 			defer ticker.Stop()
 			for {
@@ -356,9 +374,13 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					fin := programExitedNotifier.TriggerOrCancel(func() {
 						canceller()
 					})
+					fin2 := closed.TriggerOrCancel(func() {
+						canceller()
+					})
 
 					cid, sid, err := rm.JudgeQueuePopBlockingWithContext(5, ctx)
 					fin()
+					fin2()
 					canceller()
 
 					if err != nil {
@@ -396,7 +418,8 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 						if err != nil {
 							return err
 						}
-						info.Cases, info.Scores = cases, scores
+						info.Problem.Cases = cases
+						info.Problem.Scores = scores
 
 						return nil
 					}); err != nil {
@@ -431,9 +454,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					}
 				}
 
-				if atomic.LoadInt64(&availableThread) > 0 {
-					continue
-				}
 				select {
 				case <-programExitedNotifier.Channel:
 					return

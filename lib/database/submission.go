@@ -270,7 +270,9 @@ func (dm *DatabaseManager) SubmissionGetCase(cid, sid int64) ([]SubmissionTestCa
 }
 
 func (dm *DatabaseManager) SubmissionAppendCase(cid, sid int64, stc SubmissionTestCase) error {
-	if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Append(stc).Error; err != nil {
+	stc.Cid = cid
+	stc.Sid = sid
+	if err := dm.db.Model(&Submission{Sid: sid, Cid: cid}).Association("Cases").Append(&stc).Error; err != nil {
 		return err
 	}
 
@@ -279,7 +281,7 @@ func (dm *DatabaseManager) SubmissionAppendCase(cid, sid int64, stc SubmissionTe
 
 func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
 	return dm.BeginDMIfNotStarted(func(dm *DatabaseManager) error {
-		if err := dm.db.Model(Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
+		if err := dm.db.Model(&Submission{Sid: sid, Cid: cid}).Association("Cases").Clear().Error; err != nil {
 			return err
 		}
 		return dm.SubmissionTestCaseDeleteUnassociated(cid)

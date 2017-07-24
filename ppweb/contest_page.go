@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
+	"path"
 
 	"context"
 
@@ -16,6 +16,16 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/gorilla/mux"
 )
+
+func mustParseURL(rawurl string) *url.URL {
+	u, err := url.Parse(rawurl)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return u
+}
 
 const ContentsPerPage = 50
 
@@ -351,7 +361,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 
 	if err != nil {
 		if err == database.ErrUnknownSession {
-			RespondRedirection(rw, path.Join("/login?comeback=/contests", url.QueryEscape(req.URL.Path)))
+			RespondRedirection(rw, "/login?comeback=" + url.QueryEscape(path.Join("/contests", req.URL.Path)))
 
 			return
 		}

@@ -310,7 +310,7 @@ func main() {
 		f()
 	}()
 	if err := server.ListenAndServe(); err != nil {
-		if err != nil {
+		if err != http.ErrServerClosed {
 			HttpLog().Error(err)
 		}
 	}

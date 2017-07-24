@@ -152,7 +152,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 
 	// Compile for Checker
 	if j.CheckerCompile != nil {
-		exe, err := NewExecutor(idc, 512*1024*1024, 10000, j.CheckerCompile.Cmd, j.CheckerCompile.Image, []string{cpath + ":" + "/work"})
+		exe, err := NewExecutor(idc, 512*1024*1024, 10000, j.CheckerCompile.Cmd, j.CheckerCompile.Image, []string{filepath.Join(workingDirectoryHost, idc) + ":/work"}, j.CheckerCompile.Env)
 
 		if err != nil {
 			ch <- CreateInternalError(-1, "Failed to create a Docker container to compile checker code."+err.Error())
@@ -189,7 +189,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 
 	// Compile
 	if j.Compile != nil {
-		exe, err := NewExecutor(id, 512*1024*1024, 10000, j.Compile.Cmd, j.Compile.Image, []string{path + ":" + "/work"})
+		exe, err := NewExecutor(id, 512*1024*1024, 10000, j.Compile.Cmd, j.Compile.Image, []string{filepath.Join(workingDirectoryHost, id) + ":" + "/work"}, j.Compile.Env)
 
 		if err != nil {
 			ch <- CreateInternalError(-1, "Failed to create a Docker container to compile your code."+err.Error())
@@ -232,7 +232,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		}
 	}
 
-	exe, err := NewExecutor(id, j.Mem, j.Time, j.Exec.Cmd, j.Exec.Image, []string{path + ":/work:ro"})
+	exe, err := NewExecutor(id, j.Mem, j.Time, j.Exec.Cmd, j.Exec.Image, []string{filepath.Join(workingDirectoryHost, id) + ":/work:ro"}, j.Exec.Env)
 
 	if err != nil {
 		ch <- CreateInternalError(-1, "Failed to create a Docker container to judge."+err.Error())
@@ -242,7 +242,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 
 	defer exe.Delete()
 
-	cexe, err := NewExecutor(idc, 512*1024*1024, 10, j.CheckerExec.Cmd, j.CheckerExec.Image, []string{cpath + ":/work:ro", jpath + ":/data:ro", path + ":/judged:ro"})
+	cexe, err := NewExecutor(idc, 512*1024*1024, 10, j.CheckerExec.Cmd, j.CheckerExec.Image, []string{filepath.Join(workingDirectoryHost, idc) + ":/work:ro", filepath.Join(workingDirectoryHost, idj) + ":/data:ro", filepath.Join(workingDirectoryHost, id) + ":/judged:ro"}, j.CheckerExec.Env)
 
 	defer cexe.Delete()
 

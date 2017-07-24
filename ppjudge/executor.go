@@ -198,7 +198,7 @@ func (e *Executor) Delete() error {
 	}
 }
 
-func NewExecutor(name string, mem int64, time int64, cmd []string, img string, binds []string) (*Executor, error) {
+func NewExecutor(name string, mem int64, time int64, cmd []string, img string, binds []string, env []string) (*Executor, error) {
 	ctx := context.Background()
 
 	cg := NewCgroup(name)
@@ -235,9 +235,10 @@ func NewExecutor(name string, mem int64, time int64, cmd []string, img string, b
 	cfg.OpenStdin = true
 	cfg.StdinOnce = true
 	cfg.Image = img
+	cfg.Env = env
 	cfg.Hostname = "localhost"
 
-	var timer = []string{"/usr/bin/time", "-q", "-f", "%e %x", "-o", "/tmp/time.txt", "/usr/bin/timeout", strconv.FormatInt((time+999)/1000, 10), "/usr/bin/sudo", "-u", "nobody"}
+	var timer = []string{"/usr/bin/time", "-q", "-f", "%e %x", "-o", "/tmp/time.txt", "/usr/bin/timeout", strconv.FormatInt((time+999)/1000, 10), "/usr/bin/sudo", "-u", "nobody", "-E"}
 
 	newCmd := make([]string, 0, len(cmd)+len(timer))
 

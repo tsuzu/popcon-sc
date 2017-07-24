@@ -71,6 +71,7 @@ services:
             PP_MS_ADDR: "http://ppms:7502/"
             PP_TOKEN: ${PP_TOKEN}
             PP_DEBUG_MODE: 1
+            PP_PPROF: 1
 
     ppms:
         image: ppms

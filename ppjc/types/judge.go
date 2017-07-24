@@ -8,8 +8,6 @@ import (
 type JudgeInformation struct {
 	Submission database.Submission
 	Problem    database.ContestProblem
-	Cases      []database.ContestProblemTestCase
-	Scores     []database.ContestProblemScoreSet
 }
 
 type JudgeTestcaseResult struct {

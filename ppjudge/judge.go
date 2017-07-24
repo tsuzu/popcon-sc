@@ -21,6 +21,7 @@ type ExecRequest struct {
 	Image          string
 	Cmd            []string
 	SourceFileName string
+	Env            []string
 }
 
 type JudgeStatus struct {

@@ -326,6 +326,8 @@ func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
 func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.Reader) error {
 	return mainDB.Begin(func(db *gorm.DB) error {
 		var cpcase ContestProblemTestCase
+		cpcase.Cid = cp.Cid
+		cpcase.Pid = cp.Pid
 		if err := db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 			return err
 		}

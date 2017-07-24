@@ -72,7 +72,7 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 
 	// Compile
 	if j.Compile != nil {
-		exe, err := NewExecutor(id, 512*1024*1024, 10000, j.Compile.Cmd, j.Compile.Image, []string{path + ":" + "/work"})
+		exe, err := NewExecutor(id, 512*1024*1024, 10000, j.Compile.Cmd, j.Compile.Image, []string{filepath.Join(workingDirectoryHost, id) + ":/work"}, j.Compile.Env)
 
 		if err != nil {
 			ch <- CreateInternalError(-1, "Failed to create a Docker container to compile your code."+err.Error())
@@ -107,7 +107,7 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		}
 	}
 
-	exe, err := NewExecutor(id, j.Mem, j.Time, j.Exec.Cmd, j.Exec.Image, []string{path + ":" + "/work:ro"})
+	exe, err := NewExecutor(id, j.Mem, j.Time, j.Exec.Cmd, j.Exec.Image, []string{filepath.Join(workingDirectoryHost, id) + ":" + "/work:ro"}, j.Exec.Env)
 
 	if err != nil {
 		ch <- CreateInternalError(-1, "Failed to create a Docker container to judge."+err.Error())
@@ -129,6 +129,7 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 	var maxTime, maxMem int64
 
 	for tc := range tests {
+		GeneralLog().WithField("tc", tc).Debug("new testcase")
 		name := tc.ID
 
 		ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusJudging}

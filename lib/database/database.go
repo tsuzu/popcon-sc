@@ -149,7 +149,7 @@ RETRY:
 	return dm, err
 }
 
-func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {
+func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) (ret error) {
 	if dm.transactionStarted {
 		return ErrAlreadyTransactionBegun
 	}
@@ -162,22 +162,24 @@ func (dm *DatabaseManager) BeginDM(f func(dm *DatabaseManager) error) error {
 	clone := dm.Clone(db)
 	clone.transactionStarted = true
 
+	defer func() {
+		if err := recover(); err != nil {
+			db.Rollback()
+			e, ok := err.(error)
+
+			if ok {
+				ret = e
+			} else {
+				ret = errors.New(fmt.Sprint(err))
+			}
+		}
+	}()
+
 	err := f(clone)
 
 	if err != nil {
 		db.Rollback()
 		return err
-	}
-
-	if err := recover(); err != nil {
-		db.Rollback()
-		e, ok := err.(error)
-
-		if ok {
-			return e
-		}
-
-		return errors.New(fmt.Sprint(err))
 	}
 
 	err = db.Commit().Error

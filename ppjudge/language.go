@@ -17,6 +17,8 @@ type LanguageConfiguration map[int64]struct {
 	CompileCommand []string `yaml:"compile_command" json:"compile_command"`
 	ExecCommand    []string `yaml:"exec_command" json:"exec_command"`
 	SourceFileName string   `yaml:"source_file_name" json:"source_file_name"`
+	CompileEnv     []string `yaml:"compile_env" json:"compile_env"`
+	ExecEnv        []string `yaml:"exec_env" json:"exec_env"`
 }
 
 func LoadLanguageConfiguration(path string) (LanguageConfiguration, error) {
@@ -52,6 +54,8 @@ func EchoLanguageConfigurationTemplate(w io.Writer, fileType string) bool {
 			CompileCommand: []string{"g++", "-O2", "-o", "/work/a.out", "-std=c++14", "/work/main.cpp"},
 			ExecCommand:    []string{"/work/a.out"},
 			SourceFileName: "main.cpp",
+			CompileEnv:     []string{"/usr/bin", "/bin"},
+			ExecEnv:        []string{"/usr/bin", "/bin"},
 		},
 	}
 

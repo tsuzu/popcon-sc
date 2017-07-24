@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/chan-utils"
@@ -20,6 +21,16 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/types"
 	"github.com/gorilla/websocket"
 )
+
+type EmptyReadCloser struct{}
+
+func (e *EmptyReadCloser) Read([]byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (er *EmptyReadCloser) Close() error {
+	return nil
+}
 
 func mustParseURL(rawurl string) *url.URL {
 	u, err := url.Parse(rawurl)
@@ -37,7 +48,7 @@ type Client struct {
 
 func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.RankingRow, error) {
 	u := mustParseURL(client.addr)
-	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
 
 	val := url.Values{}
 	val.Add("limit", strconv.FormatInt(limit, 10))
@@ -81,7 +92,7 @@ func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.Rank
 func (client *Client) ContestsNew(cid int64) error {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/new"))
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/new"))
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 
@@ -109,7 +120,7 @@ func (client *Client) ContestsNew(cid int64) error {
 func (client *Client) ContestsProblemsAdd(cid, pid int64) error {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"))
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/add"))
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -139,7 +150,7 @@ func (client *Client) ContestsProblemsAdd(cid, pid int64) error {
 
 func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
 	u := mustParseURL(client.addr)
-	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"))
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/problems/delete"))
 
 	val := url.Values{}
 	val.Add("pid", strconv.FormatInt(pid, 10))
@@ -170,7 +181,7 @@ func (client *Client) ContestsProblemsDelete(cid, pid int64) error {
 func (client *Client) ContestsJoin(cid, iid int64) error {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/contests/" + strconv.FormatInt(cid, 10) + "/join"))
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/join"))
 
 	val := url.Values{}
 	val.Add("iid", strconv.FormatInt(iid, 10))
@@ -232,7 +243,7 @@ func (client *Client) JudgeSubmit(cid, sid int64) error {
 func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status string, res database.SubmissionTestCase) error {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/judge/submissions/updateCase"))
+	u = u.ResolveReference(mustParseURL("v1/judge/submissions/updateCase"))
 
 	b, _ := json.Marshal(ppjctypes.JudgeTestcaseResult{
 		Cid:      cid,
@@ -270,7 +281,7 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score int64, time, mem int64, message io.Reader) error {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/judge/submissions/updateResult"))
+	u = u.ResolveReference(mustParseURL("v1/judge/submissions/updateResult"))
 
 	b, _ := json.Marshal(ppjctypes.JudgeSubmissionResult{
 		Cid:    cid,
@@ -317,8 +328,12 @@ func (client *Client) JudgeSubmissionsUpdateResult(cid, sid, jid int64, status s
 }
 
 func (client *Client) FileDownload(category, name string) (io.ReadCloser, error) {
+	if len(name) == 0 {
+		return &EmptyReadCloser{}, nil
+	}
+
 	u := mustParseURL(client.addr)
-	u = u.ResolveReference(mustParseURL("/v1/file_download"))
+	u = u.ResolveReference(mustParseURL("v1/file_download"))
 
 	val := url.Values{}
 	val.Add("category", category)
@@ -349,8 +364,12 @@ func (client *Client) FileDownload(category, name string) (io.ReadCloser, error)
 func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<- ppjctypes.JudgeInformation, ctx context.Context) (<-chan error, func(), error) {
 	u := mustParseURL(client.addr)
 
-	u = u.ResolveReference(mustParseURL("/v1/workers/ws/polling"))
-	u.Scheme = "ws"
+	u = u.ResolveReference(mustParseURL("v1/workers/ws/polling"))
+	if u.Scheme == "https" {
+		u.Scheme = "wss"
+	} else {
+		u.Scheme = "ws"
+	}
 	conn, _, err := websocket.DefaultDialer.Dial(
 		u.String(),
 		http.Header{
@@ -372,12 +391,12 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 	go func() {
 		defer wg.Done()
 		for {
-			ctx, canceller := context.WithCancel(context.Background())
+			ctx2, canceller := context.WithCancel(context.Background())
 
 			done := make(chan bool, 1)
 			go func() {
 				defer close(done)
-				if err := messageSendingTrigger.WaitWithContext(ctx); err == nil {
+				if err := messageSendingTrigger.WaitWithContext(ctx2); err == nil {
 					if err := conn.WriteJSON(ppjctypes.JudgeOneFinished); err != nil {
 						logrus.WithError(err).Error("WriteJSON error()")
 						return
@@ -388,6 +407,15 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 			case <-exited.Channel:
 				canceller()
 				return
+
+			case <-ctx.Done():
+				if err := conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(60*time.Second)); err != nil {
+					conn.Close()
+				}
+				exited.Finish()
+				canceller()
+				return
+
 			case <-done:
 			}
 			canceller()
@@ -404,7 +432,6 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 		for {
 			var info ppjctypes.JudgeInformation
 			err := conn.ReadJSON(&info)
-
 			if err != nil {
 				exitError = err
 				exited.Finish()
@@ -414,9 +441,8 @@ func (client *Client) StartWorkersWSPolling(parallel int64, judgeInfoChan chan<-
 			judgeInfoChan <- info
 
 			select {
-			case <-ctx.Done():
-				exited.Finish()
-				exitError = ctx.Err()
+			case <-exited.Channel:
+				return
 			default:
 			}
 		}

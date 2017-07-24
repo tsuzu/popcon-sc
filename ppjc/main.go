@@ -1,10 +1,16 @@
 package main
 
 import (
-	"os"
-
+	"context"
+	"net"
 	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
@@ -26,6 +32,18 @@ func main() {
 	redisPass := os.Getenv("PP_REDIS_PASS")
 
 	InitLogger(os.Stdout, debugMode)
+
+	if os.Getenv("PP_PPROF") == "1" {
+		l, err := net.Listen("tcp", ":54345")
+
+		if err != nil {
+			logrus.Fatal(err.Error())
+
+			return
+		}
+		HTTPLog().Info("pprof server is listening on %s\n", l.Addr())
+		go http.Serve(l, nil)
+	}
 
 	rm, err := redis.NewRedisManager(redisAddr, redisPass, DBLog)
 
@@ -77,7 +95,7 @@ func main() {
 	xffh, err := xff.Default()
 
 	if err != nil {
-		HTTPLog().Fatal(err)
+		HTTPLog().WithError(err).Fatal("xff setup error")
 	}
 
 	logger := gorilla.LoggingHandler(
@@ -91,9 +109,32 @@ func main() {
 		xffh.Handler(handler),
 	)
 
-	if err := http.ListenAndServe(":80", logger); err != nil {
-		HTTPLog().WithError(err).Fatal("ListenAndServe() error")
+	server := &http.Server{
+		Addr:           ":80",
+		MaxHeaderBytes: 1 << 20,
+		Handler:        logger,
+	}
 
+	signalChan := make(chan os.Signal, 1)
+
+	signal.Notify(
+		signalChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	go func() {
+		<-signalChan
+
+		ctx, f := context.WithTimeout(context.Background(), 60*time.Second)
+		server.Shutdown(ctx)
+		f()
+	}()
+	if err := server.ListenAndServe(); err != nil {
+		if err != http.ErrServerClosed {
+			HTTPLog().WithError(err).Fatal("ListenAndServe() error")
+		}
 		return
 	}
 
