@@ -18,6 +18,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
@@ -223,6 +224,8 @@ func main() {
 	}()
 
 	GeneralLog().Info("Starting process finished successfully.")
+
+	var workingJudge int32
 	for {
 		req, ok := <-jinfoChan
 
@@ -231,6 +234,8 @@ func main() {
 		}
 
 		go func() {
+			atomic.AddInt32(&workingJudge, 1)
+			defer atomic.AddInt32(&workingJudge, -1)
 			GeneralLog().WithField("req", pp.Sprint(req)).Debug("A new judge has started!")
 
 			defer oneFinish()
@@ -604,6 +609,11 @@ func main() {
 		}()
 	}
 
+	for {
+		if atomic.LoadInt32(&workingJudge) != 0 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
 	/*exe, err := NewExecutor("Hello", 100*1024*1024, []string{"/host_tmp/a.out"}, "ubuntu:16.04", []string{"/tmp:/host_tmp:ro"}, "")
 
 	if err != nil {
