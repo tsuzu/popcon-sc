@@ -18,9 +18,9 @@ services:
         restart: always
         image: redis
         entrypoint: 
-            - redis-server
-            - --requirepass
-            - ${PP_DB_PASSWORD}
+            - sh
+            - -c
+            - echo save 90 1 | redis-server - --requirepass ${PP_DB_PASSWORD}
 
     traefik:
         restart: always

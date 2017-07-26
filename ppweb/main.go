@@ -303,7 +303,9 @@ func main() {
 	go func() {
 		<-signalChan
 
-		traefikShutdown()
+		if traefikShutdown != nil {
+			traefikShutdown()
+		}
 		time.Sleep(1 * time.Second)
 		ctx, f := context.WithTimeout(context.Background(), 60*time.Second)
 		server.Shutdown(ctx)

@@ -229,3 +229,7 @@ func (dm *DatabaseManager) Clone(db *gorm.DB) *DatabaseManager {
 		logger: dm.logger,
 	}
 }
+
+func (dm *DatabaseManager) DB() *gorm.DB {
+	return dm.db
+}

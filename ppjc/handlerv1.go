@@ -462,6 +462,8 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 				case <-ticker.C:
 					if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(8*time.Second)); err != nil {
 						conn.Close()
+
+						return
 					}
 				}
 			}

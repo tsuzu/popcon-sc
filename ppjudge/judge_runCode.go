@@ -4,11 +4,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
 	"io/ioutil"
-
 	"fmt"
-
+	"strings"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 )
 
@@ -297,7 +295,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 					// Release memory
 					tc.Input = ""
 
-					cres := cexe.Run(fmt.Sprintf("%d\n%s\n%s", name, "/data/stdout.txt", filepath.Join("/judged", j.Exec.SourceFileName)))
+					cres := cexe.Run(fmt.Sprintf("%d\n%s\n%s\n%s", name, "/data/stdin.txt", "/data/stdout.txt", filepath.Join("/judged", j.Exec.SourceFileName)))
 
 					if cres.Status != ExecFinished {
 						switch cres.Status {
@@ -328,10 +326,13 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 							// s := strings.SplitN(res.Stdout, "\n", 2)
 							// s = strings.SplitN(s[0], "\r", 2)
 
+							if strings.SplitN(strings.SplitN(cres.Stdout, "\n", 2)[0], "\r", 2)[0] == "WA" {
+								r = sctypes.SubmissionStatusWrongAnswer
+							}
 							// strconv.ParseInt(s[0], 10, 64)
 							ch <- JudgeStatus{
 								Case:   name,
-								Status: sctypes.SubmissionStatusAccepted,
+								Status: r,
 								Mem:    res.Mem,
 								Time:   res.Time,
 								Stdout: res.Stdout,

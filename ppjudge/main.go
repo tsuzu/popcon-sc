@@ -16,9 +16,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
-	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
@@ -191,8 +191,9 @@ func main() {
 	}
 
 	ppd, err := NewPPDownloader(pclient, *wdir)
+	ppdContext, ppdContextCanceller := context.WithCancel(context.Background())
 
-	ppd.RunAutomaticallyDeleter(context.Background(), 30*time.Minute /*TODO: can change by prgoram options*/)
+	ppd.RunAutomaticallyDeleter(ppdContext, 30*time.Minute /*TODO: can change by prgoram options*/)
 
 	if err != nil {
 		panic(err)
@@ -221,6 +222,7 @@ func main() {
 		GeneralLog().Info("Shutting down...")
 		reloadLanguagesCtxCanceller()
 		canceller()
+		ppdContextCanceller()
 	}()
 
 	GeneralLog().Info("Starting process finished successfully.")

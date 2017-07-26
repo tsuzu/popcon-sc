@@ -4,27 +4,42 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
-
-	"time"
-
 	"sync"
-
-	"io/ioutil"
-
 	"encoding/json"
-
+	"time"
+	"bytes"
 	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	mgo "gopkg.in/mgo.v2"
+	"github.com/boltdb/bolt"
 )
+const Bucket = "Files"
 
 func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) error {
 	wg.Add(1)
-	logger := logrus.WithField("feature", "reomve_file")
+	logger := func() *logrus.Entry { return logrus.WithField("feature", "reomve_file") }
 
 	var Duration = 5 * time.Minute
 
 	mongo := os.Getenv("PP_MONGO_ADDR")
+	dbFile := os.Getenv("PP_BOLTDB_DB")
+
+	if dbFile == "" {
+		dbFile = "/root/remove_file.db"
+	}
+
+	boltdb, err := bolt.Open("my.db", 0666, nil)
+	if err != nil {
+		logger().WithError(err).Error(err)
+
+		return err
+	}
+
+	boltdb.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(Bucket))
+
+		return err
+	})
 
 	session, err := mgo.Dial(mongo)
 
@@ -37,58 +52,47 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 	type FileInfo struct {
 		Category string
 		Path     string
-		Time     time.Time
-	}
-
-	ch := make(chan FileInfo, 100)
-	b, err := ioutil.ReadFile("remove_file_backup.txt")
-	var results []FileInfo
-
-	if err == nil {
-		err = json.Unmarshal(b, &results)
-		if err == nil {
-			for i := range results {
-				ch <- results[i]
-			}
-		}
 	}
 
 	var status int32
 	atomic.StoreInt32(&status, 0)
 
-	results = make([]FileInfo, 100)
 	go func() {
+		defer boltdb.Close()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-fin:
 				atomic.AddInt32(&status, 1)
-				close(ch)
-
-				idx := 0
-				for fi := range ch {
-					results[idx] = fi
-					idx++
-				}
-
-				if b, err := json.Marshal(results); err != nil {
-					ioutil.WriteFile("remove_file_backup.txt", b, 0777)
-				}
-
 				wg.Done()
-				return
-			case fi, ok := <-ch:
+			case <-ticker.C:
+				files := make([]FileInfo, 0, 10)
+				boltdb.Update(func(tx *bolt.Tx) error {
+					c := tx.Bucket([]byte(Bucket)).Cursor()
 
-				if !ok {
-					return
-				}
-				time.Sleep(fi.Time.Add(Duration).Sub(time.Now()))
+					min := []byte(time.Unix(0, 0).Format(time.RFC3339))
+					max := []byte(time.Now().Format(time.RFC3339))
 
-				err := db.GridFS(fi.Category).Remove(fi.Path)
+					for k, v := c.Seek(min); k != nil && bytes.Compare(k, max) <= 0; k, v = c.Next() {
+						c.Delete()
 
-				if err != nil {
-					logger.WithError(err).Error("Remove error")
-				} else {
-					logger.WithField("category", fi.Category).WithField("path", fi.Path).Info("The unnecessary file was removed.")
+						var f FileInfo
+						json.Unmarshal(v, &f)
+
+						files = append(files, f)
+					}
+					return nil
+				})
+
+				for i := range files {
+					err := db.GridFS(files[i].Category).Remove(files[i].Path)
+
+					if err != nil {
+						logger().WithError(err).Error("Remove error")
+					} else {
+						logger().WithField("category", files[i].Category).WithField("path", files[i].Path).Info("The unnecessary file was removed.")
+					}
 				}
 			}
 		}
@@ -96,6 +100,7 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 
 	mux.HandleFunc("/remove_file", func(rw http.ResponseWriter, req *http.Request) {
 		if atomic.LoadInt32(&status)%2 == 1 {
+			rw.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		err := req.ParseForm()
@@ -114,12 +119,20 @@ func InitRemoveFile(mux *http.ServeMux, fin <-chan bool, wg *sync.WaitGroup) err
 		category := req.FormValue("category")
 		path := req.FormValue("path")
 
-		ch <- FileInfo{
+		json, _ := json.Marshal(FileInfo{
 			Category: category,
-			Path:     path,
-			Time:     time.Now(),
+			Path: path,
+		})
+		if err := boltdb.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(Bucket))
+			err := b.Put([]byte(time.Now().Add(Duration).Format(time.RFC3339) + "_" + category + "_" + path), json)
+
+			return err
+		}); err != nil {
+			logger().WithError(err).WithField("category", category).WithField("path", path).Error("Failed to push new data")
+		}else {
+			logger().WithField("category", category).WithField("path", path).Info("The file was pushed into the queue.")
 		}
-		logger.WithField("category", category).WithField("path", path).Info("The file was pushed into the queue.")
 
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("OK"))

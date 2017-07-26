@@ -2,6 +2,7 @@ package database
 
 import (
 	"io"
+	"math/rand"
 	"strconv"
 	"time"
 
@@ -99,7 +100,7 @@ func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string)
 func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 	defer func() {
 		if err := dm.SubmissionTestCaseDeleteUnassociated(cid); err != nil {
-			 dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
+			dm.Logger().WithError(err).Error("submissionTestCaseDeleteUnassociated() error")
 		}
 	}()
 
@@ -287,6 +288,10 @@ func (dm *DatabaseManager) SubmissionClearCase(cid, sid int64) error {
 }
 
 func (dm *DatabaseManager) SubmissionTestCaseDeleteUnassociated(cid int64) error {
+	if rand.Intn(200) != 0 {
+		return nil
+	}
+
 	return dm.db.Where("sid IS NULL").Delete(SubmissionTestCase{Cid: cid}).Error
 }
 

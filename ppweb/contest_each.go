@@ -826,7 +826,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				ContestName string
 				UserName    string
 			}
-			ceh.ManagementTopPage.Execute(rw, TemplateVal{pdata.Cid, pdata.Std.UserName, pdata.Contest.Name})
+			ceh.ManagementTopPage.Execute(rw, TemplateVal{pdata.Cid, pdata.Contest.Name, pdata.Std.UserName})
 		})
 
 		sub.HandleFunc("/remove", func(rw http.ResponseWriter, req *http.Request) {
@@ -897,53 +897,82 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				}
 
 				if target == 1 {
-					sm, err := mainDB.SubmissionFind(pdata.Cid, id)
+					var sm *database.Submission
 
-					if err != nil {
-						if err == database.ErrUnknownSubmission {
-							respondTemp("該当する提出がありません。")
-						} else {
-							DBLog().WithError(err).Error("SubmissionFind error")
-							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					if err := mainDB.BeginDM(func(dm *database.DatabaseManager)error {
+						var err error
+
+						sm, err = dm.SubmissionFind(pdata.Cid, id)
+
+						if err != nil {
+							if err == database.ErrUnknownSubmission {
+								respondTemp("該当する提出がありません。")
+							} else {
+								DBLog().WithError(err).Error("SubmissionFind error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+							}
+
+							return err
 						}
-						return
+
+						dm.DB().Table(sm.TableName()).Where("sid=?", sm.Sid).Updates(map[string]interface{}{
+							"score": 0,
+							"status": sctypes.SubmissionStatusInQueue,
+							"time": 0,
+							"mem": 0,
+						})
+
+						return nil
+					}); err == nil {
+						ppjcClient.JudgeSubmit(pdata.Cid, sm.Sid)
+
+						RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/")
 					}
-
-					ppjcClient.JudgeSubmit(pdata.Cid, sm.Sid)
-
-					RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/")
 
 					return
 				} else {
-					cp, err := mainDB.ContestProblemFind2(pdata.Cid, id)
+					var sml []database.Submission
 
-					if err != nil {
-						if err == database.ErrUnknownProblem {
-							respondTemp("該当する問題がありません。")
-						} else {
-							DBLog().WithError(err).Error("ContestProblemFind2 error")
+					if err := mainDB.BeginDM(func(dm *database.DatabaseManager)error {
+						cp, err := dm.ContestProblemFind2(pdata.Cid, id)
+
+						if err != nil {
+							if err == database.ErrUnknownProblem {
+								respondTemp("該当する問題がありません。")
+							} else {
+								DBLog().WithError(err).Error("ContestProblemFind2 error")
+								sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+							}
+							return err
+						}
+
+						sml, err = dm.SubmissionListWithPid(pdata.Cid, cp.Pid)
+
+						if err != nil {
+							DBLog().WithError(err).Error("SubmissionList error")
 							sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
+							return err
 						}
-						return
-					}
 
-					sml, err := mainDB.SubmissionListWithPid(pdata.Cid, cp.Pid)
+						dm.DB().Table(database.Submission{Cid: pdata.Cid}.TableName()).Where("pid=?", cp.Pid).Updates(map[string]interface{} {
+							"score": 0,
+							"status": sctypes.SubmissionStatusInQueue,
+							"time": 0,
+							"mem": 0,
+						})
 
-					if err != nil {
-						DBLog().WithError(err).Error("SubmissionList error")
-						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-
-						return
-					}
-
-					for i := range sml {
-						if err := ppjcClient.JudgeSubmit(pdata.Cid, sml[i].Sid); err != nil {
-							HttpLog().WithError(err).WithField("cid", pdata.Cid).WithField("sid", sml[i].Sid).Error("JudgeSubmit() error")
+						return nil
+					}); err == nil {
+						for i := range sml {
+							if err := ppjcClient.JudgeSubmit(pdata.Cid, sml[i].Sid); err != nil {
+								HttpLog().WithError(err).WithField("cid", pdata.Cid).WithField("sid", sml[i].Sid).Error("JudgeSubmit() error")
+							}
 						}
-					}
 
-					RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/")
+						RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/")
+					}
 
 					return
 				}
