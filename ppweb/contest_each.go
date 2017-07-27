@@ -243,7 +243,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			ContestTypeStr         string
 		}
 
-		desc, err := (&database.Contest{Cid: pdata.Cid}).DescriptionLoad()
+		desc, err := pdata.Contest.DescriptionLoad()
 
 		if err != nil {
 			desc = ""

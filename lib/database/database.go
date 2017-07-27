@@ -16,13 +16,6 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-// Shared in all codes
-var mainDB *DatabaseManager
-
-func SetDefaultManager(dm *DatabaseManager) {
-	mainDB = dm
-}
-
 // DatabaseManager is a connector to this database
 type DatabaseManager struct {
 	db                 *gorm.DB

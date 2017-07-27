@@ -99,7 +99,7 @@ func main() {
 	if err != nil {
 		DBLog().WithError(err).Fatal("Database initialization failed")
 	}
-	database.SetDefaultManager(mainDB)
+
 	defer mainDB.Close()
 
 	userCnt, err := mainDB.UserCount()

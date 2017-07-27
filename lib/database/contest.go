@@ -19,26 +19,27 @@ type Contest struct {
 	Penalty         int64               `gorm:"not null"`
 	Type            sctypes.ContestType `gorm:"not null"`
 	DescriptionFile string              `gorm:"not null"`
+	dm              *DatabaseManager    `gorm:"-"`
 }
 
 func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sctypes.JudgeType) (*ContestProblem, error) {
-	pb, err := mainDB.ContestProblemAdd(c.Cid, pidx, name, time, mem, jtype)
+	pb, err := c.dm.ContestProblemAdd(c.Cid, pidx, name, time, mem, jtype)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return mainDB.ContestProblemFind(c.Cid, pb)
+	return c.dm.ContestProblemFind(c.Cid, pb)
 }
 
 func (c *Contest) DescriptionUpdate(desc string) error {
 	var res Contest
-	return mainDB.Begin(func(db *gorm.DB) error {
+	return c.dm.Begin(func(db *gorm.DB) error {
 		if err := db.Select("description_file").First(&res, c.Cid).Error; err != nil {
 			return err
 		}
 
-		f, newName, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile, desc)
+		f, newName, err := c.dm.fs.FileSecureUpdate(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile, desc)
 
 		if err != nil {
 			return err
@@ -58,11 +59,11 @@ func (c *Contest) DescriptionLoad() (string, error) {
 	var res Contest
 	res.Cid = c.Cid
 
-	if err := mainDB.db.Select("description_file").First(&res, c.Cid).Error; err != nil {
+	if err := c.dm.db.Select("description_file").First(&res, c.Cid).Error; err != nil {
 		return "", err
 	}
 
-	b, err := mainDB.fs.Read(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
+	b, err := c.dm.fs.Read(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
 
 	if err != nil {
 		return "", err
@@ -168,7 +169,7 @@ func (dm *DatabaseManager) ContestDelete(cid int64) error {
 		return err
 	}
 
-	return mainDB.fs.Remove(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
+	return dm.fs.Remove(fs.FS_CATEGORY_CONTEST_DESCRIPTION, res.DescriptionFile)
 }
 
 func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
@@ -183,6 +184,7 @@ func (dm *DatabaseManager) ContestFind(cid int64) (*Contest, error) {
 	if err != nil {
 		return nil, err
 	}
+	res.dm = dm
 
 	return &res, nil
 }
@@ -237,6 +239,10 @@ func (dm *DatabaseManager) ContestList(offset, limit int, options ...[]interface
 
 	if err != nil {
 		return nil, err
+	}
+
+	for i := range results {
+		results[i].dm = dm
 	}
 
 	return &results, nil

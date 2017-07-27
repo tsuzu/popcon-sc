@@ -15,7 +15,7 @@ func ParseRequestForSession(req *http.Request) (*database.SessionTemplateData, e
 		return nil, database.ErrUnknownSession
 	}
 
-	t, err := database.GetSessionTemplateData(*session)
+	t, err := mainDB.GetSessionTemplateData(*session)
 
 	if err == database.ErrUnknownUser {
 		return nil, database.ErrUnknownSession
@@ -33,7 +33,7 @@ func ParseRequestForUserData(req *http.Request) (*database.User, error) {
 		return nil, database.ErrUnknownSession
 	}
 
-	u, err := database.GetSessionUserData(*sessionID)
+	u, err := mainDB.GetSessionUserData(*sessionID)
 
 	if err == database.ErrUnknownUser {
 		return nil, database.ErrUnknownSession

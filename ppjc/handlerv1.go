@@ -399,11 +399,12 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 					var info ppjctypes.JudgeInformation
 
 					if err := dm.BeginDM(func(dm *database.DatabaseManager) error {
-						sm, err := dm.SubmissionFind(cid, sid)
+						sm, err := dm.Clone(dm.DB().Set("gorm:query_options", "FOR UPDATE")).SubmissionFind(cid, sid)
 
 						if err != nil {
 							return err
 						}
+						sm.Jid = sm.UsedJid + 1
 						info.Submission = *sm
 
 						prob, err := dm.ContestProblemFind(cid, sm.Pid)
@@ -421,6 +422,10 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 						info.Problem.Cases = cases
 						info.Problem.Scores = scores
 
+						if err := dm.SubmissionUsedJidPlusOne(cid, sid); err != nil {
+							return err
+						}
+
 						return nil
 					}); err != nil {
 						DBLog().WithField("cid", cid).WithField("sid", sid).WithError(err).Error("Get information for judge error")
@@ -430,19 +435,6 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 
 						continue
 					}
-
-					jid, err := rm.JudgeIDGet()
-
-					if err != nil {
-						DBLog().WithError(err).WithField("cid", cid).WithField("sid", sid).Error("JudgeIDGet() error")
-
-						atomic.AddInt64(&availableThread, 1)
-						time.Sleep(5 * time.Second)
-
-						continue
-					}
-
-					info.Submission.Jid = jid
 
 					if err := conn.WriteJSON(info); err != nil {
 						HTTPLog().WithField("cid", cid).WithField("sid", sid).WithError(err).Error("WriteJSON error")

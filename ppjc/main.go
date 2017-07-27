@@ -65,7 +65,6 @@ func main() {
 		DBLog().WithError(err).Fatal("Database initialization error")
 	}
 
-	database.SetDefaultManager(dm)
 	defer dm.Close()
 
 	router := mux.NewRouter()

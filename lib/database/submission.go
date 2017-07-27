@@ -32,7 +32,8 @@ type Submission struct {
 	Sid         int64                        `gorm:"primary_key"`
 	Pid         int64                        `gorm:"not null;index"` //index
 	Iid         int64                        `gorm:"not null;index"` //index
-	Jid         int64                        `gorm:"not null"`
+	Jid         int64                        `gorm:"not null"` // jid for status, time, mem etc...
+	UsedJid     int64                        `gorm:"not null";default:0` // jid for judge
 	Lang        int64                        `gorm:"not null"`
 	Time        int64                        `gorm:"not null"` //ms
 	Mem         int64                        `gorm:"not null"` //KB
@@ -76,7 +77,7 @@ func (dm *DatabaseManager) SubmissionAutoMigrate(cid int64) error {
 }
 
 func (dm *DatabaseManager) SubmissionAdd(cid, pid, iid, lang int64, code string) (i int64, b error) {
-	_, path, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_SUBMISSION, "", code)
+	_, path, err := dm.fs.FileSecureUpdate(fs.FS_CATEGORY_SUBMISSION, "", code)
 
 	sm := Submission{
 		Cid:        cid,
@@ -204,7 +205,7 @@ func (dm *DatabaseManager) SubmissionGetCode(cid, sid int64) (string, error) {
 		return "", err
 	}
 
-	b, err := mainDB.fs.Read(fs.FS_CATEGORY_SUBMISSION, result.CodeFile)
+	b, err := dm.fs.Read(fs.FS_CATEGORY_SUBMISSION, result.CodeFile)
 
 	if err == mgo.ErrNotFound {
 		return "", fs.ErrFileOpenFailed
@@ -228,7 +229,7 @@ func (dm *DatabaseManager) SubmissionGetMsg(cid, sid int64) (string, error) {
 		return "", nil
 	}
 
-	b, err := mainDB.fs.Read(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile)
+	b, err := dm.fs.Read(fs.FS_CATEGORY_SUBMISSION_MSG, result.MessageFile)
 
 	if err == mgo.ErrNotFound {
 		return "", fs.ErrFileOpenFailed
@@ -305,6 +306,10 @@ func (dm *DatabaseManager) SubmissionListWithPid(cid, pid int64) ([]Submission, 
 	}
 
 	return results, nil
+}
+
+func (dm *DatabaseManager) SubmissionUsedJidPlusOne(cid, sid int64) error {
+	return dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).UpdateColumn("used_jid", gorm.Expr("used_jid + 1")).Error
 }
 
 type SubmissionView struct {

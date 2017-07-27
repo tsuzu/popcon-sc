@@ -90,11 +90,13 @@ type ContestProblem struct {
 	CheckerFile   string                   `gorm:"not null;size:128"`
 	Cases         []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
 	Scores        []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
+	dm            *DatabaseManager         `gorm:"-"`
 }
 
-func setCidForContestProblems(cid int64, arr []ContestProblem) {
+func (dm *DatabaseManager) setCidForContestProblems(cid int64, arr []ContestProblem) {
 	for i := range arr {
 		arr[i].Cid = cid
+		arr[i].dm = dm
 	}
 }
 
@@ -131,7 +133,7 @@ func (dm *DatabaseManager) ContestProblemAutoMigrate(cid int64) error {
 }
 
 func (cp *ContestProblem) UpdateStatement(text string) error {
-	return mainDB.Begin(func(db *gorm.DB) error {
+	return cp.dm.Begin(func(db *gorm.DB) error {
 		res := *cp
 		err := db.Select("statement_file").First(&res, cp.Pid).Error
 
@@ -139,7 +141,7 @@ func (cp *ContestProblem) UpdateStatement(text string) error {
 			return err
 		}
 
-		suc, path, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_PROBLEM_STATEMENT, res.StatementFile, text)
+		suc, path, err := cp.dm.fs.FileSecureUpdate(fs.FS_CATEGORY_PROBLEM_STATEMENT, res.StatementFile, text)
 
 		if err != nil {
 			return err
@@ -159,13 +161,13 @@ func (cp *ContestProblem) UpdateStatement(text string) error {
 
 func (cp *ContestProblem) LoadStatement() (string, error) {
 	res := *cp
-	err := mainDB.db.Select("statement_file").First(&res, cp.Pid).Error
+	err := cp.dm.db.Select("statement_file").First(&res, cp.Pid).Error
 
 	if err != nil {
 		return "", err
 	}
 
-	b, err := mainDB.fs.Read(fs.FS_CATEGORY_PROBLEM_STATEMENT, res.StatementFile)
+	b, err := cp.dm.fs.Read(fs.FS_CATEGORY_PROBLEM_STATEMENT, res.StatementFile)
 
 	if err != nil {
 		return "", err
@@ -186,7 +188,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 		return err
 	}
 
-	return mainDB.Begin(func(db *gorm.DB) error {
+	return cp.dm.Begin(func(db *gorm.DB) error {
 		res := *cp
 		err := db.Select("checker_file").First(&res, cp.Pid).Error
 
@@ -194,7 +196,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 			return err
 		}
 
-		suc, path, err := mainDB.fs.FileSecureUpdate(fs.FS_CATEGORY_PROBLEM_CHECKER, res.CheckerFile, string(b))
+		suc, path, err := cp.dm.fs.FileSecureUpdate(fs.FS_CATEGORY_PROBLEM_CHECKER, res.CheckerFile, string(b))
 
 		if err != nil {
 			return err
@@ -213,7 +215,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 }
 
 func (cp *ContestProblem) LoadChecker() (lid int64, code string, ret error) {
-	ret = mainDB.Begin(func(db *gorm.DB) error {
+	ret = cp.dm.Begin(func(db *gorm.DB) error {
 		res := *cp
 		err := db.Select("checker_file").First(&res, cp.Pid).Error
 
@@ -221,7 +223,7 @@ func (cp *ContestProblem) LoadChecker() (lid int64, code string, ret error) {
 			return err
 		}
 
-		b, err := mainDB.fs.Read(fs.FS_CATEGORY_PROBLEM_CHECKER, res.CheckerFile)
+		b, err := cp.dm.fs.Read(fs.FS_CATEGORY_PROBLEM_CHECKER, res.CheckerFile)
 
 		if err != nil {
 			return err
@@ -248,12 +250,13 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 		scoreSum += newScores[i].Score
 	}
 
-	return mainDB.Begin(func(db *gorm.DB) error {
+	defer cp.dm.ClearUnassociatedData(cp.Cid)
+	return cp.dm.BeginDM(func(dm *DatabaseManager) error {
 		f := func() {}
 		var cases []ContestProblemTestCase
 		var scores []ContestProblemScoreSet
 
-		if err := db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+		if err := dm.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 			return err
 		}
 
@@ -268,8 +271,8 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 				f = utility.FunctionJoin(f, func() {
 					go func() {
 						for i := range oldFiles {
-							if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, oldFiles[i]); err != nil {
-								mainDB.Logger().WithField("category", fs.FS_CATEGORY_TESTCASE_INOUT).WithField("path", oldFiles[i]).WithError(err).Error("Failed removing a file")
+							if err := cp.dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, oldFiles[i]); err != nil {
+								cp.dm.Logger().WithField("category", fs.FS_CATEGORY_TESTCASE_INOUT).WithField("path", oldFiles[i]).WithError(err).Error("Failed removing a file")
 							}
 						}
 					}()
@@ -297,34 +300,33 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 			newScores[i].Cid = cp.Cid
 		}
 
-		if err := db.Model(cp).Association("Cases").Replace(&newCases).Error; err != nil {
+		if err := dm.db.Model(cp).Association("Cases").Replace(&newCases).Error; err != nil {
 			return err
 		}
-		if err := db.Model(cp).Association("Scores").Replace(&newScores).Error; err != nil {
+		if err := dm.db.Model(cp).Association("Scores").Replace(&newScores).Error; err != nil {
 			return err
 		}
 
-		db.Model(cp).Update("score", scoreSum)
+		dm.db.Model(cp).Update("score", scoreSum)
 
 		f()
-		mainDB.Clone(db).ClearUnassociatedData(cp.Cid)
 		return nil
 	})
 }
 
 func (cp *ContestProblem) CreateUniquelyNamedFile() (*mgo.GridFile, error) {
-	id, err := mainDB.redis.UniqueFileID(fs.FS_CATEGORY_TESTCASE_INOUT)
+	id, err := cp.dm.redis.UniqueFileID(fs.FS_CATEGORY_TESTCASE_INOUT)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return mainDB.fs.Open(fs.FS_CATEGORY_TESTCASE_INOUT, "testcase_"+strconv.FormatInt(id, 10))
+	return cp.dm.fs.Open(fs.FS_CATEGORY_TESTCASE_INOUT, "testcase_"+strconv.FormatInt(id, 10))
 }
 
 // ErrUnknownTestcase
 func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.Reader) error {
-	return mainDB.Begin(func(db *gorm.DB) error {
+	return cp.dm.Begin(func(db *gorm.DB) error {
 		var cpcase ContestProblemTestCase
 		cpcase.Cid = cp.Cid
 		cpcase.Pid = cp.Pid
@@ -336,10 +338,10 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 		var p string
 		var err error
 		if isInput {
-			f, p, err = mainDB.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Input, reader)
+			f, p, err = cp.dm.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Input, reader)
 			cpcase.Input = p
 		} else {
-			f, p, err = mainDB.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Output, reader)
+			f, p, err = cp.dm.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase.Output, reader)
 			cpcase.Output = p
 		}
 
@@ -358,7 +360,7 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser, error) {
 	var cpcase []ContestProblemTestCase
 
-	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+	if err := cp.dm.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrUnknownTestcase
 		}
@@ -380,7 +382,7 @@ func (cp *ContestProblem) LoadTestCase(isInput bool, caseID int) (io.ReadCloser,
 		return &utility.FakeEmptyReadCloser{}, nil
 	}
 
-	fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, path)
+	fp, err := cp.dm.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, path)
 
 	if err == mgo.ErrNotFound {
 		return nil, ErrUnknownTestcase
@@ -393,15 +395,15 @@ func (cp *ContestProblem) LoadTestCases() ([]ContestProblemTestCase, []ContestPr
 	var scores []ContestProblemScoreSet
 	var cases []ContestProblemTestCase
 
-	return cases, scores, mainDB.BeginIfNotStarted(func(dm *gorm.DB) error {
-		return mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error
+	return cases, scores, cp.dm.BeginIfNotStarted(func(dm *gorm.DB) error {
+		return dm.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error
 	})
 }
 
 func (cp *ContestProblem) LoadTestCaseInfo(caseID int64) (int64, int64, error) {
 	var cpcase []ContestProblemTestCase
 
-	if err := mainDB.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+	if err := cp.dm.db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, 0, ErrUnknownTestcase
 		}
@@ -414,7 +416,7 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseID int64) (int64, int64, error) {
 
 	var in, out int64 = 0, 0
 	if len(cpcase[0].Input) != 0 {
-		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Input)
+		fp, err := cp.dm.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Input)
 
 		if err == nil {
 			in = fp.Size()
@@ -423,7 +425,7 @@ func (cp *ContestProblem) LoadTestCaseInfo(caseID int64) (int64, int64, error) {
 	}
 
 	if len(cpcase[0].Output) != 0 {
-		fp, err := mainDB.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Output)
+		fp, err := cp.dm.fs.OpenOnly(fs.FS_CATEGORY_TESTCASE_INOUT, cpcase[0].Output)
 
 		if err == nil {
 			out = fp.Size()
@@ -438,7 +440,7 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSe
 	var scores []ContestProblemScoreSet
 	var cases []ContestProblemTestCase
 
-	if err := mainDB.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+	if err := cp.dm.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -461,7 +463,7 @@ func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeL
 		Type: jtype,
 	}
 
-	err := mainDB.db.Create(cp).Error
+	err := cp.dm.db.Create(cp).Error
 
 	if err != nil {
 		return 0, err
@@ -489,10 +491,10 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 	}
 
 	for i := range cases {
-		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input); err != nil {
+		if err := cp.dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input); err != nil {
 			log.WithError(err).WithField(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input).Error("RemoveLater() error")
 		}
-		if err := mainDB.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output); err != nil {
+		if err := cp.dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output); err != nil {
 			log.WithError(err).WithField(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output).Error("RemoveLater() error")
 		}
 	}
@@ -534,6 +536,7 @@ func (dm *DatabaseManager) ContestProblemFind(cid, pid int64) (*ContestProblem, 
 	if err != nil {
 		return nil, err
 	}
+	res.dm = dm
 
 	return &res, nil
 }
@@ -550,6 +553,7 @@ func (dm *DatabaseManager) ContestProblemFind2(cid, pidx int64) (*ContestProblem
 	if err != nil {
 		return nil, err
 	}
+	res.dm = dm
 
 	return &res, nil
 }
@@ -563,8 +567,7 @@ func (dm *DatabaseManager) ContestProblemList(cid int64) ([]ContestProblem, erro
 		return nil, err
 	}
 
-	// set cid
-	setCidForContestProblems(cid, results)
+	dm.setCidForContestProblems(cid, results)
 
 	return results, nil
 }
@@ -591,7 +594,7 @@ func (dm *DatabaseManager) ContestProblemListLight(cid int64) ([]ContestProblem,
 	}
 
 	// set cid
-	setCidForContestProblems(cid, results)
+	dm.setCidForContestProblems(cid, results)
 
 	return results, nil
 }

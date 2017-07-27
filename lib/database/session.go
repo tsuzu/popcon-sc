@@ -32,8 +32,8 @@ func (dm *DatabaseManager) CreateSessionTable() error {
 }
 
 // GetSessionTemplateData returns a SessionTemplateData object
-func GetSessionTemplateData(sessionKey string) (*SessionTemplateData, error) {
-	user, err := GetSessionUserData(sessionKey)
+func (dm *DatabaseManager) GetSessionTemplateData(sessionKey string) (*SessionTemplateData, error) {
+	user, err := dm.GetSessionUserData(sessionKey)
 
 	if err != nil {
 		return nil, err
@@ -43,14 +43,14 @@ func GetSessionTemplateData(sessionKey string) (*SessionTemplateData, error) {
 }
 
 // GetSessionUserData returns an User object
-func GetSessionUserData(sessionID string) (*User, error) {
-	session, err := mainDB.SessionFind(sessionID)
+func (dm *DatabaseManager) GetSessionUserData(sessionID string) (*User, error) {
+	session, err := dm.SessionFind(sessionID)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return mainDB.UserFindFromIID(session.Iid)
+	return dm.UserFindFromIID(session.Iid)
 }
 
 // SessionAdd adds a new session

@@ -235,8 +235,8 @@ func main() {
 			return
 		}
 
+		atomic.AddInt32(&workingJudge, 1)
 		go func() {
-			atomic.AddInt32(&workingJudge, 1)
 			defer atomic.AddInt32(&workingJudge, -1)
 			GeneralLog().WithField("req", pp.Sprint(req)).Debug("A new judge has started!")
 

@@ -14,6 +14,8 @@ import (
 
 	"strings"
 
+	"math/rand"
+
 	"gopkg.in/mgo.v2"
 )
 
@@ -27,15 +29,15 @@ var FS_CATEGORY_PROBLEM_CHECKER = "problem_checker"
 var FS_CATEGORY_SUBMISSION_MSG = "submission_msg"
 
 type MongoFSManager struct {
-	session  *mgo.Session
-	db       *mgo.Database
-	msClient *ppms.Client
-	logger   func() *logrus.Entry
-	redis    *redis.RedisManager
+	session                *mgo.Session
+	db                     *mgo.Database
+	msClient               *ppms.Client
+	logger                 func() *logrus.Entry
+	redis                  *redis.RedisManager
+	filepathIdentification string
 }
 
 func NewMongoFSManager(addr, msaddr, token string, redis *redis.RedisManager, logger func() *logrus.Entry) (*MongoFSManager, error) {
-
 	cnt := 0
 	const RetryingMax = 1000
 	var err error
@@ -65,12 +67,20 @@ RETRY:
 		return nil, err
 	}
 
+	var id [5]byte
+	const baseCharacters = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM+1234567890"
+	rand.Seed(time.Now().UnixNano())
+	for i := range id {
+		id[i] = baseCharacters[rand.Intn(len(baseCharacters))]
+	}
+
 	return &MongoFSManager{
-		session:  session,
-		db:       db,
-		msClient: client,
-		redis:    redis,
-		logger:   logger,
+		session:                session,
+		db:                     db,
+		msClient:               client,
+		redis:                  redis,
+		logger:                 logger,
+		filepathIdentification: string(id[:]),
 	}, err
 }
 
@@ -153,7 +163,7 @@ func (mfs *MongoFSManager) RemoveLater(category, path string) error {
 }
 
 func (mfs *MongoFSManager) CreateFilePath(category string, version int64) string {
-	return category + "_" + strconv.FormatInt(version, 10) + ".txt"
+	return category + "_" + mfs.filepathIdentification + "_" + strconv.FormatInt(version, 10) + ".txt"
 }
 
 func (mfs *MongoFSManager) FileUpdate(category, oldName, newData string) (string, error) {
