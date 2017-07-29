@@ -189,3 +189,8 @@ type RankingRow struct {
 	Problems map[int64]RankingCell
 	General  RankingCell
 }
+
+type RankingRowWithUserData struct {
+	RankingRow
+	Uid, UserName string
+}

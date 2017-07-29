@@ -11,3 +11,9 @@ func IsAlreadyExistsError(err error) bool {
 func IsDuplicateError(err error) bool {
 	return strings.Contains(err.Error(), "Duplicate")
 }
+
+type SqlScanIgnore struct{}
+
+func (rc *SqlScanIgnore) Scan(v interface{}) error {
+	return nil
+}

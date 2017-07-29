@@ -46,6 +46,45 @@ type Client struct {
 	addr, auth string
 }
 
+func (client *Client) ContestsRankingCount(cid int64) (int64, error) {
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/rankingCount"))
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+
+	if err != nil {
+		return 0, err
+	}
+
+	req.Header.Set(sctypes.InternalHTTPToken, client.auth)
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, errors.New(resp.Status)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return 0, err
+	}
+
+	cnt, err := strconv.ParseInt(string(b), 10, 64)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return cnt, nil
+}
+
 func (client *Client) ContestsRanking(cid, limit, offset int64) ([]sctypes.RankingRow, error) {
 	u := mustParseURL(client.addr)
 	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
@@ -89,10 +128,82 @@ func (client *Client) ContestsRanking(cid, limit, offset int64) ([]sctypes.Ranki
 	return rows, nil
 }
 
+func (client *Client) ContestsRankingWithUserData(cid, limit, offset int64) ([]sctypes.RankingRowWithUserData, error) {
+	u := mustParseURL(client.addr)
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
+
+	val := url.Values{}
+	val.Add("limit", strconv.FormatInt(limit, 10))
+	val.Add("offset", strconv.FormatInt(offset, 10))
+	val.Add("with_user_data", "1")
+
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(val.Encode()))
+
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set(sctypes.InternalHTTPToken, client.auth)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New("error: " + resp.Status)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []sctypes.RankingRowWithUserData
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
 func (client *Client) ContestsNew(cid int64) error {
 	u := mustParseURL(client.addr)
 
 	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/new"))
+
+	req, err := http.NewRequest("POST", u.String(), nil)
+
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set(sctypes.InternalHTTPToken, client.auth)
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return errors.New("error: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (client *Client) ContestsDelete(cid int64) error {
+	u := mustParseURL(client.addr)
+
+	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/delete"))
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 

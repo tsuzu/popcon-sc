@@ -512,7 +512,7 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 		log.WithError(err).Error("Failed Deleting unassociated data")
 	}
 
-	if err := dm.SubmissionRemoveAll(cid, cp.Pid); err != nil {
+	if err := dm.SubmissionRemoveForProblem(cid, cp.Pid); err != nil {
 		log.WithError(err).WithField("cid", cid).WithField("pid", cp.Pid).Error("SubmissionRemoveAll() error")
 	}
 

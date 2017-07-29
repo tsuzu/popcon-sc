@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"strconv"
@@ -137,16 +138,53 @@ func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 	})
 }
 
-func (dm *DatabaseManager) SubmissionRemoveAll(cid, pid int64) error {
-	res, err := dm.SubmissionListWithPid(cid, pid)
+func (dm *DatabaseManager) SubmissionRemoveForProblem(cid, pid int64) error {
+	return dm.submissionRemoveAll(cid, pid)
+}
+
+func (dm *DatabaseManager) SubmissionRemoveAll(cid int64) error {
+	return dm.submissionRemoveAll(cid, -1)
+}
+
+func (dm *DatabaseManager) submissionRemoveAll(cid int64, pid int64) error {
+	query := "SELECT code_file, message_file FROM " + Submission{Cid: cid}.TableName()
+
+	if pid != -1 {
+		query = query + " WHERE pid=" + strconv.FormatInt(pid, 10)
+	}
+
+	rows, err := dm.db.CommonDB().Query(query)
 
 	if err != nil {
 		return err
 	}
 
-	for i := range res {
-		if err := dm.SubmissionRemove(cid, res[i].Pid); err != nil {
-			dm.Logger().WithError(err).WithField("cid", cid).WithField("pid", res[i].Pid).Error("SubmissionRemove error")
+	codeFiles, msgFiles := make([]string, 0, 50), make([]string, 0, 50)
+	for rows.Next() {
+		var code, msg string
+		rows.Scan(&code, &msg)
+
+		if len(code) != 0 {
+			codeFiles = append(codeFiles, code)
+		}
+		if len(msg) == 0 {
+			msgFiles = append(msgFiles, msg)
+		}
+	}
+	rows.Close()
+
+	if _, err := dm.db.CommonDB().Exec(fmt.Sprint("DROP TABLE ?, ?, ?", Submission{Cid: cid}.TableName(), SubmissionTestCase{Cid: cid}.TableName())); err != nil {
+		return err
+	}
+
+	for i := range codeFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION, codeFiles[i]); err != nil {
+			dm.logger().WithError(err).Error("RemoveLater() error")
+		}
+	}
+	for i := range msgFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_SUBMISSION_MSG, msgFiles[i]); err != nil {
+			dm.logger().WithError(err).Error("RemoveLater() error")
 		}
 	}
 
@@ -457,7 +495,7 @@ func (dm *DatabaseManager) SubmissionCountForPenalty(cid, iid, pid /*smaller tha
 	}
 
 	var cnt int64
-	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("iid=? AND pid=? AND status >= ? AND status <= ? AND sid < ?", iid, pid, lh, rh, sid).Count(cnt).Error; err != nil {
+	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("iid=? AND pid=? AND status >= ? AND status <= ? AND sid <= ?", iid, pid, lh, rh, sid).Count(&cnt).Error; err != nil {
 		return 0, err
 	}
 
@@ -467,7 +505,7 @@ func (dm *DatabaseManager) SubmissionCountForPenalty(cid, iid, pid /*smaller tha
 func (dm *DatabaseManager) SubmissionMaximumScore(cid, iid, pid int64) (*Submission, error) {
 	var sm Submission
 
-	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Order("order by score desc, sid asc").Where("iid=? AND pid=?", iid, pid).First(&sm).Error; err != nil {
+	if err := dm.db.Table(Submission{Cid: cid}.TableName()).Order("score desc, sid asc").Where("iid=? AND pid=?", iid, pid).First(&sm).Error; err != nil {
 		return nil, err
 	}
 

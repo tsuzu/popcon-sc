@@ -40,6 +40,38 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		stripped.ServeHTTP(rw, req)
 	})
 
+	router.HandleFunc("/contests/{cid}/rankingCount", func(rw http.ResponseWriter, req *http.Request) {
+		err := req.ParseForm()
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
+		}
+
+		vars := mux.Vars(req)
+
+		cid, err := strconv.ParseInt(vars["cid"], 10, 64)
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+			return
+		}
+
+		cnt, err := dm.RankingCount(cid)
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+			DBLog().WithError(err).WithField("cid", cid).Error("RankingCount() error")
+
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(strconv.FormatInt(cnt, 10)))
+	})
+
 	router.HandleFunc("/contests/{cid}/ranking", func(rw http.ResponseWriter, req *http.Request) {
 		err := req.ParseForm()
 
@@ -64,16 +96,28 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			offset = -1
 		}
 
-		rows, err := dm.RankingGetAll(cid, offset, limit)
+		var b []byte
 
-		if err != nil {
-			HTTPLog().WithError(err).Error("RankingGetAll() error")
-			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+		if req.FormValue("with_user_data") == "1" {
+			rows, err := dm.RankingGetAllWithUserData(cid, offset, limit)
 
-			return
+			if err != nil {
+				HTTPLog().WithError(err).Error("RankingGetAllWithUserData() error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+			}
+			b, _ = json.Marshal(rows)
+		} else {
+			rows, err := dm.RankingGetAll(cid, offset, limit)
+			if err != nil {
+				HTTPLog().WithError(err).Error("RankingGetAll() error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+			}
+			b, _ = json.Marshal(rows)
 		}
-
-		b, _ := json.Marshal(rows)
 
 		rw.Header().Set("Content-Type", "application/json")
 		rw.Write(b)
@@ -148,6 +192,23 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 		}
 
 		if err := dm.RankingAutoMigrate(cid); err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+	})
+
+	router.HandleFunc("/contests/{cid}/delete", func(rw http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+
+		cid, err := strconv.ParseInt(vars["cid"], 10, 64)
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+			return
+		}
+
+		if err := dm.RankingDelete(cid); err != nil {
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
@@ -315,6 +376,40 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
 			return
+		}
+
+		var sm *database.Submission
+		var cont *database.Contest
+
+		if cont, err = dm.ContestFind(res.Cid); err != nil {
+			DBLog().WithError(err).WithField("cid", res.Cid).WithField("sid", res.Sid).Error("ContestFind() error")
+
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+
+		if sm, err = dm.SubmissionFind(res.Cid, res.Sid); err != nil {
+			DBLog().WithError(err).WithField("cid", res.Cid).WithField("sid", res.Sid).Error("SubmissionFind() error")
+
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+
+		if err := dm.RankingUpdate(res.Cid, sm.Iid, sm.Pid, sctypes.RankingCell{
+			Valid: true,
+			Sid:   res.Sid,
+			Jid:   res.Jid,
+			Time:  sm.SubmitTime.Sub(cont.StartTime),
+			Score: res.Score,
+		}); err != nil {
+			DBLog().WithError(err).WithField("cid", res.Cid).WithField("sid", res.Sid).Error("RankingUpdate() error")
+
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+
 		}
 
 		return

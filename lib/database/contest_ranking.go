@@ -41,9 +41,9 @@ func (dm *DatabaseManager) RankingAutoMigrate(cid int64) error {
 	pidsStr := make([]string, 0, 10)
 	pidsStr = append(pidsStr, "general VARCHAR(256) DEFAULT '"+sctypes.RankingCell{}.String()+"'")
 	pidsStr = append(pidsStr, "iid BIGINT UNIQUE")
-	pidsStr = append(pidsStr, "score BIGINT DEFAULT 0")
-	pidsStr = append(pidsStr, "value1 BIGINT")
-	pidsStr = append(pidsStr, "value2 BIGINT")
+	pidsStr = append(pidsStr, "score BIGINT NOT NULL DEFAULT 0")
+	pidsStr = append(pidsStr, "value1 BIGINT NOT NULL DEFAULT 0")
+	pidsStr = append(pidsStr, "value2 BIGINT NOT NULL  DEFAULT 0")
 	pidsStr = append(pidsStr, "rid BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT")
 	pidsStr = append(pidsStr, "INDEX(score)")
 	pidsStr = append(pidsStr, "INDEX(value1)")
@@ -58,6 +58,12 @@ func (dm *DatabaseManager) RankingAutoMigrate(cid int64) error {
 	}
 
 	return nil
+}
+
+func (dm *DatabaseManager) RankingDelete(cid int64) error {
+	_, err := dm.DB().CommonDB().Exec("DROP TABLE " + dm.RankingTableName(cid))
+
+	return err
 }
 
 func (dm *DatabaseManager) RankingProblemAdd(cid, pid int64) error {
@@ -207,13 +213,6 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.Ranking
 					newCell.Sid = sm.Sid
 					newCell.Jid = sm.Jid
 
-					cnt, err := dm.SubmissionCountForPenalty(cid, iid, pid, sm.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
-
-					if err != nil {
-						return err
-					}
-
-					newCell.Penalty = cnt
 				}
 			} else {
 				if cell.Score < rc.Score {
@@ -221,17 +220,18 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.Ranking
 				} else if cell.Score == rc.Score && cell.Sid > rc.Sid {
 					newCell = rc
 				}
-				penalty, err := dm.SubmissionCountForPenalty(cid, iid, pid, newCell.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
-
-				if err != nil {
-					return err
-				}
-
-				newCell.Penalty = penalty
 			}
 		} else {
 			newCell = rc
 		}
+
+		cnt, err := dm.SubmissionCountForPenalty(cid, iid, pid, newCell.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
+
+		if err != nil {
+			return err
+		}
+
+		newCell.Penalty = cnt
 
 		row.Problems[pid] = newCell
 
@@ -239,11 +239,12 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.Ranking
 		general.Score = sctypes.ContestTypeCalculateGeneralScore[cont.Type](row.Problems)
 		general.Time = sctypes.ContestTypeCalculateGeneralTime[cont.Type](row.Problems)
 		general.Penalty = sctypes.ContestTypeCalculateGeneralPenalty[cont.Type](row.Problems)
+		general.Valid = true
 
 		value1 := sctypes.ContestTypeToEvaluationFunction1[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
 		value2 := sctypes.ContestTypeToEvaluationFunction2[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
 
-		if err := dm.RankingCellUpdate(cid, iid, pid, rc); err != nil {
+		if err := dm.RankingCellUpdate(cid, iid, pid, newCell); err != nil {
 			return err
 		}
 		if err := dm.RankingGeneralUpdate(cid, iid, value1, value2, general); err != nil {
@@ -272,6 +273,26 @@ func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]sctypes.Ra
 	return dm.rankingGetAll(cid, offset, limit, -1)
 }
 
+func (dm *DatabaseManager) RankingCount(cid int64) (int64, error) {
+	rows, err := dm.DB().CommonDB().Query("SELECT COUNT(iid) FROM " + dm.RankingTableName(cid))
+
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, ErrUnknownRankingRow
+	}
+
+	var cnt int64
+	if err := rows.Scan(&cnt); err != nil {
+		return 0, err
+	}
+
+	return cnt, nil
+}
+
 func (dm *DatabaseManager) rankingGetAll(cid, offset, limit, iid int64) ([]sctypes.RankingRow, error) {
 	var str string
 	if offset != -1 {
@@ -290,11 +311,12 @@ func (dm *DatabaseManager) rankingGetAll(cid, offset, limit, iid int64) ([]sctyp
 		query = query + " WHERE iid=" + strconv.FormatInt(iid, 10)
 	}
 
-	str = str + " ORDER BY score DESC, value1 DESC, value2 DESC "
+	query = query + " ORDER BY score DESC, value1 DESC, value2 DESC"
 
 	if len(str) != 0 {
-		query = query + "LIMIT " + str
+		query = query + " LIMIT " + str
 	}
+
 	rows, err := dm.db.CommonDB().Query(query)
 
 	if err != nil {
@@ -315,12 +337,20 @@ func (dm *DatabaseManager) rankingGetAll(cid, offset, limit, iid int64) ([]sctyp
 	res := make([]sctypes.RankingRow, 0, 50)
 	for rows.Next() {
 		columns := make([]interface{}, len(columnNames))
-		for i := 0; i < len(columnNames)-RankingNumberOfNotProblem+1; i++ {
-			columns[i] = &sctypes.RankingCell{}
-		}
-		for i := len(columnNames) - RankingNumberOfNotProblem + 1; i < len(columnNames); i++ {
-			var val int64
-			columns[i] = &val
+		for i := range columns {
+			if columnNames[i][0] == 'p' {
+				columns[i] = &sctypes.RankingCell{}
+			} else if columnNames[i] == "general" {
+				columns[i] = &sctypes.RankingCell{}
+			} else if columnNames[i] == "iid" || columnNames[i] == "rid" {
+				var val int64
+				columns[i] = &val
+			} else if columnNames[i] == "score" || columnNames[i] == "value1" || columnNames[i] == "value2" {
+				var val int64
+				columns[i] = &val
+			} else {
+				return nil, errors.New("Unknown column: " + columnNames[i])
+			}
 		}
 
 		err := rows.Scan(columns...)
@@ -339,6 +369,91 @@ func (dm *DatabaseManager) rankingGetAll(cid, offset, limit, iid int64) ([]sctyp
 				rr.General = *(columns[i].(*sctypes.RankingCell))
 			} else if columnNames[i] == "iid" {
 				rr.Iid = *(columns[i].(*int64))
+			}
+		}
+		rr.Problems = cells
+		res = append(res, rr)
+	}
+
+	return res, nil
+}
+
+func (dm *DatabaseManager) RankingGetAllWithUserData(cid, offset, limit int64) ([]sctypes.RankingRowWithUserData, error) {
+	var str string
+	if offset != -1 {
+		str = strconv.FormatInt(offset, 10)
+	}
+	if limit != -1 {
+		if len(str) != 0 {
+			str = str + ","
+		}
+		str = str + strconv.FormatInt(limit, 10)
+	}
+
+	query := "SELECT * FROM " + dm.RankingTableName(cid)
+
+	query = query + " INNER JOIN users ON " + dm.RankingTableName(cid) + ".iid=users.iid"
+	query = query + " ORDER BY score DESC, value1 DESC, value2 DESC"
+
+	if len(str) != 0 {
+		query = query + " LIMIT " + str
+	}
+
+	rows, err := dm.db.CommonDB().Query(query)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columnNames, err := rows.Columns()
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]sctypes.RankingRowWithUserData, 0, 50)
+	for rows.Next() {
+		columns := make([]interface{}, len(columnNames))
+		for i := range columns {
+			if columnNames[i][0] == 'p' {
+				columns[i] = &sctypes.RankingCell{}
+			} else if columnNames[i] == "general" {
+				columns[i] = &sctypes.RankingCell{}
+			} else if columnNames[i] == "iid" || columnNames[i] == "rid" {
+				var val int64
+				columns[i] = &val
+			} else if columnNames[i] == "score" || columnNames[i] == "value1" || columnNames[i] == "value2" {
+				var val int64
+				columns[i] = &val
+			} else if columnNames[i] == "uid" || columnNames[i] == "user_name" {
+				var str string
+				columns[i] = &str
+			} else {
+				columns[i] = &SqlScanIgnore{}
+			}
+		}
+
+		err := rows.Scan(columns...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		var rr sctypes.RankingRowWithUserData
+		cells := make(map[int64]sctypes.RankingCell)
+		for i := range columns {
+			if columnNames[i][0] == 'p' {
+				id, _ := strconv.ParseInt(columnNames[i][1:], 10, 64)
+				cells[id] = *(columns[i].(*sctypes.RankingCell))
+			} else if columnNames[i] == "general" {
+				rr.General = *(columns[i].(*sctypes.RankingCell))
+			} else if columnNames[i] == "iid" {
+				rr.Iid = *(columns[i].(*int64))
+			} else if columnNames[i] == "uid" {
+				rr.Uid = *(columns[i].(*string))
+			} else if columnNames[i] == "user_name" {
+				rr.UserName = *(columns[i].(*string))
 			}
 		}
 		rr.Problems = cells

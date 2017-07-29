@@ -2,22 +2,19 @@ package main
 
 import (
 	"context"
-	htmlTemplate "html/template"
-	"net/http"
-	"strconv"
-	"strings"
-	"text/template"
-	"time"
-
 	"fmt"
-
-	"io"
-
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
+	htmlTemplate "html/template"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"text/template"
+	"time"
 )
 
 type ContestEachHandler struct {
@@ -119,16 +116,12 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 	funcMap = template.FuncMap{
 		"timeToString": TimeToString,
 		"add":          func(x, y int) int { return x + y },
-		"timeRangeConv": func(x, y int64) string {
-			if y == 0 {
-				return "00:00"
+		"timeDurationToString": func(x time.Duration) string {
+			var str string
+			if h := int64(x.Hours()); h != 0 {
+				str = str + strconv.FormatInt(h, 10) + ":"
 			}
-
-			str := fmt.Sprintf("%02d", (y-x)/60%60) + ":" + fmt.Sprintf("%02d", (y-x)%60)
-
-			if (y-x)/3600 != 0 {
-				str = fmt.Sprintf("%02d", (y-x)/3600) + ":" + str
-			}
+			str = str + fmt.Sprintf("%02d", int64(x.Minutes())%60) + ":" + fmt.Sprintf("%02d", int64(x.Seconds())%60)
 
 			return str
 		},
@@ -353,16 +346,15 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		}
 
 		wrapForm := createWrapFormInt64(req)
-
-		page := int(wrapForm("p"))
+		page := wrapForm("p")
 
 		if page == -1 {
 			page = 1
 		}
 
-		type RankingRow2 struct {
-			sctypes.RankingRow
-			Rank int
+		type RankingRowWrapped struct {
+			sctypes.RankingRowWithUserData
+			Rank int64
 		}
 
 		type TemplateVal struct {
@@ -370,28 +362,33 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			Cid         int64
 			UserName    string
 			Problems    []database.ContestProblem
-			Ranking     []RankingRow2
-			Current     int
-			MaxPage     int
-			BeginTime   int64
-			Pagination  []PaginationHelper
+			Ranking     []RankingRowWrapped
+			*PageHelper
 		}
 
-		count := 0
-		/*		count, err := mainDB.ContestRankingCount(pdata.Cid)
+		count, err := ppjcClient.ContestsRankingCount(pdata.Cid)
 
-				if err != nil {
-					DBLog().WithError(err).WithField("iid", pdata.Std.Iid).Error("ContestRankingCount error")
-					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+		if err != nil {
+			DBLog().WithError(err).Error("ContestRankingCount() error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 
-					return
-				}*/
+			return
+		}
 
-		var templateVal TemplateVal
-		templateVal.Cid = pdata.Cid
-		templateVal.ContestName = pdata.Contest.Name
-		templateVal.UserName = pdata.Std.UserName
-		templateVal.BeginTime = pdata.Contest.StartTime.Unix()
+		rows, err := ppjcClient.ContestsRankingWithUserData(pdata.Cid, ContentsPerPage, int64(page-1)*ContentsPerPage)
+
+		if err != nil {
+			DBLog().WithError(err).Error("ContestRanking() error")
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			return
+		}
+
+		templateVal := TemplateVal{
+			Cid:         pdata.Cid,
+			ContestName: pdata.Contest.Name,
+			UserName:    pdata.Std.UserName,
+		}
 		probs, err := mainDB.ContestProblemList(pdata.Cid)
 
 		if err != nil {
@@ -400,43 +397,26 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 			return
 		}
+
+		rowsWrapped := make([]RankingRowWrapped, len(rows))
+		for i := range rows {
+			rowsWrapped[i].RankingRowWithUserData = rows[i]
+			rowsWrapped[i].Rank = ContentsPerPage*(page-1) + 1
+		}
+
+		templateVal.Ranking = rowsWrapped
 		templateVal.Problems = probs
-		templateVal.Current = 1
-		templateVal.MaxPage = int(count) / ContentsPerPage
 
-		if int(count)%ContentsPerPage != 0 {
-			templateVal.MaxPage++
-		} else if templateVal.MaxPage == 0 {
-			templateVal.MaxPage = 1
+		var res bool
+		templateVal.PageHelper, res = NewPageHelper(
+			page, count, ContentsPerPage, 3,
+		)
+
+		if !res {
+			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/ranking")
+
+			return
 		}
-
-		if count > 0 {
-			/*if (page-1)*ContentsPerPage > int(count) {
-				page = 1
-			}
-
-			templateVal.Current = page
-
-			ranks, err := mainDB.ContestRankingList(pdata.Cid, int64((page-1)*ContentsPerPage), ContentsPerPage)
-
-			if err != nil {
-				DBLog().WithError(err).Error("ContestRankingList error")
-
-				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-
-				return
-			}
-
-			ranks2 := make([]RankingRow2, len(ranks))
-
-			for i := range ranks {
-				ranks2[i] = RankingRow2{ranks[i], (page-1)*ContentsPerPage + i + 1}
-			}
-
-			templateVal.Ranking = ranks2*/
-		}
-
-		templateVal.Pagination = NewPaginationHelper(templateVal.Current, templateVal.MaxPage, 3)
 
 		ceh.RankingPage.Execute(rw, templateVal)
 	})
@@ -515,16 +495,17 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			Status      int64
 			User        string
 		}
-		var templateVal TemplateVal
-		templateVal.AllEnabled = pdata.IsFinished || pdata.IsAdmin
-		templateVal.ContestName = pdata.Contest.Name
-		templateVal.Cid = pdata.Cid
-		templateVal.UserName = pdata.Std.UserName
-		templateVal.User = userID
-		templateVal.Status = stat
-		templateVal.Lang = lang
-		templateVal.Prob = prob
-		templateVal.Uid = pdata.Std.UserID
+		templateVal := TemplateVal{
+			AllEnabled:  pdata.IsFinished || pdata.IsAdmin,
+			ContestName: pdata.Contest.Name,
+			Cid:         pdata.Cid,
+			UserName:    pdata.Std.UserName,
+			User:        userID,
+			Status:      stat,
+			Lang:        lang,
+			Prob:        prob,
+			Uid:         pdata.Std.UserID,
+		}
 
 		langs, err := mainDB.LanguageActiveList()
 
@@ -830,33 +811,40 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		})
 
 		sub.HandleFunc("/remove", func(rw http.ResponseWriter, req *http.Request) {
-			// TODO: Remove ranking from ppjc
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
-
-			list, err := mainDB.ContestProblemList(pdata.Cid)
-
-			if err != nil {
-				DBLog().WithError(err).Error("ContestProblemList() error")
-			}
-
-			for i := range list {
-				err = mainDB.SubmissionRemoveAll(pdata.Cid, list[i].Pid)
-
-				if err != nil {
-					DBLog().WithError(err).Error("SubmissionRemoveAll() error")
-				}
-			}
-
-			err = mainDB.ContestParticipationRemove(pdata.Cid)
-
-			if err != nil {
-				DBLog().WithError(err).Error("ContestParticipationRemove() error")
-			}
 
 			err = mainDB.ContestDelete(pdata.Cid)
 
 			if err != nil {
 				DBLog().WithError(err).Error("ContestDelete() error")
+			}
+
+			if err := ppjcClient.ContestsDelete(pdata.Cid); err != nil {
+				DBLog().WithError(err).Error("RankingDelete() error")
+			}
+
+			/*list, err := mainDB.ContestProblemList(pdata.Cid)
+
+			if err != nil {
+				DBLog().WithError(err).Error("ContestProblemList() error")
+			}*/
+
+			if err := mainDB.SubmissionRemoveAll(pdata.Cid); err != nil {
+				DBLog().WithError(err).Error("SubmissionRemoveAll() error")
+			}
+
+			/*for i := range list {
+				err = mainDB.SubmissionRemoveAll(pdata.Cid, list[i].Pid)
+
+				if err != nil {
+					DBLog().WithError(err).Error("SubmissionRemoveAll() error")
+				}
+			}*/
+
+			err = mainDB.ContestParticipationRemove(pdata.Cid)
+
+			if err != nil {
+				DBLog().WithError(err).Error("ContestParticipationRemove() error")
 			}
 
 			RespondRedirection(rw, "/contests/")
@@ -1126,7 +1114,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					}
 				}
 
-				err = (&database.Contest{Cid: pdata.Cid}).DescriptionUpdate(description)
+				err = pdata.Contest.DescriptionUpdate(description)
 
 				if err != nil {
 					HttpLog().WithError(err).Error("DescriptionUpdate() error")
@@ -1134,7 +1122,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/")
 			} else if req.Method == "GET" {
-				desc, _ := (&database.Contest{Cid: pdata.Cid}).DescriptionLoad()
+				desc, _ := pdata.Contest.DescriptionLoad()
 
 				templateVal := TemplateVal{
 					Cid:            pdata.Cid,
