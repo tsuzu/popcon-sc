@@ -1,12 +1,9 @@
 package database
 
 import (
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/jinzhu/gorm"
@@ -14,53 +11,8 @@ import (
 
 // For ppjc node
 
-type RankingCell struct {
-	Valid          bool
-	Sid, Jid       int64
-	Time           time.Duration
-	Score, Penalty int64
-}
-
-var InvalidRankingCell = RankingCell{Valid: false}
-
-func (rc RankingCell) IsValid() bool {
-	return rc.Valid
-}
-
-func (rc RankingCell) String() string {
-	b, _ := json.Marshal(rc)
-
-	return string(b)
-}
-
-func (rc *RankingCell) Parse(str string) {
-	if len(str) == 0 {
-		rc.Valid = false
-
-		return
-	}
-
-	if err := json.Unmarshal([]byte(str), rc); err != nil {
-		rc.Valid = false
-	} else {
-		rc.Valid = true
-	}
-}
-
-func (rc *RankingCell) Scan(v interface{}) error {
-	var str sql.NullString
-
-	if err := str.Scan(v); err != nil {
-		return err
-	}
-
-	rc.Parse(str.String)
-
-	return nil
-}
-
-func ParseRankingCell(str string) *RankingCell {
-	rc := &RankingCell{}
+func ParseRankingCell(str string) *sctypes.RankingCell {
+	rc := &sctypes.RankingCell{}
 
 	rc.Parse(str)
 
@@ -87,7 +39,7 @@ func (dm *DatabaseManager) RankingAutoMigrate(cid int64) error {
 	query := "CREATE TABLE IF NOT EXISTS " + dm.RankingTableName(cid) + " "
 
 	pidsStr := make([]string, 0, 10)
-	pidsStr = append(pidsStr, "general VARCHAR(256) DEFAULT '"+RankingCell{}.String()+"'")
+	pidsStr = append(pidsStr, "general VARCHAR(256) DEFAULT '"+sctypes.RankingCell{}.String()+"'")
 	pidsStr = append(pidsStr, "iid BIGINT UNIQUE")
 	pidsStr = append(pidsStr, "score BIGINT DEFAULT 0")
 	pidsStr = append(pidsStr, "value1 BIGINT")
@@ -152,7 +104,7 @@ func (dm *DatabaseManager) RankingUserAdd(cid, iid int64) error {
 	return nil
 }
 
-func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*RankingCell, error) {
+func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*sctypes.RankingCell, error) {
 	rows, err := dm.db.CommonDB().Query("SELECT "+dm.RankingCellName(pid)+" FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
 
 	if err != nil {
@@ -165,7 +117,7 @@ func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*RankingCell, er
 		return nil, ErrUnknownRankingCell
 	}
 
-	var c *RankingCell
+	var c *sctypes.RankingCell
 	if err := rows.Scan(&c); err != nil {
 		return nil, err
 	}
@@ -173,7 +125,7 @@ func (dm *DatabaseManager) RankingGetCell(cid, iid, pid int64) (*RankingCell, er
 	return c, nil
 }
 
-func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*RankingCell, *RankingCell, error) {
+func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*sctypes.RankingCell, *sctypes.RankingCell, error) {
 	rows, err := dm.db.CommonDB().Query("SELECT "+dm.RankingCellName(pid)+", general FROM "+dm.RankingTableName(cid)+" WHERE iid=?", iid)
 
 	if err != nil {
@@ -186,7 +138,7 @@ func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*Ranki
 		return nil, nil, ErrUnknownRankingCell
 	}
 
-	var c, g RankingCell
+	var c, g sctypes.RankingCell
 	if err := rows.Scan(&c, &g); err != nil {
 		return nil, nil, err
 	}
@@ -194,19 +146,19 @@ func (dm *DatabaseManager) RankingGetCellAndGeneral(cid, iid, pid int64) (*Ranki
 	return &c, &g, nil
 }
 
-func (dm *DatabaseManager) RankingCellUpdate(cid, iid, pid int64, rc RankingCell) error {
+func (dm *DatabaseManager) RankingCellUpdate(cid, iid, pid int64, rc sctypes.RankingCell) error {
 	_, err := dm.db.CommonDB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET "+dm.RankingCellName(pid)+"=? WHERE iid=?", rc.String(), iid)
 
 	return err
 }
 
-func (dm *DatabaseManager) RankingGeneralUpdate(cid, iid int64, value1, value2 int64, rc RankingCell) error {
+func (dm *DatabaseManager) RankingGeneralUpdate(cid, iid int64, value1, value2 int64, rc sctypes.RankingCell) error {
 	_, err := dm.db.CommonDB().Exec("UPDATE "+dm.RankingTableName(cid)+" SET general=?, score=?, value1=?, value2=? WHERE iid=?", rc.String(), rc.Score, value1, value2, iid)
 
 	return err
 }
 
-func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) error {
+func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.RankingCell) error {
 	cont, err := dm.ContestFind(cid)
 
 	if err != nil {
@@ -216,14 +168,18 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		entry := dm.Logger().WithField("cid", cid).WithField("iid", iid).WithField("pid", pid)
 
-		cell, general, err := dm.RankingGetCellAndGeneral(cid, iid, pid)
+		row, err := dm.Clone(dm.DB().Set("gorm:query_options", "FOR UPDATE")).RankingGetRow(cid, iid)
 
 		if err != nil {
 			return err
 		}
 
-		var timeDiff time.Duration = 0
-		var scoreDiff, penaltyDiff int64 = 0, 0
+		if _, ok := row.Problems[pid]; !ok {
+			return ErrUnknownProblem
+		}
+		cell := row.Problems[pid]
+
+		newCell := cell
 		if cell.IsValid() {
 			if cell.Sid == rc.Sid {
 				if cell.Jid > rc.Jid {
@@ -231,14 +187,14 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 				}
 
 				if cell.Jid == rc.Jid {
-					entry.WithField("sid", cell.Sid).WithField("jid", cell.Jid).Error("Impossible status of Jid and Sid")
+					entry.WithField(
+						"sid", cell.Sid).WithField("jid", cell.Jid).Error("Invalid status of Jid and Sid")
 
 					return nil
 				}
 
 				if cell.Score <= rc.Score {
-					scoreDiff = rc.Score - cell.Score
-					timeDiff = rc.Time - cell.Time
+					newCell = rc
 				} else {
 					sm, err := dm.SubmissionMaximumScore(cid, iid, pid)
 
@@ -246,8 +202,10 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 						return err
 					}
 
-					scoreDiff = rc.Score - cell.Score
-					timeDiff = sm.SubmitTime.Sub(cont.StartTime) - cell.Time
+					newCell.Score = rc.Score
+					newCell.Time = sm.SubmitTime.Sub(cont.StartTime)
+					newCell.Sid = sm.Sid
+					newCell.Jid = sm.Jid
 
 					cnt, err := dm.SubmissionCountForPenalty(cid, iid, pid, sm.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
 
@@ -255,34 +213,32 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 						return err
 					}
 
-					penaltyDiff = cnt - cell.Penalty
+					newCell.Penalty = cnt
 				}
 			} else {
-				if cell.Score > rc.Score {
-					return nil
+				if cell.Score < rc.Score {
+					newCell = rc
+				} else if cell.Score == rc.Score && cell.Sid > rc.Sid {
+					newCell = rc
 				}
-				if cell.Score == rc.Score && cell.Sid < rc.Sid {
-					return nil
-				}
-
-				penalty, err := dm.SubmissionCountForPenalty(cid, iid, pid, rc.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
+				penalty, err := dm.SubmissionCountForPenalty(cid, iid, pid, newCell.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
 
 				if err != nil {
 					return err
 				}
 
-				penaltyDiff = penalty - cell.Penalty
-				timeDiff = rc.Time - cell.Time
-				scoreDiff = rc.Score - cell.Score
+				newCell.Penalty = penalty
 			}
 		} else {
-			timeDiff = rc.Time
-			scoreDiff = rc.Score
+			newCell = rc
 		}
 
-		general.Score += scoreDiff
-		general.Time += timeDiff
-		general.Penalty += penaltyDiff
+		row.Problems[pid] = newCell
+
+		var general sctypes.RankingCell
+		general.Score = sctypes.ContestTypeCalculateGeneralScore[cont.Type](row.Problems)
+		general.Time = sctypes.ContestTypeCalculateGeneralTime[cont.Type](row.Problems)
+		general.Penalty = sctypes.ContestTypeCalculateGeneralPenalty[cont.Type](row.Problems)
 
 		value1 := sctypes.ContestTypeToEvaluationFunction1[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
 		value2 := sctypes.ContestTypeToEvaluationFunction2[cont.Type](general.Score, general.Penalty, cont.Penalty, general.Time)
@@ -290,7 +246,7 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 		if err := dm.RankingCellUpdate(cid, iid, pid, rc); err != nil {
 			return err
 		}
-		if err := dm.RankingGeneralUpdate(cid, iid, value1, value2, *general); err != nil {
+		if err := dm.RankingGeneralUpdate(cid, iid, value1, value2, general); err != nil {
 			return err
 		}
 
@@ -298,13 +254,25 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc RankingCell) er
 	})
 }
 
-type RankingRow struct {
-	Iid      int64
-	Problems map[int64]RankingCell
-	General  RankingCell
+func (dm *DatabaseManager) RankingGetRow(cid, iid int64) (*sctypes.RankingRow, error) {
+	rows, err := dm.rankingGetAll(cid, -1, -1, iid)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows == nil || len(rows) == 0 {
+		return nil, ErrUnknownRankingRow
+	}
+
+	return &rows[0], nil
 }
 
-func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow, error) {
+func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]sctypes.RankingRow, error) {
+	return dm.rankingGetAll(cid, offset, limit, -1)
+}
+
+func (dm *DatabaseManager) rankingGetAll(cid, offset, limit, iid int64) ([]sctypes.RankingRow, error) {
 	var str string
 	if offset != -1 {
 		str = strconv.FormatInt(offset, 10)
@@ -316,7 +284,13 @@ func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow
 		str = str + strconv.FormatInt(limit, 10)
 	}
 
-	query := "SELECT * FROM " + dm.RankingTableName(cid) + " ORDER BY score DESC, value1 DESC, value2 DESC "
+	query := "SELECT * FROM " + dm.RankingTableName(cid)
+
+	if iid != -1 {
+		query = query + " WHERE iid=" + strconv.FormatInt(iid, 10)
+	}
+
+	str = str + " ORDER BY score DESC, value1 DESC, value2 DESC "
 
 	if len(str) != 0 {
 		query = query + "LIMIT " + str
@@ -338,11 +312,11 @@ func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow
 		return nil, errors.New("Too few columns")
 	}
 
-	res := make([]RankingRow, 0, 50)
+	res := make([]sctypes.RankingRow, 0, 50)
 	for rows.Next() {
 		columns := make([]interface{}, len(columnNames))
 		for i := 0; i < len(columnNames)-RankingNumberOfNotProblem+1; i++ {
-			columns[i] = &RankingCell{}
+			columns[i] = &sctypes.RankingCell{}
 		}
 		for i := len(columnNames) - RankingNumberOfNotProblem + 1; i < len(columnNames); i++ {
 			var val int64
@@ -355,14 +329,14 @@ func (dm *DatabaseManager) RankingGetAll(cid, offset, limit int64) ([]RankingRow
 			return nil, err
 		}
 
-		var rr RankingRow
-		cells := make(map[int64]RankingCell)
+		var rr sctypes.RankingRow
+		cells := make(map[int64]sctypes.RankingCell)
 		for i := range columns {
 			if columnNames[i][0] == 'p' {
 				id, _ := strconv.ParseInt(columnNames[i][1:], 10, 64)
-				cells[id] = *(columns[i].(*RankingCell))
+				cells[id] = *(columns[i].(*sctypes.RankingCell))
 			} else if columnNames[i] == "general" {
-				rr.General = *(columns[i].(*RankingCell))
+				rr.General = *(columns[i].(*sctypes.RankingCell))
 			} else if columnNames[i] == "iid" {
 				rr.Iid = *(columns[i].(*int64))
 			}

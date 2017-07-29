@@ -2,6 +2,7 @@ package sctypes
 
 type SubmissionStatusType int
 
+// Caution: Don't change this order without checking ../dataisase/submission.go
 const (
 	SubmissionStatusInQueue SubmissionStatusType = iota
 	SubmissionStatusJudging

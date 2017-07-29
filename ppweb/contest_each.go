@@ -361,7 +361,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		}
 
 		type RankingRow2 struct {
-			database.RankingRow
+			sctypes.RankingRow
 			Rank int
 		}
 
@@ -899,7 +899,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				if target == 1 {
 					var sm *database.Submission
 
-					if err := mainDB.BeginDM(func(dm *database.DatabaseManager)error {
+					if err := mainDB.BeginDM(func(dm *database.DatabaseManager) error {
 						var err error
 
 						sm, err = dm.SubmissionFind(pdata.Cid, id)
@@ -916,10 +916,10 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 						}
 
 						dm.DB().Table(sm.TableName()).Where("sid=?", sm.Sid).Updates(map[string]interface{}{
-							"score": 0,
+							"score":  0,
 							"status": sctypes.SubmissionStatusInQueue,
-							"time": 0,
-							"mem": 0,
+							"time":   0,
+							"mem":    0,
 						})
 
 						return nil
@@ -933,7 +933,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				} else {
 					var sml []database.Submission
 
-					if err := mainDB.BeginDM(func(dm *database.DatabaseManager)error {
+					if err := mainDB.BeginDM(func(dm *database.DatabaseManager) error {
 						cp, err := dm.ContestProblemFind2(pdata.Cid, id)
 
 						if err != nil {
@@ -956,11 +956,11 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 							return err
 						}
 
-						dm.DB().Table(database.Submission{Cid: pdata.Cid}.TableName()).Where("pid=?", cp.Pid).Updates(map[string]interface{} {
-							"score": 0,
+						dm.DB().Table(database.Submission{Cid: pdata.Cid}.TableName()).Where("pid=?", cp.Pid).Updates(map[string]interface{}{
+							"score":  0,
 							"status": sctypes.SubmissionStatusInQueue,
-							"time": 0,
-							"mem": 0,
+							"time":   0,
+							"mem":    0,
 						})
 
 						return nil

@@ -46,7 +46,7 @@ type Client struct {
 	addr, auth string
 }
 
-func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.RankingRow, error) {
+func (client *Client) ContestsRanking(cid, limit, offset int64) ([]sctypes.RankingRow, error) {
 	u := mustParseURL(client.addr)
 	u = u.ResolveReference(mustParseURL("v1/contests/" + strconv.FormatInt(cid, 10) + "/ranking"))
 
@@ -81,7 +81,7 @@ func (client *Client) ContestsRanking(cid, limit, offset int64) ([]database.Rank
 		return nil, err
 	}
 
-	var rows []database.RankingRow
+	var rows []sctypes.RankingRow
 	if err := json.Unmarshal(b, &rows); err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (client *Client) JudgeSubmissionsUpdateCase(cid, sid, jid int64, status str
 		Sid:      sid,
 		Jid:      jid,
 		Testcase: res,
-		Status: status,
+		Status:   status,
 	})
 
 	val := url.Values{}

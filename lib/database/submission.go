@@ -30,9 +30,9 @@ func (stc SubmissionTestCase) TableName() string {
 type Submission struct {
 	Cid         int64                        `gorm:"-"`
 	Sid         int64                        `gorm:"primary_key"`
-	Pid         int64                        `gorm:"not null;index"` //index
-	Iid         int64                        `gorm:"not null;index"` //index
-	Jid         int64                        `gorm:"not null"` // jid for status, time, mem etc...
+	Pid         int64                        `gorm:"not null;index"`     //index
+	Iid         int64                        `gorm:"not null;index"`     //index
+	Jid         int64                        `gorm:"not null"`           // jid for status, time, mem etc...
 	UsedJid     int64                        `gorm:"not null";default:0` // jid for judge
 	Lang        int64                        `gorm:"not null"`
 	Time        int64                        `gorm:"not null"` //ms
@@ -453,7 +453,7 @@ func (dm *DatabaseManager) SubmissionCountForPenalty(cid, iid, pid /*smaller tha
 	lh, rh := sctypes.SubmissionStatusWrongAnswer, sctypes.SubmissionStatusCompileError
 
 	if !CEContained {
-		rh = sctypes.SubmissionStatusRuntimeError
+		rh = rh - 1
 	}
 
 	var cnt int64

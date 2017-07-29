@@ -41,6 +41,7 @@ func NewDatabaseManager(addr string, debugMode bool, fs *fs.MongoFSManager, redi
 		fs:     fs,
 		logger: logger,
 	}
+
 	var err error
 	cnt := 0
 	const RetryingMax = 1000
