@@ -68,7 +68,7 @@
                                     <label class="control-label" for="problem_select">問題: </label>
                                     <div class="controls">
                                         <select name="prob" class="form-control input-sm" id="problem_select">
-		                                    <option value="-1">-</option>
+											<!--<option value="-1">-</option>-->
                                             {{$top := .}}
                                             {{range .Problems}}
                                                 <option{{if (eq $top.Prob .Pidx)}} selected{{end}} value="{{.Pidx}}">{{.Pidx}} - {{html .Name}}</option>

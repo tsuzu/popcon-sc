@@ -69,11 +69,11 @@
     <div class="contents">
         <div class="container">
             <div class="page-header">
-                <h1>ランキング</h1>
+                <h1>順位表</h1>
             </div>
 
             <div style="margin-top:5px;" class="panel panel-default">
-                <table class="table table-condensed" rules="rows">
+                <table class="table table-condensed">
                     <thead style="text-align: center;">
                         <tr>
                             <th class="center-set" style="width: 72px;">順位</th>
@@ -91,17 +91,16 @@
                             <td style="text-align: center;vertical-align: middle;width: 72px;">{{$r.Rank}}</td>
                             <td style="text-align: center;vertical-align: middle;"><a href="/contests/{{$top.Cid}}/submissions/?user={{urlquery $r.Uid}}">{{html $r.UserName}}</a></td>
                             {{range $p := $top.Problems}}
-							<td style="text-align: center;vertical-align: middle;"><p>{{with (index $r.Problems $p.Pid)}}{{if (eq .Score 0)}}-{{else}}{{.Score}}{{end}}<span class="penalty-string">{{if ne .Penalty 0}}({{.Penalty}}){{end}}</span></p><p>{{if (ne .Time 0)}}{{timeDurationToString .Time}}{{else}}&nbsp;{{end}}{{end}}</p></td>
+							<td style="text-align: center;vertical-align: middle;"><p style="margin-top: 0px;padding-top: 0px;">{{with (index $r.Problems $p.Pid)}}{{if (eq .Score 0)}}-{{else}}{{.Score}}{{end}}<span class="penalty-string">{{if ne .Penalty 0}}({{.Penalty}}){{end}}</span></p><p style="margin-bottom: 0px;padding-bottom: 0px;">{{if (ne .Time 0)}}{{timeDurationToString .Time}}{{else}}&nbsp;{{end}}{{end}}</p></td>
                             {{end}}
-                            <td style="text-align: center;vertical-align: middle;"><p>{{$r.General.Score}}<span class="penalty-string">{{if ne $r.General.Penalty 0}}({{$r.General.Penalty}}){{end}}</span></p><p>{{timeDurationToString $r.General.Time}}</p></td>
-                        </tr>
-                        {{else}}
-                        <tr>
-                            <td class="center-set">参加者がいません。</td>
+                            <td style="text-align: center;vertical-align: middle;"><p style="margin-top: 0px;padding-top: 0px;">{{$r.General.Score}}<span class="penalty-string">{{if ne $r.General.Penalty 0}}({{$r.General.Penalty}}){{end}}</span></p><p style="margin-bottom: 0px;padding-bottom: 0px;">{{timeDurationToString $r.General.Time}}</p></td>
                         </tr>
                         {{end}}
                     </tbody>
-                </table>
+				</table>
+				{{if (eq (len .Ranking) 0)}}
+					<p class="center-set">参加者がいません。</p>
+				{{end}}
             </div>
 
             <div style="text-align: center;">

@@ -81,5 +81,5 @@ func (dm *DatabaseManager) ContestParticipationCheck(iid, cid int64) (bool, bool
 }
 
 func (dm *DatabaseManager) ContestParticipationRemove(cid int64) error {
-	return nil
+	return dm.db.Delete(ContestParticipation{}, "cid=?", cid).Error
 }

@@ -139,19 +139,23 @@ func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 }
 
 func (dm *DatabaseManager) SubmissionRemoveForProblem(cid, pid int64) error {
-	return dm.submissionRemoveAll(cid, pid)
-}
+	res, err := dm.SubmissionListWithPid(cid, pid)
 
-func (dm *DatabaseManager) SubmissionRemoveAll(cid int64) error {
-	return dm.submissionRemoveAll(cid, -1)
-}
-
-func (dm *DatabaseManager) submissionRemoveAll(cid int64, pid int64) error {
-	query := "SELECT code_file, message_file FROM " + Submission{Cid: cid}.TableName()
-
-	if pid != -1 {
-		query = query + " WHERE pid=" + strconv.FormatInt(pid, 10)
+	if err != nil {
+		return err
 	}
+
+	for i := range res {
+		if err := dm.SubmissionRemove(cid, res[i].Pid); err != nil {
+			dm.Logger().WithError(err).WithField("cid", cid).WithField("pid", res[i].Pid).Error("SubmissionRemove error")
+		}
+	}
+
+	return nil
+}
+
+func (dm *DatabaseManager) SubmissionRemoveAllWithTable(cid int64) error {
+	query := "SELECT code_file, message_file FROM " + Submission{Cid: cid}.TableName()
 
 	rows, err := dm.db.CommonDB().Query(query)
 
@@ -173,7 +177,7 @@ func (dm *DatabaseManager) submissionRemoveAll(cid int64, pid int64) error {
 	}
 	rows.Close()
 
-	if _, err := dm.db.CommonDB().Exec(fmt.Sprint("DROP TABLE ?, ?, ?", Submission{Cid: cid}.TableName(), SubmissionTestCase{Cid: cid}.TableName())); err != nil {
+	if _, err := dm.db.CommonDB().Exec(fmt.Sprintf("DROP TABLE %s, %s", Submission{Cid: cid}.TableName(), SubmissionTestCase{Cid: cid}.TableName())); err != nil {
 		return err
 	}
 

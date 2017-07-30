@@ -63,7 +63,8 @@
                             <th>名前</th>
                             <th>時間</th>
                             <th>メモリ</th>
-                            <th>得点</th>
+                            <th>スコア</th>
+							<th style="width: 72px;">&nbsp;</th>
                         </tr>
                     </thead>
 
@@ -75,6 +76,7 @@
                             <td>{{.Time}}s</td>
                             <td>{{.Mem}}MB</td>
                             <td>{{.Score}}</td>
+							<td><a href="/contests/{{.Cid}}/submit?prob={{.Pidx}}">提出</a></td>
                         </tr>
                         {{else}}
                         <tr>

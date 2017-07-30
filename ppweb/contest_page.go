@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
-	"path"
 
 	"context"
 
@@ -313,7 +313,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			return ppjcClient.ContestsNew(cid)
 		}
 
-		cid, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, contestType, penalty, ppjcNew)
+		cont, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, contestType, penalty, ppjcNew)
 
 		if err != nil {
 			if strings.Index(err.Error(), "Duplicate") != -1 {
@@ -333,15 +333,13 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			}
 		}
 
-		err = (&database.Contest{
-			Cid: cid,
-		}).DescriptionUpdate(description)
+		err = cont.DescriptionUpdate(description)
 
 		if err != nil {
-			HttpLog().WithError(err).WithField("cid", cid).Error("DescriptionUpdate() error")
+			HttpLog().WithError(err).WithField("cid", cont.Cid).Error("DescriptionUpdate() error")
 		}
 
-		RespondRedirection(rw, "/contests/"+strconv.FormatInt(cid, 10)+"/")
+		RespondRedirection(rw, "/contests/"+strconv.FormatInt(cont.Cid, 10)+"/")
 	} else if req.Method == "GET" {
 		templateVal := TemplateVal{
 			UserName:     std.UserName,
@@ -361,7 +359,7 @@ func (ch ContestsTopHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request
 
 	if err != nil {
 		if err == database.ErrUnknownSession {
-			RespondRedirection(rw, "/login?comeback=" + url.QueryEscape(path.Join("/contests", req.URL.Path)))
+			RespondRedirection(rw, "/login?comeback="+url.QueryEscape(path.Join("/contests", req.URL.Path)))
 
 			return
 		}

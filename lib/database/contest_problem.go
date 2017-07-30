@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 
@@ -463,11 +464,12 @@ func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeL
 		Type: jtype,
 	}
 
-	err := cp.dm.db.Create(cp).Error
+	err := dm.db.Create(cp).Error
 
 	if err != nil {
 		return 0, err
 	}
+	cp.dm = dm
 
 	return cp.Pid, nil
 }
@@ -510,10 +512,6 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 
 	if err := dm.ClearUnassociatedData(cid); err != nil {
 		log.WithError(err).Error("Failed Deleting unassociated data")
-	}
-
-	if err := dm.SubmissionRemoveForProblem(cid, cp.Pid); err != nil {
-		log.WithError(err).WithField("cid", cid).WithField("pid", cp.Pid).Error("SubmissionRemoveAll() error")
 	}
 
 	return dm.db.Delete(cp).Error
@@ -609,5 +607,46 @@ func (dm *DatabaseManager) ContestProblemDeleteAll(cid int64) error {
 	for i := range results {
 		dm.ContestProblemDelete(cid, results[i].Pid)
 	}
+	return nil
+}
+
+func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
+	query := "SELECT statement_file, checker_file FROM " + ContestProblem{Cid: cid}.TableName()
+
+	rows, err := dm.db.CommonDB().Query(query)
+
+	if err != nil {
+		return err
+	}
+
+	statementFiles, checkerFiles := make([]string, 0, 50), make([]string, 0, 50)
+	for rows.Next() {
+		var statement, checker string
+		rows.Scan(&statement, &checker)
+
+		if len(statement) != 0 {
+			statementFiles = append(statementFiles, statement)
+		}
+		if len(checker) == 0 {
+			checkerFiles = append(checkerFiles, checker)
+		}
+	}
+	rows.Close()
+
+	if _, err := dm.db.CommonDB().Exec(fmt.Sprintf("DROP TABLE %s, %s, %s", ContestProblem{Cid: cid}.TableName(), ContestProblemTestCase{Cid: cid}.TableName(), ContestProblemScoreSet{Cid: cid}.TableName())); err != nil {
+		return err
+	}
+
+	for i := range statementFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_STATEMENT, statementFiles[i]); err != nil {
+			dm.logger().WithError(err).Error("RemoveLater() error")
+		}
+	}
+	for i := range checkerFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_CHECKER, checkerFiles[i]); err != nil {
+			dm.logger().WithError(err).Error("RemoveLater() error")
+		}
+	}
+
 	return nil
 }

@@ -115,7 +115,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 	funcMap = template.FuncMap{
 		"timeToString": TimeToString,
-		"add":          func(x, y int) int { return x + y },
+		"add":          func(x, y int64) int64 { return x + y },
 		"timeDurationToString": func(x time.Duration) string {
 			var str string
 			if h := int64(x.Hours()); h != 0 {
@@ -401,7 +401,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		rowsWrapped := make([]RankingRowWrapped, len(rows))
 		for i := range rows {
 			rowsWrapped[i].RankingRowWithUserData = rows[i]
-			rowsWrapped[i].Rank = ContentsPerPage*(page-1) + 1
+			rowsWrapped[i].Rank = ContentsPerPage*(page-1) + int64(i) + 1
 		}
 
 		templateVal.Ranking = rowsWrapped
@@ -823,13 +823,17 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				DBLog().WithError(err).Error("RankingDelete() error")
 			}
 
+			if err := mainDB.ContestProblemRemoveAllWithTable(pdata.Cid); err != nil {
+				DBLog().WithError(err).Error("ContestProblemRemoveAllWithTable() error")
+			}
+
 			/*list, err := mainDB.ContestProblemList(pdata.Cid)
 
 			if err != nil {
 				DBLog().WithError(err).Error("ContestProblemList() error")
 			}*/
 
-			if err := mainDB.SubmissionRemoveAll(pdata.Cid); err != nil {
+			if err := mainDB.SubmissionRemoveAllWithTable(pdata.Cid); err != nil {
 				DBLog().WithError(err).Error("SubmissionRemoveAll() error")
 			}
 

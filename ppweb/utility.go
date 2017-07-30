@@ -191,6 +191,7 @@ func SetSession(rw http.ResponseWriter, session string) {
 		Value:    session,
 		MaxAge:   exp,
 		HttpOnly: true,
+		Path:     "/",
 	}
 
 	http.SetCookie(rw, &cookie)

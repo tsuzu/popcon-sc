@@ -24,10 +24,10 @@ func NewPageHelper(currentPage, contentsCount, contentsPerPage, choices int64) (
 		if i < 1 || i > maxPages {
 			continue
 		}
-		pages = append(pages, PageHelperLink{Page: i, Active: i != currentPage})
+		pages = append(pages, PageHelperLink{Page: i, Active: i == currentPage})
 	}
 
-	if len(pages) == 0 {
+	if maxPages != 0 && currentPage > maxPages {
 		return nil, false
 	}
 
@@ -35,6 +35,7 @@ func NewPageHelper(currentPage, contentsCount, contentsPerPage, choices int64) (
 		Current:         currentPage,
 		ContentsPerPage: contentsPerPage,
 		PageLinks:       pages,
+		MaxPage:         maxPages,
 	}
 
 	return pageHelper, true

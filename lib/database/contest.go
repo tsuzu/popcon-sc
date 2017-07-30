@@ -82,7 +82,7 @@ func (dm *DatabaseManager) CreateContestTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, backgroundPreparation func(cid int64) error) (int64, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, backgroundPreparation func(cid int64) error) (*Contest, error) {
 	contest := Contest{
 		Name:       name,
 		StartTime:  start,
@@ -90,6 +90,7 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		Admin:      admin,
 		Type:       ctype,
 		Penalty:    penalty,
+		dm:         dm,
 	}
 
 	if err := dm.BeginDM(func(dm *DatabaseManager) error {
@@ -124,11 +125,10 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 
 		return nil
 	}); err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	return contest.Cid, nil
-
+	return &contest, nil
 }
 
 func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64) error {
