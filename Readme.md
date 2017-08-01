@@ -24,9 +24,9 @@
 - Ctrl-C
 
 ### For docker-compose
-- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose-traefik.yml"
-- $ docker-compose -f docker-compose-traefik.yml up -d
-- $ docker-compose -f docker-compose-traefik.yml logs -f | grep Pass
+- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose.yml"
+- $ docker-compose -f docker-compose.yml up -d
+- $ docker-compose -f docker-compose.yml logs -f | grep Pass
 - When you get admin's password, stop with Ctrl-C
 - Access localhost:80 and signin
 
