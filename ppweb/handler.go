@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
@@ -624,15 +623,6 @@ func CreateHandlers() (map[string]http.Handler, error) {
 				email := wrapFormStr("email")
 				pass := wrapFormStr("password")
 				pass2 := wrapFormStr("password_conf")
-
-				HttpLog().WithFields(logrus.Fields{
-					"token":    token,
-					"uid":      uid,
-					"userName": userName,
-					"email":    email,
-					"pass":     pass,
-					"pass2":    pass2,
-				}).Debug("debug")
 
 				str := func() string {
 					arr := make([]string, 0, 10)

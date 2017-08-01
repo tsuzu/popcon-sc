@@ -177,6 +177,10 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.Ranking
 		row, err := dm.Clone(dm.DB().Set("gorm:query_options", "FOR UPDATE")).RankingGetRow(cid, iid)
 
 		if err != nil {
+			if err == ErrUnknownRankingRow {
+				return nil
+			}
+
 			return err
 		}
 
@@ -225,7 +229,11 @@ func (dm *DatabaseManager) RankingUpdate(cid, iid, pid int64, rc sctypes.Ranking
 			newCell = rc
 		}
 
-		cnt, err := dm.SubmissionCountForPenalty(cid, iid, pid, newCell.Sid, sctypes.ContestTypeCEPenalty[cont.Type])
+		sid := newCell.Sid
+		if newCell.Score > 0 {
+			sid--
+		}
+		cnt, err := dm.SubmissionCountForPenalty(cid, iid, pid, sid, sctypes.ContestTypeCEPenalty[cont.Type])
 
 		if err != nil {
 			return err

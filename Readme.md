@@ -16,6 +16,9 @@
 - Support of multiple kinds of contests
 
 ## How to install
+- Requirements: Docker
+
+### For docker-compose
 - install Docker
 - $ git clone https://github.com/cs3238-tsuzu/popcon-sc.git
 - $ cd popcon-sc && dockcer-compose build

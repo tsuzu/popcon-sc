@@ -57,6 +57,7 @@ func (e *Executor) Run(input string) ExecResult {
 		}
 		done <- nil
 		if opt.Stdin {
+			//io.Copy(hijac.Conn, input)
 			hijack.Conn.Write([]byte(input))
 			hijack.CloseWrite()
 			hijack.Close()

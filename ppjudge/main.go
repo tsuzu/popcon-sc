@@ -34,6 +34,8 @@ import (
 	"github.com/k0kubun/pp"
 )
 
+var EndlineReplacer = strings.NewReplacer("\r\n", "\n", "\r", "\n")
+
 func main() {
 	cgroup := os.Getenv("PPJUDGE_CGROUP")             //flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
 	docker := os.Getenv("PPJUDGE_DOCKER")             //flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
@@ -563,7 +565,7 @@ func main() {
 									stat.Status = sctypes.SubmissionStatusInternalError
 
 									FSLog().WithError(err).Error("File readall error")
-								} else if stat.Stdout != string(b) {
+								} else if EndlineReplacer.Replace(stat.Stdout) != EndlineReplacer.Replace(string(b)) {
 									stat.Status = sctypes.SubmissionStatusWrongAnswer
 								}
 

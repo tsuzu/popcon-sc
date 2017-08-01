@@ -149,3 +149,21 @@ func (dm *DatabaseManager) UserCount() (int64, error) {
 
 	return count, err
 }
+
+func (dm *DatabaseManager) UserList(limit, offset int64) ([]User, error) {
+	db := dm.db.Model(User{})
+
+	if limit != -1 {
+		db = db.Limit(limit)
+	}
+	if offset != -1 {
+		db = db.Offset(offset)
+	}
+
+	var users []User
+	if err := db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}

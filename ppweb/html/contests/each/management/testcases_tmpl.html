@@ -136,6 +136,10 @@
                             <button type="button" class="btn btn-default id_p" id="scoreset_remove">削除</button>
                         </div>
                         <button style="margin-top: 20px;" type="submit" class="btn btn-primary">変更</button>
+						
+						<div style="margin-top: 10px; ">
+							<button id="upload_all" type="button" class="btn btn-primary" onclick="location.href='/contests/{{$top.Cid}}/management/testcases/{{$.Pidx}}/upload_all'" >一括アップロード</button>
+						</div>
                     </div>
                 </div>
             </fieldset>
@@ -181,6 +185,8 @@
             })
             
             $("#testcase_add").click(function(){
+				$("#upload_all").prop("disabled", true);
+
                 $("#testcases_area").append(testcase_form_create($("#testcases_area>*").length));
 
                 if($("#testcases_area>*").length >= 50) {
@@ -189,6 +195,8 @@
                 $("#testcase_remove").show();
             });
             $("#testcase_remove").click(function(){
+				$("#upload_all").prop("disabled", true);
+
                 if($("#testcases_area>*").length > 0) {
                     $("#testcases_area>*")[$("#testcases_area>*").length - 1].remove()
                 }
@@ -214,6 +222,8 @@
             }
             
             $("#scoreset_add").click(function(){
+				$("#upload_all").prop("disabled", true);
+
                 $("#scoresets_area").append(scoreset_form);
 
                 if($("#scoresets_area>*").length >= 50) {
@@ -224,7 +234,9 @@
                 $("#scoreset_remove").show();
             });
             $("#scoreset_remove").click(function(){
-                if($("#scoresets_area>*").length > 0) {
+                $("#upload_all").prop("disabled", true);
+
+				if($("#scoresets_area>*").length > 0) {
                     $("#scoresets_area>*")[$("#scoresets_area>*").length - 1].remove()
                 }
 

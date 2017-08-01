@@ -55,7 +55,7 @@ var ContestTypeCalculateGeneralScore = map[ContestType]func(problems map[int64]R
 var maximizedTime = func(problems map[int64]RankingCell) time.Duration {
 	var max time.Duration = 0
 	for i := range problems {
-		if problems[i].Time > max {
+		if problems[i].Time > max && problems[i].Score != 0 {
 			max = problems[i].Time
 		}
 	}
@@ -64,7 +64,9 @@ var maximizedTime = func(problems map[int64]RankingCell) time.Duration {
 var accumulateAllTime = func(problems map[int64]RankingCell) time.Duration {
 	var sum time.Duration = 0
 	for i := range problems {
-		sum += problems[i].Time
+		if problems[i].Score != 0 {
+			sum += problems[i].Time
+		}
 	}
 	return sum
 }
@@ -78,7 +80,9 @@ var ContestTypeCalculateGeneralTime = map[ContestType]func(problems map[int64]Ra
 var accumulateAllPenalty = func(problems map[int64]RankingCell) int64 {
 	var sum int64 = 0
 	for i := range problems {
-		sum += problems[i].Penalty
+		if problems[i].Score != 0 {
+			sum += problems[i].Penalty
+		}
 	}
 	return sum
 }

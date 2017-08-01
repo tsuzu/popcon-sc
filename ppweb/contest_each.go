@@ -11,6 +11,7 @@ import (
 	htmlTemplate "html/template"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -31,6 +32,7 @@ type ContestEachHandler struct {
 	ManagementProblemList        *template.Template
 	ManagementTastcaseList       *template.Template
 	ManagementTestcaseSetting    *template.Template
+	ManagementTestcaseUploadAll  *template.Template
 	RankingPage                  *template.Template
 	Router                       *mux.Router
 }
@@ -197,6 +199,12 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		return nil, err
 	}
 
+	mantcua, err := template.ParseFiles("./html/contests/each/management/testcase_upload_all_tmpl.html")
+
+	if err != nil {
+		return nil, err
+	}
+
 	router := mux.NewRouter()
 	ceh := &ContestEachHandler{
 		top.Lookup("index_tmpl.html"),
@@ -212,6 +220,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		manprv,
 		mantc,
 		mantcv,
+		mantcua,
 		rank.Lookup("ranking_tmpl.html"),
 		router,
 	}
@@ -303,6 +312,13 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 	router.HandleFunc("/problems/{pidx:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
 		pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
+
+		if !pdata.Accessible {
+			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/")
+
+			return
+		}
+
 		pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
 
 		prob, err := mainDB.ContestProblemFind2(pdata.Cid, pidx)
@@ -348,7 +364,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		wrapForm := createWrapFormInt64(req)
 		page := wrapForm("p")
 
-		if page == -1 {
+		if page <= 0 {
 			page = 1
 		}
 
@@ -413,7 +429,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		)
 
 		if !res {
-			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/ranking")
+			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/ranking?p=1")
 
 			return
 		}
@@ -1744,6 +1760,116 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				return
 			}
 		})
+		sub.HandleFunc("/testcases/{pidx:[0-9+]}/upload_all", func(rw http.ResponseWriter, req *http.Request) {
+			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
+
+			pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
+
+			cp, err := mainDB.ContestProblemFind2(pdata.Cid, pidx)
+
+			if err == database.ErrUnknownProblem {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+				return
+			} else if err != nil {
+				DBLog().WithError(err).Error("ContestProblemFind2() error")
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				return
+			}
+
+			type TemplateVal struct {
+				UserName  string
+				Cid, Pidx int64
+				ProbName  string
+			}
+			templateVal := TemplateVal{
+				UserName: pdata.Std.UserName,
+				Cid:      pdata.Cid,
+				Pidx:     pidx,
+				ProbName: cp.Name,
+			}
+
+			if req.Method == "GET" {
+				ceh.ManagementTestcaseUploadAll.Execute(rw, templateVal)
+			} else if req.Method == "POST" {
+				err := req.ParseMultipartForm(50 * 1024 * 1024)
+
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				}
+
+				form := req.MultipartForm
+
+				if f, ok := form.File["file[]"]; !ok {
+					RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/managements/testcases/"+strconv.FormatInt(pidx, 10))
+				} else {
+					for i := range f {
+						base := filepath.Base(f[i].Filename)
+						rawName := strings.TrimSuffix(base, filepath.Ext(base))
+
+						arr := strings.Split(rawName, "_")
+
+						if len(arr) != 2 {
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+							return
+						}
+
+						if str := strings.TrimLeft(arr[0], "0"); len(str) == 0 {
+							arr[0] = "0"
+						} else {
+							arr[0] = str
+						}
+
+						id, err := strconv.ParseInt(arr[0], 10, 64)
+
+						if err != nil {
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+							return
+						}
+
+						mode := strings.ToLower(arr[1])
+
+						if mode == "input" {
+							mode = "in"
+						}
+						if mode == "output" {
+							mode = "out"
+						}
+
+						if mode != "in" && mode != "out" {
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+							return
+						}
+
+						file, err := f[i].Open()
+
+						if err != nil {
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+							return
+						}
+
+						if err := cp.UpdateTestCase(mode == "in", id, file); err != nil {
+							sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+							file.Close()
+							return
+						}
+						file.Close()
+					}
+				}
+
+				RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/testcases/"+strconv.FormatInt(pidx, 10))
+			} else {
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+			}
+		})
 		sub.HandleFunc("/testcases/{pidx:[0-9]+}/{tcid:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 			pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
@@ -1825,7 +1951,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				}
 
 				file, _, err := req.FormFile("file")
-
+				defer file.Close()
 				if err != nil {
 					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
@@ -1844,8 +1970,6 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				}
 
 				file.Seek(0, 0)
-
-				defer file.Close()
 
 				if mode == "input" {
 					err = cp.UpdateTestCase(true, tcid, NewTrimNewlineReader(file))

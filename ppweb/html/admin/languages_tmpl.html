@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>言語設定| popcon</title>
+    <!--Bootstrap CSS-->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!--jQuery-->
+    <script src="/static/js/jquery-1.12.2.min.js"></script>
+    <!--Bootstrap JS-->
+    <script src="/static/js/bootstrap.min.js"></script>
+    <!--footerFixed JS-->
+    <script src="/static/js/footer-fixed.js"></script>
+    <style>
+        #footer {
+            text-align: center;
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbarEexample">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">popcon</a>
+                </div>
+
+                <div class="collapse navbar-collapse" id="navbarEexample">
+                    <ul class="nav navbar-nav">
+                        <li><a href="/">トップ</a></li>
+                        <li><a href="/onlinejudge">オンラインジャッジ</a></li>
+                        <li><a href="/contests">コンテスト</a></li>
+                        <li><a href="/help">ヘルプ</a></li>
+                    </ul>
+                    <div class="navbar-right">
+                        <p class="navbar-text">User: <a href="/userinfo">{{html .UserName}}</a></p>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="contents">
+        <div class="container">
+            <div class="page-header">
+                <h1>
+                    言語設定
+					<div class="pull-right"><button type="button" class="btn btn-default" onclick="location.href='/admin/languages/new'">新規追加</button></div>
+                </h1>
+            </div>
+        </div>
+        <div style="margin-top:10px;" class="container">
+           <div class="panel panel-default">
+                <table class="table">
+                    <thead>
+                        <tr>
+							<th>ID</th>
+                            <th>名前</th>
+                            <th>シンタックスハイライト</th>
+                            <th>ステータス</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {{range .Languages}}
+                        <tr>
+							<td>{{.Lid}}</td>
+                            <td>{{html .Name}}</td>
+                            <td>{{html .HighlightType}}</td>
+							<td>{{if .Active}}Enabled{{else}}Disabled{{end}}</td>
+							<td><a href="/admin/languages/{{.Lid}}">設定</a></td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td>登録されている言語がありません。</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>.
+            <!--                </div>
+            </div>-->
+            <footer class="container-fluid" id="footer">
+                <small>© 2017 Tsuzu</small>
+            </footer>
+        </div>
+    </div>
+
+</body>
+
+</html>

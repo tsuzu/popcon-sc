@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 	"text/template"
 
 	"context"
@@ -11,11 +12,11 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/setting"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
-	muxlib "github.com/gorilla/mux"
+	"github.com/gorilla/mux"
 )
 
 func AdminHandler() (http.Handler, error) {
-	mux := muxlib.NewRouter()
+	router := mux.NewRouter()
 	handler := func(rw http.ResponseWriter, req *http.Request) {
 		std, err := ParseRequestForSession(req)
 
@@ -36,7 +37,7 @@ func AdminHandler() (http.Handler, error) {
 
 			return
 		}
-		mux.ServeHTTP(rw, req.WithContext(context.WithValue(context.Background(), ContextValueKeySessionTemplateData, *std)))
+		router.ServeHTTP(rw, req.WithContext(context.WithValue(context.Background(), ContextValueKeySessionTemplateData, *std)))
 	}
 
 	sessionTemplateData := func(req *http.Request) *database.SessionTemplateData {
@@ -61,7 +62,7 @@ func AdminHandler() (http.Handler, error) {
 				UserName string
 			}
 
-			mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
+			router.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
 				// Mustn't be nil
 				std := sessionTemplateData(req)
 
@@ -86,7 +87,7 @@ func AdminHandler() (http.Handler, error) {
 				Groups   []database.Group
 			}
 
-			mux.HandleFunc("/general", func(rw http.ResponseWriter, req *http.Request) {
+			router.HandleFunc("/general", func(rw http.ResponseWriter, req *http.Request) {
 				std := sessionTemplateData(req)
 
 				var val TemplateVal
@@ -179,6 +180,8 @@ func AdminHandler() (http.Handler, error) {
 								}
 								val.Setting.StandardSignupGroup = standardSignupGroup
 							}
+						} else {
+							errs = append(errs, "不正なグループが指定されています。")
 						}
 
 						return strings.Join(errs, "<br>")
@@ -217,7 +220,186 @@ func AdminHandler() (http.Handler, error) {
 			})
 
 			return nil
-		})
+		},
+		func() error {
+			/*tmpl, err := template.ParseFiles("./html/admin/users_tmpl.html")
+
+			if err != nil {
+				return err
+			}*/
+
+			/*router.HandleFunc("/users/", func(rw http.ResponseWriter, req *http.Request) {
+				if err := req.ParseForm(); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				}
+
+				wrapFormInt64 := createWrapFormInt64(req)
+
+				page := wrapFormInt64("page")
+
+				if page <= 0 {
+					page = 1
+				}
+
+				if err := mainDB.UserCount(); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+					DBLog().WithError(err).Error("UserCount() error")
+				}
+
+				users, err := mainDB.UserList(ContentsPerPage, ContentsPerPage * (page - 1))
+
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+					DBLog().WithError(err).Error("UserList() error")
+				}
+			})*/
+
+			return nil
+		},
+		func() error {
+			tmpl, err := template.ParseFiles("./html/admin/languages_tmpl.html")
+
+			if err != nil {
+				return err
+			}
+
+			type TemplateVal struct {
+				UserName  string
+				Languages []database.Language
+			}
+
+			router.HandleFunc("/languages/", func(rw http.ResponseWriter, req *http.Request) {
+				languages, err := mainDB.LanguageList()
+
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+					DBLog().WithError(err).Error("LanguageList() error")
+
+					return
+				}
+
+				std := sessionTemplateData(req)
+
+				tmpl.Execute(rw, TemplateVal{
+					UserName:  std.UserName,
+					Languages: languages,
+				})
+			})
+
+			tmpl2, err := template.ParseFiles("./html/admin/language_setting_tmpl.html")
+
+			if err != nil {
+				return err
+			}
+
+			type TemplateValSetting struct {
+				IsAddition bool
+				UserName   string
+				Msg        string
+				Language   database.Language
+			}
+
+			router.HandleFunc("/languages/new", func(rw http.ResponseWriter, req *http.Request) {
+				std := sessionTemplateData(req)
+
+				if req.Method == "GET" {
+					tmpl2.Execute(rw, TemplateValSetting{
+						IsAddition: true,
+						UserName:   std.UserName,
+					})
+
+					return
+				}
+
+				if req.Method == "POST" {
+					if err := req.ParseForm(); err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+						return
+					}
+
+					wrapForm := createWrapFormStr(req)
+
+					lang := wrapForm("language_name")
+					highlightType := wrapForm("highlight_type_name")
+					active := wrapForm("active")
+
+					_, err := mainDB.LanguageAdd(lang, highlightType, active != "0")
+
+					if err != nil {
+						tmpl2.Execute(rw, TemplateValSetting{
+							UserName: std.UserName,
+							Language: database.Language{
+								Name:          lang,
+								HighlightType: highlightType,
+								Active:        active != "0",
+							},
+							Msg: "エラーが発生しました。",
+						})
+					}
+
+					RespondRedirection(rw, "/admin/languages")
+				}
+			})
+
+			router.HandleFunc("/languages/{lid:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
+				lid, _ := strconv.ParseInt(mux.Vars(req)["lid"], 10, 64)
+				std := sessionTemplateData(req)
+
+				lang, err := mainDB.LanguageFind(lid)
+
+				if err != nil {
+					if err == database.ErrUnknownLanguage {
+						sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+						return
+					}
+
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+					DBLog().WithError(err).Error("LanguageFind() error")
+
+					return
+				}
+
+				templateVal := TemplateValSetting{
+					IsAddition: false,
+					UserName:   std.UserName,
+					Language:   *lang,
+				}
+
+				if req.Method == "GET" {
+					tmpl2.Execute(rw, templateVal)
+				} else if req.Method == "POST" {
+					if err := req.ParseForm(); err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+						return
+					}
+					wrapForm := createWrapFormStr(req)
+
+					lang := wrapForm("language_name")
+					highlightType := wrapForm("highlight_type_name")
+					active := wrapForm("active")
+
+					if err := mainDB.LanguageUpdate(lid, lang, highlightType, active != "0"); err != nil {
+						sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+						return
+					}
+
+					RespondRedirection(rw, "/admin/languages/")
+				}
+			})
+
+			return nil
+		},
+	)
 
 	if err != nil {
 		return nil, err

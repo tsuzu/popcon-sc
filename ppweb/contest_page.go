@@ -177,6 +177,12 @@ func CreateContestsTopHandler() (*ContestsTopHandler, error) {
 		req, err := ch.EachHandler.PrepareVariables(req, cid, std)
 
 		if err != nil {
+			if err == database.ErrUnknownContest {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+				return
+			}
+
 			HttpLog().WithError(err).Error("PrepareVariables() error")
 			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
 

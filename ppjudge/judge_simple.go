@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -135,9 +136,19 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusJudging}
 
 		r := sctypes.SubmissionStatusAccepted
-		res := exe.Run(tc.Input)
 
-		if res.Status != ExecFinished {
+		var inputStr string
+		if b, err := ioutil.ReadFile(tc.Input); err != nil {
+			ch <- CreateInternalError(name, "Failed to open a file(input testcase)")
+
+			maxMem = -1
+			maxTime = -1
+			r = sctypes.SubmissionStatusInternalError
+		} else {
+			inputStr = string(b)
+		}
+
+		if res := exe.Run(inputStr); res.Status != ExecFinished {
 			switch res.Status {
 			case ExecError:
 				ch <- CreateInternalError(name, "Failed to execute your code. "+res.Stderr)
