@@ -18,12 +18,13 @@
 ## How to install
 - Requirements: Docker
 - $ cd path/to/somewhere
+
+
+### For docker-compose
 - $ cat > .env
 - PP_TOKEN="your password"
 - PP_DB_PASSWORD="your password"
 - Ctrl-C
-
-### For docker-compose
 - $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose.yml"
 - $ docker-compose -f docker-compose.yml up -d
 - $ docker-compose -f docker-compose.yml logs -f | grep Pass
@@ -31,12 +32,18 @@
 - Access localhost:80 and signin
 
 ### For docker-swarm
+- **Deprecated**
+- This does not work well. I cannot understand why containers cannot get the other containers' true addresses.
 - If your computer doesn't join a swarm network, $ docker swarm init
 - $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose-swarm.yml"
+- $ export PP_TOKEN="your password"
+- $ export PP_DB_PASSWORD="your password"
 - $ docker stack deploy -f docker-compose-swarm.yml popcon
 - $ docker service logs popcon_ppweb | grep Pass
 - When you get admin's password, stop with Ctrl-C
 - Access localhost:80 and signin
+
+- Then, launch ppjudge
 
 ## License
 - Under the MIT License
