@@ -13,4 +13,4 @@ cd $DIR
 rm ./ppms 2>/dev/null || :
 GOOS=linux GOARCH=amd64 go get -v -d ../...
 GOOS=linux GOARCH=amd64 go build -o ./ppms ..
-docker build --build-arg GIT_BRANCH=$BRANCH -t ppms -f ./Dockerfile ..
+docker build --build-arg GIT_BRANCH=$BRANCH -t tsuzu/popcon-sc-ppms -f ./Dockerfile ..

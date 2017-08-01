@@ -1,5 +1,5 @@
 # popcon-sc
-[![Build Status](http://img.shields.io/travis/cs3238-tsuzu/popcon-sc/swarm.svg?style=flat-square)](https://travis-ci.org/cs3238-tsuzu/popcon-sc)
+[![Build Status](http://img.shields.io/travis/cs3238-tsuzu/popcon-sc/master.svg?style=flat-square)](https://travis-ci.org/cs3238-tsuzu/popcon-sc)
 [![license](https://img.shields.io/github/license/mashape/apistatus.svg?style=flat-square)](./LICENSE)
 
 ## What is popcon-sc?
@@ -17,9 +17,14 @@
 
 ## How to install
 - Requirements: Docker
+- $ cd path/to/somewhere
+- $ cat > .env
+- PP_TOKEN="your password"
+- PP_DB_PASSWORD="your password"
+- Ctrl-C
 
 ### For docker-compose
-- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/swarm/docker-compose-traefik.yml"
+- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose-traefik.yml"
 - $ docker-compose -f docker-compose-traefik.yml up -d
 - $ docker-compose -f docker-compose-traefik.yml logs -f | grep Pass
 - When you get admin's password, stop with Ctrl-C
@@ -27,7 +32,7 @@
 
 ### For docker-swarm
 - If your computer doesn't join a swarm network, $ docker swarm init
-- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/swarm/docker-compose-swarm.yml"
+- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/master/docker-compose-swarm.yml"
 - $ docker stack deploy -f docker-compose-swarm.yml popcon
 - $ docker service logs popcon_ppweb | grep Pass
 - When you get admin's password, stop with Ctrl-C

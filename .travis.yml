@@ -9,7 +9,16 @@ before_install:
   - "env"
   - "echo $TRAVIS_BRANCH"
   - "git rev-parse --abbrev-ref HEAD"
+  - "docker login -u=\"$DOCKER_USERNAME\" -p=\"$DOCKER_PASSWORD\""
 install:
   - ":" # do nothing
 script:
   - ./docker-build-all.sh
+after_success:
+      - if [ "$TRAVIS_BRANCH" == "master" ]; then
+        docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+        docker push tsuzu/popcon-sc-ppjudge
+        docker push tsuzu/popcon-sc-ppms
+        docker push tsuzu/popcon-sc-ppjc
+        docker push tsuzu/popcon-sc-ppweb
+        fi
