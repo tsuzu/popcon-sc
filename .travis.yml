@@ -17,8 +17,8 @@ script:
 after_success:
       - if [ "$TRAVIS_BRANCH" == "master" ]; then
         docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
-        docker push tsuzu/popcon-sc-ppjudge
-        docker push tsuzu/popcon-sc-ppms
-        docker push tsuzu/popcon-sc-ppjc
-        docker push tsuzu/popcon-sc-ppweb
+        docker push tsuzu/popcon-sc-ppjudge;
+        docker push tsuzu/popcon-sc-ppms;
+        docker push tsuzu/popcon-sc-ppjc;
+        docker push tsuzu/popcon-sc-ppweb;
         fi
