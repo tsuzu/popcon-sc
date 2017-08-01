@@ -19,11 +19,19 @@
 - Requirements: Docker
 
 ### For docker-compose
-- install Docker
-- $ git clone https://github.com/cs3238-tsuzu/popcon-sc.git
-- $ cd popcon-sc && dockcer-compose build
-- Prepare pp_data/ppweb/setting.json and pp_data/sendmail/config.json
-- $ PP_DB_PASSWORD="your password" PP_TOKEN="your password" docker-compose up
+- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/swarm/docker-compose-traefik.yml"
+- $ docker-compose -f docker-compose-traefik.yml up -d
+- $ docker-compose -f docker-compose-traefik.yml logs -f | grep Pass
+- When you get admin's password, stop with Ctrl-C
+- Access localhost:80 and signin
+
+### For docker-swarm
+- If your computer doesn't join a swarm network, $ docker swarm init
+- $ wget "https://raw.githubusercontent.com/cs3238-tsuzu/popcon-sc/swarm/docker-compose-swarm.yml"
+- $ docker stack deploy -f docker-compose-swarm.yml popcon
+- $ docker service logs popcon_ppweb | grep Pass
+- When you get admin's password, stop with Ctrl-C
+- Access localhost:80 and signin
 
 ## License
 - Under the MIT License
