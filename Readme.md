@@ -43,7 +43,9 @@
 - When you get admin's password, stop with Ctrl-C
 - Access localhost:80 and signin
 
-- Then, launch ppjudge
+### After installation
+- Launch ppjudge
+- Refer to ppjudge/README.md
 
 ## License
 - Under the MIT License
