@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>データファイルアップロード {{.Pidx}}{{.ProbName}}| popcon</title>
+    <!-- BootstrapのCSS読み込み -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!-- jQuery読み込み -->
+    <script src="/static/js/jquery-1.12.2.min.js"></script>
+    <!-- BootstrapのJS読み込み -->
+    <script src="/static/js/bootstrap.min.js"></script>
+    <!--footerFixed JS-->
+    <script src="/static/js/footer-fixed.js"></script>
+    <style>
+        #footer {
+            text-align: center;
+            padding-bottom: 15px;
+        }
+        
+        .id_p {
+            display: inline;
+            zoom: 1;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbarEexample">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">popcon</a>
+                </div>
+
+                <div class="collapse navbar-collapse" id="navbarEexample">
+                    <ul class="nav navbar-nav">
+                        <li><a href="/contests/{{.Cid}}/">コンテストトップ</a></li>
+                        <li><a href="/contests/{{.Cid}}/problems/">問題一覧</a></li>
+                        <li><a href="/contests/{{.Cid}}/submissions/">提出一覧</a></li>
+                        <li><a href="/contests/{{.Cid}}/ranking">ランキング</a></li>
+                        <p class="navbar-text"><a href="/contests/">コンテスト一覧へ</a></p>
+                    </ul>
+                    <div class="navbar-right">
+                        <p class="navbar-text">User: <a href="/userinfo">{{html .UserName}}</a></p>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="page-header">
+            <div class="row">
+                <div class="col-xs-12 col-md-8 col-md-offset-2">
+					<h1>データファイルアップロード {{.Id}} ({{.Pidx}} - {{html .ProbName}})</h1>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-xs-12 col-md-8 col-md-offset-2">
+                <table class="table">
+                    <thead>
+						x
+                        <tr>
+                            <th>ID</th>
+							<th>Uploaded</th>
+							<th>-</th>
+							<th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+						{{range $id, $elm := .RelatedFiles}}
+                        <tr>
+							<td>{{$id}]</td>
+                            <td><a href="/contests/{{.Cid}}/related_files/{{.Pidx}}/{{$id}}">ダウンロード</a></td>
+                            <form class="form-horizontal" method="post" enctype="multipart/form-data" action="/contests/{{.Cid}}/management/related_files/{{.Pidx}">
+                                <td>
+									<p class="id_p">ファイル名: </p>
+                                    <button type="button" class="btn btn-default id_p select_button">ファイル選択</button>
+                                    <button type="submit" class="btn btn-primary id_p">アップロード</button>
+                                    <input name="file" type="file" class="file_selector id_p" style="font-size: 0px; width:1px; height:1px;opacity:0; transform:scale(0);"
+                                    />
+									<input type="hidden" name="id" value="{{$id}}">
+                                </td>
+                            </form>
+                        </tr>
+						{{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid" id="footer">
+        <small>© 2017 Tsuzu</small>
+    </footer>
+    <script>
+        $(function(){
+            $(".select_button").click(function(){
+                $(this).nextAll("input").click();
+            });
+			$(".file_selector").change(function() {
+				$(this).prevAll("p").text("ファイル名: " + $(this)[0].files[0].name)
+			});
+
+            /*$("#file_selector_0").change(function(){
+                $('#file_name_0').text("ファイル名: " + $('#file_selector_0')[0].files[0].name)
+            })
+            $("#file_selector_1").change(function(){
+                $('#file_name_1').text("ファイル名: " + $('#file_selector_1')[0].files[0].name)
+            })*/
+        });
+    </script>
+</body>
+
+</html>

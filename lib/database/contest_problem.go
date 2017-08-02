@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -17,6 +18,8 @@ import (
 	"github.com/cs3238-tsuzu/popcon-sc/lib/utility"
 	"github.com/jinzhu/gorm"
 )
+
+const RelatedFilesPerProblem = 5
 
 type ContestProblemTestCase struct {
 	Id     int64 `gorm:"primary_key"`
@@ -78,20 +81,30 @@ func (ss *ContestProblemScoreSet) AfterFind() error {
 }
 
 type ContestProblem struct {
-	Pid           int64                    `gorm:"primary_key"`
-	Cid           int64                    `gorm:"-"` //`gorm:"not null;index;unique_index:cid_and_pidx_index"`
-	Pidx          int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
-	Name          string                   `gorm:"not null;size:255"`
-	Time          int64                    `gorm:"not null"` // Second
-	Mem           int64                    `gorm:"not null"` // MB
-	LastModified  int64                    `gorm:"not null"`
-	Score         int64                    `gorm:"not null"`
-	Type          sctypes.JudgeType        `gorm:"not null"`
-	StatementFile string                   `gorm:"not null;size:128"`
-	CheckerFile   string                   `gorm:"not null;size:128"`
-	Cases         []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
-	Scores        []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
-	dm            *DatabaseManager         `gorm:"-"`
+	Pid             int64                    `gorm:"primary_key"`
+	Cid             int64                    `gorm:"-"` //`gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Pidx            int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Name            string                   `gorm:"not null;size:255"`
+	Time            int64                    `gorm:"not null"` // Second
+	Mem             int64                    `gorm:"not null"` // MB
+	LastModified    int64                    `gorm:"not null"`
+	Score           int64                    `gorm:"not null"`
+	Type            sctypes.JudgeType        `gorm:"not null"`
+	StatementFile   string                   `gorm:"not null;size:127"`
+	CheckerFile     string                   `gorm:"not null;size:127"`
+	RelatedFilesStr string                   `gorm:"not null;size:1023"`
+	RelatedFiles    []string                 `gorm:"-"`
+	Cases           []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
+	Scores          []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
+	dm              *DatabaseManager         `gorm:"-"`
+}
+
+func (cp *ContestProblem) AfterFind() {
+	json.Unmarshal([]byte(cp.RelatedFilesStr), &cp.RelatedFiles)
+
+	for len(cp.RelatedFiles) < RelatedFilesPerProblem {
+		cp.RelatedFiles = append(cp.RelatedFiles, "")
+	}
 }
 
 func (dm *DatabaseManager) setCidForContestProblems(cid int64, arr []ContestProblem) {
@@ -257,6 +270,7 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 		var cases []ContestProblemTestCase
 		var scores []ContestProblemScoreSet
 
+		// TODO:  Add Set for update
 		if err := dm.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 			return err
 		}
@@ -331,6 +345,7 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 		var cpcase ContestProblemTestCase
 		cpcase.Cid = cp.Cid
 		cpcase.Pid = cp.Pid
+		// TODO: set for update
 		if err := db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 			return err
 		}
@@ -649,4 +664,44 @@ func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
 	}
 
 	return nil
+}
+
+func (dm *DatabaseManager) ContestProblemUpdateRelatedFile(cid, pidx /*not pid*/, idx int64, reader io.Reader) error {
+	if idx < 0 || idx >= RelatedFilesPerProblem {
+		return errors.New("Invalid index")
+	}
+
+	return dm.BeginDM(func(dm *DatabaseManager) error {
+		cp, err := dm.Clone(dm.db.Set("gorm:query_options", "FOR UPDATE")).ContestProblemFind2(cid, pidx)
+
+		if err != nil {
+			return err
+		}
+
+		var res []string
+		if err := json.Unmarshal([]byte(cp.RelatedFilesStr), &res); err != nil {
+			res = []string{}
+		}
+
+		for len(res) < RelatedFilesPerProblem {
+			res = append(res, "")
+		}
+
+		suc, path, err := dm.fs.FileSecureUpdateWithReader(fs.FS_CATEGORY_PROBLEM_RELATED_FILES, res[idx], reader)
+
+		if err != nil {
+			return err
+		}
+
+		res[idx] = path
+		b, _ := json.Marshal(res)
+
+		if err := dm.db.Table(ContestProblem{Cid: cid}.TableName()).Where("pidx=?", pidx).UpdateColumn("related_files_str", string(b)).Error; err != nil {
+			return err
+		}
+
+		suc()
+		return nil
+	})
+
 }

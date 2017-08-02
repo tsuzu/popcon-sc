@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
+	mgo "gopkg.in/mgo.v2"
 	htmlTemplate "html/template"
 	"io"
 	"net/http"
@@ -33,6 +35,7 @@ type ContestEachHandler struct {
 	ManagementTastcaseList       *template.Template
 	ManagementTestcaseSetting    *template.Template
 	ManagementTestcaseUploadAll  *template.Template
+	ManagementRelatedFiles       *template.Template
 	RankingPage                  *template.Template
 	Router                       *mux.Router
 }
@@ -205,6 +208,12 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		return nil, err
 	}
 
+	manrf, err := template.ParseFiles("./hyml/contests/each/management/related_files_tmpl.html")
+
+	if err != nil {
+		return nil, err
+	}
+
 	router := mux.NewRouter()
 	ceh := &ContestEachHandler{
 		top.Lookup("index_tmpl.html"),
@@ -221,6 +230,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		mantc,
 		mantcv,
 		mantcua,
+		manrf,
 		rank.Lookup("ranking_tmpl.html"),
 		router,
 	}
@@ -351,6 +361,52 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		templateVal := TemplateVal{*prob, pdata.Contest.Name, pdata.Contest.Cid, string(html), pdata.Std.UserName}
 		rw.WriteHeader(http.StatusOK)
 		ceh.ProblemView.Execute(rw, templateVal)
+	})
+
+	router.HandleFunc("/related_files/{pidx:[0-9]+}/{id:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
+		pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
+
+		if !pdata.Accessible {
+			RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/")
+
+			return
+		}
+		pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
+		id, _ := strconv.ParseInt(mux.Vars(req)["id"], 10, 64)
+
+		if id < 0 || id >= database.RelatedFilesPerProblem {
+			sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+			return
+		}
+
+		cp, err := mainDB.ContestProblemFind2(pdata.Cid, pidx)
+
+		if err != nil {
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+			DBLog().WithError(err).Error("ContestProblemFind2() error")
+
+			return
+		}
+
+		fp, err := mainFS.OpenOnly(fs.FS_CATEGORY_PROBLEM_RELATED_FILES, cp.RelatedFiles[id])
+
+		if err != nil {
+			if err == mgo.ErrNotFound {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+				return
+			}
+
+			sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+			FSLog().WithError(err).Error("filesystem.OpenOnly() error")
+
+			return
+		}
+
+		defer fp.Close()
+		io.Copy(rw, fp)
 	})
 
 	router.HandleFunc("/ranking", func(rw http.ResponseWriter, req *http.Request) {
@@ -1612,6 +1668,89 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				}
 
 				RespondRedirection(rw, "/contests/"+strconv.FormatInt(pdata.Cid, 10)+"/management/problems/")
+			} else {
+				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+				return
+			}
+		})
+		sub.HandleFunc("/related_files/{pidx:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
+			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
+			pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
+
+			cp, err := mainDB.ContestProblemFind(pdata.Cid, pidx)
+
+			if err != nil {
+				if err == database.ErrUnknownProblem {
+					sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+					return
+				}
+
+				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+
+				DBLog().WithError(err).Error("ContestProblemFind() error")
+
+				return
+			}
+
+			type TemplateVal struct {
+				Cid          int64
+				UserName     string
+				RelatedFiles []string
+			}
+
+			templateVal := TemplateVal{
+				Cid:          pdata.Cid,
+				UserName:     pdata.Std.UserName,
+				RelatedFiles: cp.RelatedFiles,
+			}
+
+			if req.Method == "GET" {
+				ceh.ManagementRelatedFiles.Execute(rw, templateVal)
+
+				return
+			} else if req.Method == "POST" {
+				if err := req.ParseMultipartForm(10 * 1024 * 1024); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				}
+
+				id, err := strconv.ParseInt(req.FormValue("id"), 10, 64)
+				if err != nil || id < 0 || id >= database.RelatedFilesPerProblem {
+					sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+					return
+				}
+
+				file, _, err := req.FormFile("file")
+				defer file.Close()
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				}
+				l, err := file.Seek(0, 2)
+
+				if err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
+
+					return
+				} else if l > 10*1024*1024 {
+					sctypes.ResponseTemplateWrite(http.StatusRequestEntityTooLarge, rw)
+
+					return
+				}
+
+				file.Seek(0, 0)
+				defer file.Close()
+				if err := mainDB.ContestProblemUpdateRelatedFile(pdata.Cid, cp.Pidx, id, file); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					DBLog().WithError(err).Error("ContestProblemUpdateRelatedFile() error")
+
+					return
+				}
 			} else {
 				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 
