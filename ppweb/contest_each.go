@@ -208,7 +208,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		return nil, err
 	}
 
-	manrf, err := template.ParseFiles("./hyml/contests/each/management/related_files_tmpl.html")
+	manrf, err := template.ParseFiles("./html/contests/each/management/related_files_tmpl.html")
 
 	if err != nil {
 		return nil, err
@@ -1678,7 +1678,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 			pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
 
-			cp, err := mainDB.ContestProblemFind(pdata.Cid, pidx)
+			cp, err := mainDB.ContestProblemFind2(pdata.Cid, pidx)
 
 			if err != nil {
 				if err == database.ErrUnknownProblem {
@@ -1696,12 +1696,16 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 			type TemplateVal struct {
 				Cid          int64
+				Pidx         int64
+				ProbName     string
 				UserName     string
 				RelatedFiles []string
 			}
 
 			templateVal := TemplateVal{
 				Cid:          pdata.Cid,
+				Pidx:         pidx,
+				ProbName:     cp.Name,
 				UserName:     pdata.Std.UserName,
 				RelatedFiles: cp.RelatedFiles,
 			}
@@ -1751,6 +1755,8 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 					return
 				}
+
+				RespondRedirection(rw, fmt.Sprintf("/contests/%d/management/related_files/%d", pdata.Cid, pidx))
 			} else {
 				sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
 

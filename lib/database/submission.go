@@ -472,6 +472,10 @@ func (dm *DatabaseManager) SubmissionViewFind(sid, cid int64) (*SubmissionView, 
 
 	var result SubmissionView
 	if err := db.First(&result).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrUnknownSubmission
+		}
+
 		return nil, err
 	}
 

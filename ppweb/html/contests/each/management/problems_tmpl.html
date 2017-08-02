@@ -68,7 +68,7 @@
                             <th>メモリ</th>
                             <th>スコア</th>
                             <th>-</th>
-                            <th></th>
+							<th></th><th></th>
                         </tr>
                     </thead>
 
@@ -82,6 +82,7 @@
                             <td>{{.Score}}</td>
                             <td><a href="/contests/{{.Cid}}/management/problems/{{.Pidx}}">設定</td>
                             <td><a href="/contests/{{.Cid}}/management/testcases/{{.Pidx}}">テストケース</a></td>
+							<td><a href="/contests/{{.Cid}}/management/related_files/{{.Pidx}}">データ</td>
                         </tr>
                         {{else}}
                         <tr>
