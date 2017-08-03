@@ -55,8 +55,15 @@
     <div class="container">
         <div class="page-header">
             <div class="row">
-                <div class="col-xs-12 col-md-4 col-md-offset-2">
-     	            <h1>問題{{if .Mode}}作成{{else}}編集{{end}}</h1>
+                <div class="col-xs-12 col-md-8 col-md-offset-2">
+     	            <h1>
+						問題{{if .Mode}}作成{{else}}編集{{end}}
+						{{if ne .Mode true}}
+							<div class="pull-right">
+								<button type="button" class="btn btn-danger" id="remove">Remove</button>
+							</div>
+						{{end}}
+					</h1>
                 </div>
             </div>
         </div>
@@ -169,6 +176,14 @@
                     $("#check_code").hide();
                 }
             });
+
+			{{if ne .Mode true}}
+				$("#remove").click(function() {
+					if(confirm("一度削除すると復元できません。よろしいですか?")) {
+						location.href="../remove/{{.Pidx}}"
+					}
+				});
+			{{end}}
         });
     </script>
 </body>

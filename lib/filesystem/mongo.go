@@ -21,7 +21,6 @@ import (
 
 // Category for MongoDB GridFS
 var FS_CATEGORY_SUBMISSION = "submission_code"
-var FS_CATEGORY_TESTCASE_SUMMARY = "testcase_summary"
 var FS_CATEGORY_TESTCASE_INOUT = "testcase_inout"
 var FS_CATEGORY_CONTEST_DESCRIPTION = "contest_description"
 var FS_CATEGORY_PROBLEM_STATEMENT = "problem_statement"

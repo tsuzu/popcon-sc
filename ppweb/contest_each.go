@@ -882,6 +882,40 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			ceh.ManagementTopPage.Execute(rw, TemplateVal{pdata.Cid, pdata.Contest.Name, pdata.Std.UserName})
 		})
 
+		sub.HandleFunc("/remove/{pidx:[0-9]+}", func(rw http.ResponseWriter, req *http.Request) {
+			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
+			pidx, _ := strconv.ParseInt(mux.Vars(req)["pidx"], 10, 64)
+
+			if cp, err := mainDB.ContestProblemFind2(pdata.Cid, pidx); err != nil {
+				sctypes.ResponseTemplateWrite(http.StatusNotFound, rw)
+
+				return
+			} else {
+				if err := mainDB.ContestProblemDelete(pdata.Cid, cp.Pid); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					DBLog().WithError(err).Error("ContestProblemDelete() error")
+
+					return
+				}
+
+				if err := ppjcClient.ContestsProblemsDelete(pdata.Cid, cp.Pid); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					DBLog().WithError(err).Error("ppjc.ContestProblemsDelete() error")
+
+					return
+				}
+
+				if err := mainDB.SubmissionRemoveForProblem(pdata.Cid, cp.Pid); err != nil {
+					sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
+					DBLog().WithError(err).Error("SubmissionRemoveForProblem() error")
+
+					return
+				}
+
+				RespondRedirection(rw, fmt.Sprintf("/contests/%d/management/problems/", pdata.Cid))
+			}
+		})
+
 		sub.HandleFunc("/remove", func(rw http.ResponseWriter, req *http.Request) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 

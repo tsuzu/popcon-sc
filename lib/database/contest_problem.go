@@ -506,6 +506,19 @@ func (dm *DatabaseManager) ContestProblemDelete(cid, pid int64) error {
 	if err := dm.db.Model(cp).Related(&cases, "Cases").Error; err != nil {
 		return err
 	}
+	for i := range cp.RelatedFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_RELATED_FILES, cp.RelatedFiles[i]); err != nil {
+			log.WithField("path", fs.FS_CATEGORY_PROBLEM_RELATED_FILES+"/"+cp.RelatedFiles[i]).WithError(err).Error("RemoveLater() error")
+		}
+	}
+
+	if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_CHECKER, cp.CheckerFile); err != nil {
+		log.WithError(err).WithField("path", fs.FS_CATEGORY_PROBLEM_CHECKER+"/"+cp.CheckerFile).Error("RemoveLater() error")
+	}
+
+	if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_STATEMENT, cp.StatementFile); err != nil {
+		log.WithError(err).WithField("path", fs.FS_CATEGORY_PROBLEM_STATEMENT+"/"+cp.StatementFile).Error("RemoveLater() error")
+	}
 
 	for i := range cases {
 		if err := cp.dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input); err != nil {
@@ -626,7 +639,7 @@ func (dm *DatabaseManager) ContestProblemDeleteAll(cid int64) error {
 }
 
 func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
-	query := "SELECT statement_file, checker_file FROM " + ContestProblem{Cid: cid}.TableName()
+	query := "SELECT statement_file, checker_file, related_files_str FROM " + ContestProblem{Cid: cid}.TableName()
 
 	rows, err := dm.db.CommonDB().Query(query)
 
@@ -634,10 +647,10 @@ func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
 		return err
 	}
 
-	statementFiles, checkerFiles := make([]string, 0, 50), make([]string, 0, 50)
+	statementFiles, checkerFiles, relatedFiles := make([]string, 0, 50), make([]string, 0, 50), make([]string, 0, 50*5)
 	for rows.Next() {
-		var statement, checker string
-		rows.Scan(&statement, &checker)
+		var statement, checker, relatedFilesStr string
+		rows.Scan(&statement, &checker, &relatedFilesStr)
 
 		if len(statement) != 0 {
 			statementFiles = append(statementFiles, statement)
@@ -645,8 +658,20 @@ func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
 		if len(checker) == 0 {
 			checkerFiles = append(checkerFiles, checker)
 		}
+
+		var relatedFilesTmp []string
+		json.Unmarshal([]byte(relatedFilesStr), &relatedFilesTmp)
+
+		for i := range relatedFilesTmp {
+			relatedFiles = append(relatedFiles, relatedFilesTmp[i])
+		}
 	}
 	rows.Close()
+
+	var cases []ContestProblemTestCase
+	if err := dm.db.Model(ContestProblemTestCase{Cid: cid}).Find(&cases).Error; err != nil {
+		dm.logger().WithError(err).Error("ContestProblemTestCase Find error")
+	}
 
 	if _, err := dm.db.CommonDB().Exec(fmt.Sprintf("DROP TABLE %s, %s, %s", ContestProblem{Cid: cid}.TableName(), ContestProblemTestCase{Cid: cid}.TableName(), ContestProblemScoreSet{Cid: cid}.TableName())); err != nil {
 		return err
@@ -654,13 +679,27 @@ func (dm *DatabaseManager) ContestProblemRemoveAllWithTable(cid int64) error {
 
 	for i := range statementFiles {
 		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_STATEMENT, statementFiles[i]); err != nil {
-			dm.logger().WithError(err).Error("RemoveLater() error")
+			dm.logger().WithField("path", fs.FS_CATEGORY_PROBLEM_STATEMENT+"/"+statementFiles[i]).WithError(err).Error("RemoveLater() error")
 		}
 	}
 	for i := range checkerFiles {
 		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_CHECKER, checkerFiles[i]); err != nil {
-			dm.logger().WithError(err).Error("RemoveLater() error")
+			dm.logger().WithField("path", fs.FS_CATEGORY_PROBLEM_CHECKER+"/"+checkerFiles[i]).WithError(err).Error("RemoveLater() error")
 		}
+	}
+	for i := range relatedFiles {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_PROBLEM_RELATED_FILES, relatedFiles[i]); err != nil {
+			dm.logger().WithField("path", fs.FS_CATEGORY_PROBLEM_RELATED_FILES+"/"+relatedFiles[i]).WithError(err).Error("RemoveLater() error")
+		}
+	}
+	for i := range cases {
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Input); err != nil {
+			dm.logger().WithField("path", fs.FS_CATEGORY_PROBLEM_RELATED_FILES+"/"+cases[i].Input).WithError(err).Error("RemoveLater() error")
+		}
+		if err := dm.fs.RemoveLater(fs.FS_CATEGORY_TESTCASE_INOUT, cases[i].Output); err != nil {
+			dm.logger().WithField("path", fs.FS_CATEGORY_PROBLEM_RELATED_FILES+"/"+cases[i].Output).WithError(err).Error("RemoveLater() error")
+		}
+
 	}
 
 	return nil
