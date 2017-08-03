@@ -213,7 +213,7 @@ func (dm *DatabaseManager) SubmissionUpdate(cid, sid, time, mem int64, status sc
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result Submission
 		result.Cid = cid
-		if err := dm.db.First(&result, sid).Error; err != nil {
+		if err := dm.db.Set("gorm:query_options", "FOR UPDATE").First(&result, sid).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return ErrUnknownSubmission
 			}
@@ -288,7 +288,7 @@ func (dm *DatabaseManager) SubmissionSetMsg(cid, sid int64, msg string) error {
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var result Submission
 		result.Cid = cid
-		if err := dm.db.Select("message_file").First(&result, sid).Error; err != nil {
+		if err := dm.db.Set("gorm:query_options", "FOR UPDATE").Select("message_file").First(&result, sid).Error; err != nil {
 			return err
 		}
 
@@ -523,7 +523,7 @@ func (dm *DatabaseManager) SubmissionMaximumScore(cid, iid, pid int64) (*Submiss
 func (dm *DatabaseManager) SubmissionUpdateResult(cid, sid, jid int64, status sctypes.SubmissionStatusType, score, time, mem int64, message io.Reader) error {
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var sm Submission
-		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
+		if err := dm.db.Set("gorm:query_options", "FOR UPDATE").Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
 			return err
 		}
 
@@ -578,7 +578,7 @@ func (dm *DatabaseManager) SubmissionUpdateTestCase(cid, sid, jid int64, status 
 	return dm.BeginDM(func(dm *DatabaseManager) error {
 		var sm Submission
 		sm.Cid = cid
-		if err := dm.db.Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
+		if err := dm.db.Set("gorm:query_options", "FOR UPDATE").Table(Submission{Cid: cid}.TableName()).Where("sid=?", sid).First(&sm).Error; err != nil {
 			return err
 		}
 

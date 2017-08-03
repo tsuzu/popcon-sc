@@ -48,6 +48,12 @@ func (e *Executor) Run(input string) ExecResult {
 	stdoutErr := make(chan error, 1)
 	stderrErr := make(chan error, 1)
 
+	defer func() {
+		close(stdinErr)
+		close(stdoutErr)
+		close(stderrErr)
+	}()
+
 	attachment := func(opt types.ContainerAttachOptions, done chan<- error, out *string) {
 		ctx := context.Background()
 		hijack, err := cli.ContainerAttach(ctx, e.Name, opt)
@@ -116,7 +122,6 @@ func (e *Executor) Run(input string) ExecResult {
 	<-stdinErr
 	<-stdoutErr
 	<-stderrErr
-	<-stdinErr
 
 	ctx := context.Background()
 	err := cli.ContainerStart(ctx, e.Name, types.ContainerStartOptions{})

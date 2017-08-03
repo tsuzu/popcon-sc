@@ -146,39 +146,38 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 			r = sctypes.SubmissionStatusInternalError
 		} else {
 			inputStr = string(b)
-		}
-
-		if res := exe.Run(inputStr); res.Status != ExecFinished {
-			switch res.Status {
-			case ExecError:
-				ch <- CreateInternalError(name, "Failed to execute your code. "+res.Stderr)
-				r = sctypes.SubmissionStatusInternalError
-				maxMem = -1
-				maxTime = -1
-			case ExecMemoryLimitExceeded:
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusMemoryLimitExceeded}
-				r = sctypes.SubmissionStatusMemoryLimitExceeded
-				maxMem = -1
-				maxTime = -1
-			case ExecTimeLimitExceeded:
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusTimeLimitExceeded}
-				r = sctypes.SubmissionStatusTimeLimitExceeded
-				maxMem = -1
-				maxTime = -1
-			}
-		} else {
-			if res.ExitCode != 0 {
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusRuntimeError}
-				r = sctypes.SubmissionStatusRuntimeError
-				maxMem = -1
-				maxTime = -1
-			} else {
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusAccepted, Mem: res.Mem, Time: res.Time, Stdout: res.Stdout, Stderr: res.Stderr}
-				if maxMem != -1 {
-					maxMem = maxInt64(maxMem, res.Mem)
+			if res := exe.Run(inputStr); res.Status != ExecFinished {
+				switch res.Status {
+				case ExecError:
+					ch <- CreateInternalError(name, "Failed to execute your code. "+res.Stderr)
+					r = sctypes.SubmissionStatusInternalError
+					maxMem = -1
+					maxTime = -1
+				case ExecMemoryLimitExceeded:
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusMemoryLimitExceeded}
+					r = sctypes.SubmissionStatusMemoryLimitExceeded
+					maxMem = -1
+					maxTime = -1
+				case ExecTimeLimitExceeded:
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusTimeLimitExceeded}
+					r = sctypes.SubmissionStatusTimeLimitExceeded
+					maxMem = -1
+					maxTime = -1
 				}
-				if maxTime != -1 {
-					maxTime = maxInt64(maxTime, res.Time)
+			} else {
+				if res.ExitCode != 0 {
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusRuntimeError}
+					r = sctypes.SubmissionStatusRuntimeError
+					maxMem = -1
+					maxTime = -1
+				} else {
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusAccepted, Mem: res.Mem, Time: res.Time, Stdout: res.Stdout, Stderr: res.Stderr}
+					if maxMem != -1 {
+						maxMem = maxInt64(maxMem, res.Mem)
+					}
+					if maxTime != -1 {
+						maxTime = maxInt64(maxTime, res.Time)
+					}
 				}
 			}
 		}
