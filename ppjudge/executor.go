@@ -130,8 +130,12 @@ func (e *Executor) Run(input string) ExecResult {
 		return ExecResult{ExecError, 0, 0, 0, "", "Failed to start a container. " + err.Error()}
 	}
 
-	<-stdoutErr
+	ret := <-stdoutErr
 	<-stderrErr
+
+	if ret != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Faield to read stdout. " + ret.Error()}
+	}
 
 	rc, _, err := cli.CopyFromContainer(ctx, e.Name, "/tmp/time.txt")
 
