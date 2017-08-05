@@ -5,9 +5,15 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
+	"regexp"
+	"os"
+	"path/filepath"
+	"sync"
 
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"golang.org/x/net/context"
@@ -44,94 +50,92 @@ func (e *Executor) Run(input string) ExecResult {
 	cg := e.Cgr
 	memc := cg.getSubsys("memory")
 
-	stdinErr := make(chan error, 1)
-	stdoutErr := make(chan error, 1)
-	stderrErr := make(chan error, 1)
+	hijack, err := cli.ContainerAttach(context.Background(), e.Name, types.ContainerAttachOptions{Stream: true, Stdin: true, Stdout: true, Stderr: true})
 
+	if err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to hijack container: " + err.Error()}
+	}
+	
+	defer hijack.Close()
+
+	if err := os.MkdirAll(filepath.Join(workingDirectory, "stdouterr"), 0777); err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to mkdir: " + err.Error()}
+	}
+
+	stdout, err := ioutil.TempFile(filepath.Join(workingDirectory, "stdouterr"), "stdout")
+	if err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to create a temporary file: " + err.Error()}
+	}
 	defer func() {
-		close(stdinErr)
-		close(stdoutErr)
-		close(stderrErr)
+		stdout.Close()
+		os.Remove(stdout.Name())
 	}()
 
-	attachment := func(opt types.ContainerAttachOptions, done chan<- error, out *string) {
-		ctx := context.Background()
-		hijack, err := cli.ContainerAttach(ctx, e.Name, opt)
+	stderr, err := ioutil.TempFile(filepath.Join(workingDirectory, "stdouterr"), "stderr")
+	if err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to create a temporary file: " + err.Error()}
+	}
+	defer func() {
+			stderr.Close()
+			os.Remove(stderr.Name())
+	}()
+	
+	var hijackErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := hijack.Conn.Write([]byte(input))
 
 		if err != nil {
-			panic(err)
-		}
-		done <- nil
-		if opt.Stdin {
-			//io.Copy(hijac.Conn, input)
-			hijack.Conn.Write([]byte(input))
-			hijack.CloseWrite()
-			hijack.Close()
-			hijack.Conn.Close()
+			hijackErr = err
 
-			done <- nil
 			return
 		}
 
-		var buf bytes.Buffer
-		for {
-			b := make([]byte, 128)
+		hijack.CloseWrite()
 
-			size, err := hijack.Reader.Read(b)
+		_, err = stdcopy.StdCopy(stdout, stderr, hijack.Reader)
 
-			// Output Size Limitation
-			if out != nil && len(*out) < 100*1024*1024 {
-				buf.Write(b[0:size])
+		if err != nil {
+			hijackErr = err
 
-				if buf.Len() >= 8 {
-					var size uint32
-					bin := buf.Bytes()
-
-					for i, v := range bin[4:8] {
-						shift := uint32((3 - i) * 8)
-
-						size |= uint32(v) << shift
-					}
-
-					if buf.Len() >= int(size+8) {
-						*out += string(bin[8 : size+8])
-						buf.Reset()
-						buf.Write(bin[size+8:])
-					}
-				}
-			}
-
-			if err != nil {
-				if err == io.EOF {
-					done <- nil
-				} else {
-					done <- err
-				}
-
-				return
-			}
+			return
 		}
-	}
-
-	var stdout, stderr string
-
-	go attachment(types.ContainerAttachOptions{Stream: true, Stdout: true}, stdoutErr, &stdout)
-	go attachment(types.ContainerAttachOptions{Stream: true, Stderr: true}, stderrErr, &stderr)
-	go attachment(types.ContainerAttachOptions{Stream: true, Stdin: true}, stdinErr, nil)
-
-	<-stdinErr
-	<-stdoutErr
-	<-stderrErr
-
+	}()
+	
 	ctx := context.Background()
-	err := cli.ContainerStart(ctx, e.Name, types.ContainerStartOptions{})
+	err = cli.ContainerStart(ctx, e.Name, types.ContainerStartOptions{})
 
 	if err != nil {
 		return ExecResult{ExecError, 0, 0, 0, "", "Failed to start a container. " + err.Error()}
 	}
 
-	<-stdoutErr
-	<-stderrErr
+	wg.Wait()
+
+	const LimitedSize int64 = 100 * 1024 * 1024
+	var stdoutStr, stderrStr string
+	func() {
+		b, e := ioutil.ReadAll(&io.LimitedReader{stdout, LimitedSize})
+
+		if err != nil {
+			err = e
+			return
+		}
+		stdoutStr = string(b)
+
+		b, err = ioutil.ReadAll(&io.LimitedReader{stderr, LimitedSize})
+
+		if err != nil {
+			err = e
+			return
+		}
+		stderrStr = string(b)
+	}()
+
+	if err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to read stdout/stderr: " + err.Error()}
+	}
 
 	rc, _, err := cli.CopyFromContainer(ctx, e.Name, "/tmp/time.txt")
 
@@ -151,13 +155,19 @@ func (e *Executor) Run(input string) ExecResult {
 	if len(arrRes) != 2 {
 		cli.ContainerKill(ctx, e.Name, "SIGKILL")
 
+		if a := regexp.MustCompilePOSIX("Terminated by signal ([0-9]*)$").FindStringSubmatch(buf.String()); len(a) != 0 {
+			stat, _ := strconv.ParseInt(a[1], 10, 64)
+
+			return ExecResult{ExecFinished, 0, 0, int(stat), "", ""}
+		}
+
 		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the result."}
 	}
 
 	execSec, err := strconv.ParseFloat(arrRes[0], 64)
 
 	if err != nil {
-		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the execution result."}
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the execution time."}
 	}
 
 	execTime := int64(execSec * 1000)
@@ -182,7 +192,7 @@ func (e *Executor) Run(input string) ExecResult {
 		return ExecResult{ExecMemoryLimitExceeded, 0, 0, 0, "", ""}
 	}
 
-	return ExecResult{ExecFinished, execTime, usedMem, exitCode, stdout, stderr}
+	return ExecResult{ExecFinished, execTime, usedMem, exitCode, stdoutStr, stderrStr}
 }
 
 func (e *Executor) Delete() error {
