@@ -120,7 +120,22 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 	funcMap = template.FuncMap{
 		"timeToString": TimeToString,
-		"add":          func(x, y int64) int64 { return x + y },
+		"add":          func(x, y interface{}) int64 {
+			var X, Y int64
+			switch t := x.(type) {
+			case int:
+				X = int64(t)
+			case int64:
+				X = t
+			}
+			switch t := y.(type) {
+			case int:
+				Y = int64(t)
+			case int64:
+				Y = t
+			}
+			return X + Y
+		},
 		"timeDurationToString": func(x time.Duration) string {
 			var str string
 			if h := int64(x.Hours()); h != 0 {
