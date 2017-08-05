@@ -2,20 +2,19 @@ package main
 
 import (
 	"archive/tar"
-	"bytes"
 	"errors"
 	"io"
 	"io/ioutil"
-	"strconv"
-	"strings"
-	"regexp"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stdcopy"
 	"golang.org/x/net/context"
 )
 
@@ -55,7 +54,7 @@ func (e *Executor) Run(input string) ExecResult {
 	if err != nil {
 		return ExecResult{ExecError, 0, 0, 0, "", "Failed to hijack container: " + err.Error()}
 	}
-	
+
 	defer hijack.Close()
 
 	if err := os.MkdirAll(filepath.Join(workingDirectory, "stdouterr"), 0777); err != nil {
@@ -76,10 +75,10 @@ func (e *Executor) Run(input string) ExecResult {
 		return ExecResult{ExecError, 0, 0, 0, "", "Failed to create a temporary file: " + err.Error()}
 	}
 	defer func() {
-			stderr.Close()
-			os.Remove(stderr.Name())
+		stderr.Close()
+		os.Remove(stderr.Name())
 	}()
-	
+
 	var hijackErr error
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -103,7 +102,7 @@ func (e *Executor) Run(input string) ExecResult {
 			return
 		}
 	}()
-	
+
 	ctx := context.Background()
 	err = cli.ContainerStart(ctx, e.Name, types.ContainerStartOptions{})
 
@@ -116,6 +115,15 @@ func (e *Executor) Run(input string) ExecResult {
 	const LimitedSize int64 = 100 * 1024 * 1024
 	var stdoutStr, stderrStr string
 	func() {
+		if _, e := stdout.Seek(0, 0); err != nil {
+			err = e
+			return
+		}
+		if _, e := stderr.Seek(0, 0); err != nil {
+			err = e
+			return
+		}
+
 		b, e := ioutil.ReadAll(&io.LimitedReader{stdout, LimitedSize})
 
 		if err != nil {
@@ -148,39 +156,53 @@ func (e *Executor) Run(input string) ExecResult {
 	tarStream := tar.NewReader(rc)
 	tarStream.Next()
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(tarStream)
-	arrRes := strings.Split(buf.String(), " ")
+	buf, err := ioutil.ReadAll(tarStream)
 
-	if len(arrRes) != 2 {
-		cli.ContainerKill(ctx, e.Name, "SIGKILL")
+	if err != nil {
+		cli.ContainerKill(context.Background(), e.Name, "SIGKILL")
 
-		if a := regexp.MustCompilePOSIX("Terminated by signal ([0-9]*)$").FindStringSubmatch(buf.String()); len(a) != 0 {
-			stat, _ := strconv.ParseInt(a[1], 10, 64)
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to read tar stream: " + err.Error()}
+	}
 
-			return ExecResult{ExecFinished, 0, 0, int(stat), "", ""}
+	var exitCode int
+	var execMillisec int64
+	for _, elm := range strings.Split(strings.TrimRight(EndlineReplacer.Replace(string(buf)), "\n"), "\n") {
+		arrRes := strings.Split(elm, " ")
+
+		if len(arrRes) != 2 {
+			cli.ContainerKill(ctx, e.Name, "SIGKILL")
+
+			if a := regexp.MustCompilePOSIX("[tT]erminated by signal ([0-9]*)$").FindStringSubmatch(elm); len(a) != 0 {
+				s, _ := strconv.ParseInt(a[1], 10, 64)
+
+				exitCode = 128 + int(s)
+
+				continue
+			} else {
+				return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the result." + elm}
+			}
 		}
 
-		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the result."}
+		execSec, err := strconv.ParseFloat(arrRes[0], 64)
+
+		if err != nil {
+			return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the execution time."}
+		}
+
+		execMillisec = int64(execSec * 1000)
+
+		exit, err := strconv.ParseInt(strings.Split(arrRes[1], "\n")[0], 10, 32)
+
+		if err != nil {
+			return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the exit code."}
+		}
+
+		if exitCode == 0 {
+			exitCode = int(exit)
+		}
 	}
 
-	execSec, err := strconv.ParseFloat(arrRes[0], 64)
-
-	if err != nil {
-		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the execution time."}
-	}
-
-	execTime := int64(execSec * 1000)
-
-	exit64, err := strconv.ParseInt(strings.Split(arrRes[1], "\n")[0], 10, 32)
-
-	if err != nil {
-		return ExecResult{ExecError, 0, 0, 0, "", "Failed to parse the exit code."}
-	}
-
-	exitCode := int(exit64)
-
-	if execTime > e.Time {
+	if execMillisec > e.Time {
 		cli.ContainerKill(ctx, e.Name, "SIGKILL")
 
 		return ExecResult{ExecTimeLimitExceeded, 0, 0, 0, "", ""}
@@ -192,7 +214,7 @@ func (e *Executor) Run(input string) ExecResult {
 		return ExecResult{ExecMemoryLimitExceeded, 0, 0, 0, "", ""}
 	}
 
-	return ExecResult{ExecFinished, execTime, usedMem, exitCode, stdoutStr, stderrStr}
+	return ExecResult{ExecFinished, execMillisec, usedMem, exitCode, stdoutStr, stderrStr}
 }
 
 func (e *Executor) Delete() error {
