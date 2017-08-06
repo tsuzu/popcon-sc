@@ -70,7 +70,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		}
 
 		// Source File
-		fp, err := os.Create(filepath.Join(cpath, j.CheckerCompile.SourceFileName))
+		fp, err := os.Create(filepath.Join(cpath, j.CheckerExec.SourceFileName))
 
 		if err != nil {
 			ch <- CreateInternalError(TotalResultCaseID, "Failed to create source code file for checker. "+err.Error())
@@ -121,7 +121,7 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		}
 
 		// Source File
-		fp, err := os.Create(filepath.Join(path, j.Compile.SourceFileName))
+		fp, err := os.Create(filepath.Join(path, j.Exec.SourceFileName))
 
 		if err != nil {
 			ch <- CreateInternalError(TotalResultCaseID, "Failed to create source code file."+err.Error())
