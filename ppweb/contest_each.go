@@ -120,7 +120,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 	funcMap = template.FuncMap{
 		"timeToString": TimeToString,
-		"add":          func(x, y interface{}) int64 {
+		"add": func(x, y interface{}) int64 {
 			var X, Y int64
 			switch t := x.(type) {
 			case int:
@@ -1099,18 +1099,19 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		sub.HandleFunc("/setting", func(rw http.ResponseWriter, req *http.Request) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 			type TemplateVal struct {
-				Cid            int64
-				UserName       string
-				Msg            *string
-				StartDate      string
-				StartTime      string
-				FinishDate     string
-				FinishTime     string
-				Description    string
-				ContestName    string
-				ContestTypes   map[sctypes.ContestType]string
-				ContestTypeStr string
-				Penalty        int64
+				Cid                   int64
+				UserName              string
+				Msg                   *string
+				StartDate             string
+				StartTime             string
+				FinishDate            string
+				FinishTime            string
+				Description           string
+				ContestName           string
+				ContestTypes          map[sctypes.ContestType]string
+				ContestTypeStr        string
+				Penalty               int64
+				NewLineAutoConversion bool
 			}
 
 			if req.Method == "POST" {
@@ -1123,6 +1124,8 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				contestName := wrapFormStr("contest_name")
 				contestTypeStr := wrapFormStr("contest_type")
 				penalty := wrapFormInt64("penalty")
+				newLineAutoConv := wrapFormStr("newline_auto_conv") == "1"
+
 				startStr := startDate + " " + startTime
 				finishStr := finishDate + " " + finishTime
 
@@ -1140,13 +1143,13 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 					return
 				}
-
+				templateVal := TemplateVal{
+					pdata.Cid, pdata.Std.UserID, nil, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty, newLineAutoConv,
+				}
 				if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 					msg := "コンテスト名が不正です。"
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
 
+					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1156,10 +1159,8 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if err != nil {
 					msg := "開始日時の値が不正です。"
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
 
+					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1171,9 +1172,9 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					startDate = pdata.Contest.StartTime.In(Location).Format("2006/01/02")
 					startTime = pdata.Contest.StartTime.In(Location).Format("15:04")
 
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, pdata.Contest.StartTime.In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
+					templateVal.StartDate = startDate
+					templateVal.StartTime = startTime
+					templateVal.Msg = &msg
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1184,10 +1185,8 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if err != nil {
 					msg := "終了日時の値が不正です。"
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
 
+					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1199,9 +1198,9 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					finishDate = pdata.Contest.FinishTime.In(Location).Format("2006/01/02")
 					finishTime = pdata.Contest.FinishTime.In(Location).Format("15:04")
 
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
+					templateVal.FinishDate = finishDate
+					templateVal.FinishTime = finishTime
+					templateVal.Msg = &msg
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1210,23 +1209,19 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if start.Unix() >= finish.Unix() || (pdata.Contest.StartTime.Unix() != start.Unix() && start.Unix() < time.Now().Unix()) || (pdata.Contest.FinishTime.Unix() != finish.Unix() && finish.Unix() < time.Now().Unix()) {
 					msg := "開始日時及び終了日時の値が不正です。"
-					templateVal := TemplateVal{
-						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-					}
 
+					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
 
-				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, contestType, penalty)
+				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, contestType, penalty, newLineAutoConv)
 
 				if err != nil {
 					if strings.Index(err.Error(), "Duplicate") != -1 {
 						msg := "すでに存在するコンテスト名です。"
-						templateVal := TemplateVal{
-							pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-						}
+						templateVal.Msg = &msg
 
 						ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1250,17 +1245,18 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				desc, _ := pdata.Contest.DescriptionLoad()
 
 				templateVal := TemplateVal{
-					Cid:            pdata.Cid,
-					UserName:       pdata.Std.UserID,
-					StartDate:      pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
-					StartTime:      pdata.Contest.StartTime.In(Location).Format("15:04"),
-					FinishDate:     pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
-					FinishTime:     pdata.Contest.FinishTime.In(Location).Format("15:04"),
-					ContestName:    pdata.Contest.Name,
-					Description:    desc,
-					ContestTypes:   sctypes.ContestTypeToString,
-					ContestTypeStr: sctypes.ContestTypeToString[pdata.Contest.Type],
-					Penalty:        pdata.Contest.Penalty,
+					Cid:                   pdata.Cid,
+					UserName:              pdata.Std.UserID,
+					StartDate:             pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
+					StartTime:             pdata.Contest.StartTime.In(Location).Format("15:04"),
+					FinishDate:            pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
+					FinishTime:            pdata.Contest.FinishTime.In(Location).Format("15:04"),
+					ContestName:           pdata.Contest.Name,
+					Description:           desc,
+					ContestTypes:          sctypes.ContestTypeToString,
+					ContestTypeStr:        sctypes.ContestTypeToString[pdata.Contest.Type],
+					Penalty:               pdata.Contest.Penalty,
+					NewLineAutoConversion: pdata.Contest.NewLineAutoConversion,
 				}
 
 				HttpLog().WithError(ceh.ManagementSettingPage.Execute(rw, templateVal)).Debug("Execute() error")

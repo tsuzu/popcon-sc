@@ -34,7 +34,7 @@ import (
 	"github.com/k0kubun/pp"
 )
 
-var EndlineReplacer = strings.NewReplacer("\r\n", "\n", "\r", "\n")
+var NewlineReplacer = strings.NewReplacer("\r\n", "\n", "\r", "\n")
 
 func main() {
 	cgroup := os.Getenv("PPJUDGE_CGROUP")             //flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
@@ -565,7 +565,7 @@ func main() {
 									stat.Status = sctypes.SubmissionStatusInternalError
 
 									FSLog().WithError(err).Error("File readall error")
-								} else if EndlineReplacer.Replace(stat.Stdout) != EndlineReplacer.Replace(string(b)) {
+								} else if NewlineReplacer.Replace(stat.Stdout) != NewlineReplacer.Replace(string(b)) {
 									stat.Status = sctypes.SubmissionStatusWrongAnswer
 								}
 

@@ -204,17 +204,18 @@ func TimeRangeToStringInt64(start, finish int64) string {
 
 func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http.Request, std database.SessionTemplateData) {
 	type TemplateVal struct {
-		UserName       string
-		Msg            string
-		StartDate      string
-		StartTime      string
-		FinishDate     string
-		FinishTime     string
-		Description    string
-		ContestName    string
-		ContestTypes   map[sctypes.ContestType]string
-		ContestTypeStr string
-		Penalty        int64
+		UserName              string
+		Msg                   string
+		StartDate             string
+		StartTime             string
+		FinishDate            string
+		FinishTime            string
+		Description           string
+		ContestName           string
+		ContestTypes          map[sctypes.ContestType]string
+		ContestTypeStr        string
+		Penalty               int64
+		NewLineAutoConversion bool
 	}
 
 	canCreateContest, err := mainRM.CanCreateContest()
@@ -238,6 +239,7 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 		startDate, startTime := wrapFormStr("start_date"), wrapFormStr("start_time")
 		finishDate, finishTime := wrapFormStr("finish_date"), wrapFormStr("finish_time")
+		newLineAutoConv := wrapFormStr("newline_auto_conv") == "1"
 
 		description := wrapFormStr("description")
 		contestName := wrapFormStr("contest_name")
@@ -266,12 +268,13 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 			return
 		}
+		templateVal := TemplateVal{
+			std.UserName, "", startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty, newLineAutoConv,
+		}
 
 		if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 			msg := "コンテスト名が不正です。"
-			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-			}
+			templateVal.Msg = msg
 
 			ch.NewContest.Execute(rw, templateVal)
 
@@ -282,10 +285,8 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 		if err != nil {
 			msg := "開始日時の値が不正です。"
-			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-			}
 
+			templateVal.Msg = msg
 			ch.NewContest.Execute(rw, templateVal)
 
 			return
@@ -295,10 +296,8 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 		if err != nil {
 			msg := "終了日時の値が不正です。"
-			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-			}
 
+			templateVal.Msg = msg
 			ch.NewContest.Execute(rw, templateVal)
 
 			return
@@ -306,10 +305,8 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 
 		if start.Unix() >= finish.Unix() || start.Unix() < time.Now().Unix() {
 			msg := "開始日時または終了日時の値が不正です。"
-			templateVal := TemplateVal{
-				std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-			}
 
+			templateVal.Msg = msg
 			ch.NewContest.Execute(rw, templateVal)
 
 			return
@@ -319,14 +316,12 @@ func (ch ContestsTopHandler) newContestHandler(rw http.ResponseWriter, req *http
 			return ppjcClient.ContestsNew(cid)
 		}
 
-		cont, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, contestType, penalty, ppjcNew)
+		cont, err := mainDB.ContestAdd(contestName, start, finish, std.Iid, contestType, penalty, newLineAutoConv, ppjcNew)
 
 		if err != nil {
 			if strings.Index(err.Error(), "Duplicate") != -1 {
 				msg := "すでに存在するコンテスト名です。"
-				templateVal := TemplateVal{
-					std.UserName, msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
-				}
+				templateVal.Msg = msg
 
 				ch.NewContest.Execute(rw, templateVal)
 

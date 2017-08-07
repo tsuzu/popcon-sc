@@ -112,6 +112,10 @@ func (e *Executor) Run(input string) ExecResult {
 
 	wg.Wait()
 
+	if hijackErr != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to hijack stdin/stdout"}
+	}
+
 	const LimitedSize int64 = 100 * 1024 * 1024
 	var stdoutStr, stderrStr string
 	func() {
@@ -166,7 +170,7 @@ func (e *Executor) Run(input string) ExecResult {
 
 	var exitCode int
 	var execMillisec int64
-	for _, elm := range strings.Split(strings.TrimRight(EndlineReplacer.Replace(string(buf)), "\n"), "\n") {
+	for _, elm := range strings.Split(strings.TrimRight(NewlineReplacer.Replace(string(buf)), "\n"), "\n") {
 		arrRes := strings.Split(elm, " ")
 
 		if len(arrRes) != 2 {
