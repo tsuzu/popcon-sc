@@ -397,7 +397,7 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 			return
 		}
 
-		if sm.SubmitTime.After(cont.FinishTime) {
+		if cont.FinishTime.After(sm.SubmitTime) {
 			if err := dm.RankingUpdate(res.Cid, sm.Iid, sm.Pid, sctypes.RankingCell{
 				Valid: true,
 				Sid:   res.Sid,
@@ -406,9 +406,9 @@ func (handler *HandlerV1) Route(outer *mux.Router) error {
 				Score: res.Score,
 			}); err != nil {
 				DBLog().WithError(err).WithField("cid", res.Cid).WithField("sid", res.Sid).Error("RankingUpdate() error")
-	
+
 				sctypes.ResponseTemplateWrite(http.StatusInternalServerError, rw)
-	
+
 				return
 
 			}
