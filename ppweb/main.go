@@ -316,5 +316,7 @@ func main() {
 			HttpLog().Error(err)
 		}
 	}
-	traefikShutdown()
+	if traefikShutdown != nil {
+		traefikShutdown()
+	}
 }
