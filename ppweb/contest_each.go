@@ -1099,19 +1099,18 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 		sub.HandleFunc("/setting", func(rw http.ResponseWriter, req *http.Request) {
 			pdata := req.Context().Value(ContestEachContextKey).(ContestEachPreparedData)
 			type TemplateVal struct {
-				Cid                   int64
-				UserName              string
-				Msg                   *string
-				StartDate             string
-				StartTime             string
-				FinishDate            string
-				FinishTime            string
-				Description           string
-				ContestName           string
-				ContestTypes          map[sctypes.ContestType]string
-				ContestTypeStr        string
-				Penalty               int64
-				NewLineAutoConversion bool
+				Cid            int64
+				UserName       string
+				Msg            *string
+				StartDate      string
+				StartTime      string
+				FinishDate     string
+				FinishTime     string
+				Description    string
+				ContestName    string
+				ContestTypes   map[sctypes.ContestType]string
+				ContestTypeStr string
+				Penalty        int64
 			}
 
 			if req.Method == "POST" {
@@ -1124,8 +1123,6 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				contestName := wrapFormStr("contest_name")
 				contestTypeStr := wrapFormStr("contest_type")
 				penalty := wrapFormInt64("penalty")
-				newLineAutoConv := wrapFormStr("newline_auto_conv") == "1"
-
 				startStr := startDate + " " + startTime
 				finishStr := finishDate + " " + finishTime
 
@@ -1143,13 +1140,13 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 					return
 				}
-				templateVal := TemplateVal{
-					pdata.Cid, pdata.Std.UserID, nil, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty, newLineAutoConv,
-				}
+
 				if len(contestName) == 0 || !UTF8StringLengthAndBOMCheck(contestName, 40) || strings.TrimSpace(contestName) == "" {
 					msg := "コンテスト名が不正です。"
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
-					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1159,8 +1156,10 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if err != nil {
 					msg := "開始日時の値が不正です。"
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
-					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1172,9 +1171,9 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					startDate = pdata.Contest.StartTime.In(Location).Format("2006/01/02")
 					startTime = pdata.Contest.StartTime.In(Location).Format("15:04")
 
-					templateVal.StartDate = startDate
-					templateVal.StartTime = startTime
-					templateVal.Msg = &msg
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, pdata.Contest.StartTime.In(Location).Format("2006/01/02 15:04"), finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1185,8 +1184,10 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if err != nil {
 					msg := "終了日時の値が不正です。"
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
-					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
@@ -1198,9 +1199,9 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					finishDate = pdata.Contest.FinishTime.In(Location).Format("2006/01/02")
 					finishTime = pdata.Contest.FinishTime.In(Location).Format("15:04")
 
-					templateVal.FinishDate = finishDate
-					templateVal.FinishTime = finishTime
-					templateVal.Msg = &msg
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1209,19 +1210,23 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if start.Unix() >= finish.Unix() || (pdata.Contest.StartTime.Unix() != start.Unix() && start.Unix() < time.Now().Unix()) || (pdata.Contest.FinishTime.Unix() != finish.Unix() && finish.Unix() < time.Now().Unix()) {
 					msg := "開始日時及び終了日時の値が不正です。"
+					templateVal := TemplateVal{
+						pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+					}
 
-					templateVal.Msg = &msg
 					ceh.ManagementSettingPage.Execute(rw, templateVal)
 
 					return
 				}
 
-				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, contestType, penalty, newLineAutoConv)
+				err = mainDB.ContestUpdate(pdata.Cid, contestName, start, finish, pdata.Contest.Admin, contestType, penalty)
 
 				if err != nil {
 					if strings.Index(err.Error(), "Duplicate") != -1 {
 						msg := "すでに存在するコンテスト名です。"
-						templateVal.Msg = &msg
+						templateVal := TemplateVal{
+							pdata.Cid, pdata.Std.UserID, &msg, startDate, startTime, finishDate, finishTime, description, contestName, sctypes.ContestTypeToString, contestTypeStr, penalty,
+						}
 
 						ceh.ManagementSettingPage.Execute(rw, templateVal)
 
@@ -1245,18 +1250,17 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				desc, _ := pdata.Contest.DescriptionLoad()
 
 				templateVal := TemplateVal{
-					Cid:                   pdata.Cid,
-					UserName:              pdata.Std.UserID,
-					StartDate:             pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
-					StartTime:             pdata.Contest.StartTime.In(Location).Format("15:04"),
-					FinishDate:            pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
-					FinishTime:            pdata.Contest.FinishTime.In(Location).Format("15:04"),
-					ContestName:           pdata.Contest.Name,
-					Description:           desc,
-					ContestTypes:          sctypes.ContestTypeToString,
-					ContestTypeStr:        sctypes.ContestTypeToString[pdata.Contest.Type],
-					Penalty:               pdata.Contest.Penalty,
-					NewLineAutoConversion: pdata.Contest.NewLineAutoConversion,
+					Cid:            pdata.Cid,
+					UserName:       pdata.Std.UserID,
+					StartDate:      pdata.Contest.StartTime.In(Location).Format("2006/01/02"),
+					StartTime:      pdata.Contest.StartTime.In(Location).Format("15:04"),
+					FinishDate:     pdata.Contest.FinishTime.In(Location).Format("2006/01/02"),
+					FinishTime:     pdata.Contest.FinishTime.In(Location).Format("15:04"),
+					ContestName:    pdata.Contest.Name,
+					Description:    desc,
+					ContestTypes:   sctypes.ContestTypeToString,
+					ContestTypeStr: sctypes.ContestTypeToString[pdata.Contest.Type],
+					Penalty:        pdata.Contest.Penalty,
 				}
 
 				HttpLog().WithError(ceh.ManagementSettingPage.Execute(rw, templateVal)).Debug("Execute() error")
@@ -1301,20 +1305,21 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			}
 
 			type TemplateVal struct {
-				Cid         int64
-				ContestName string
-				UserName    string
-				Msg         string
-				Mode        bool
-				Pidx        int64
-				Name        string
-				Time        int64
-				Mem         int64
-				Type        int64
-				Prob        string
-				Lang        int64
-				Languages   []database.Language
-				Code        string
+				Cid                   int64
+				ContestName           string
+				UserName              string
+				Msg                   string
+				Mode                  bool
+				Pidx                  int64
+				Name                  string
+				Time                  int64
+				Mem                   int64
+				Type                  int64
+				NewlineCharConversion bool
+				Prob                  string
+				Lang                  int64
+				Languages             []database.Language
+				Code                  string
 			}
 
 			wrapForm := createWrapFormInt64(req)
@@ -1332,13 +1337,14 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 			if req.Method == "GET" {
 				temp := TemplateVal{
-					Cid:         pdata.Cid,
-					ContestName: pdata.Contest.Name,
-					Time:        1,
-					Mem:         32,
-					UserName:    pdata.Std.UserName,
-					Mode:        true,
-					Languages:   languages,
+					Cid:                   pdata.Cid,
+					ContestName:           pdata.Contest.Name,
+					Time:                  1,
+					Mem:                   32,
+					UserName:              pdata.Std.UserName,
+					Mode:                  true,
+					Languages:             languages,
+					NewlineCharConversion: true,
 				}
 
 				// TODO: Add the setting of the maximum number of problems
@@ -1352,6 +1358,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			} else if req.Method == "POST" {
 				pidx, name, time, mem := wrapForm("pidx"), wrapFormStr("problem_name"), wrapForm("time"), wrapForm("mem")
 				jtype, prob, lid, code := wrapForm("type"), wrapFormStr("prob"), wrapForm("lang"), wrapFormStr("code")
+				newlineCharConv := wrapFormStr("newline_char_conv") == "1"
 
 				if pidx == -1 || time < 1 || time > 10 || mem < 32 || mem > 1024 || jtype < 0 || jtype > 1 || (jtype == int64(sctypes.JudgeRunningCode) && lid == -1) {
 					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
@@ -1359,50 +1366,41 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					return
 				}
 
+				templateVal := TemplateVal{
+					Cid:         pdata.Cid,
+					ContestName: pdata.Contest.Name,
+					UserName:    pdata.Std.UserName,
+					Mode:        true,
+					Pidx:        pidx,
+					Name:        name,
+					Time:        time,
+					Mem:         mem,
+					Type:        jtype,
+					NewlineCharConversion: newlineCharConv,
+					Prob:      prob,
+					Lang:      lid,
+					Languages: languages,
+					Code:      code,
+				}
+
 				if len(name) == 0 || !UTF8StringLengthAndBOMCheck(name, 40) || strings.TrimSpace(name) == "" {
+					templateVal.Msg = "問題名が不正です。"
 					ceh.ManagementProblemSettingPage.Execute(
 						rw,
-						TemplateVal{
-							pdata.Cid,
-							pdata.Contest.Name,
-							pdata.Std.UserName,
-							"問題名が不正です。",
-							true,
-							pidx,
-							name,
-							time,
-							mem,
-							jtype,
-							prob,
-							lid,
-							languages,
-							code,
-						},
+						templateVal,
 					)
 
 					return
 				}
 
 				if cnt >= 50 {
+					templateVal.Msg = "コンテストの問題数の上限に達しているため新しく問題を追加することができません。"
 					ceh.ManagementProblemSettingPage.Execute(
 						rw,
-						TemplateVal{
-							pdata.Cid,
-							pdata.Contest.Name,
-							pdata.Std.UserName,
-							"コンテストの問題数の上限に達しているため新しく問題を追加することができません。",
-							true,
-							pidx,
-							name,
-							time,
-							mem,
-							jtype,
-							prob,
-							lid,
-							languages,
-							code,
-						},
+						templateVal,
 					)
+
+					return
 				}
 
 				if sctypes.JudgeType(jtype) == sctypes.JudgeRunningCode {
@@ -1420,7 +1418,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					}
 				}
 
-				cp, err = pdata.Contest.ProblemAdd(pidx, name, time, mem, sctypes.JudgeType(jtype))
+				cp, err = pdata.Contest.ProblemAdd(pidx, name, time, mem, sctypes.JudgeType(jtype), newlineCharConv)
 
 				if err == nil {
 					if err := ppjcClient.ContestsProblemsAdd(pdata.Cid, cp.Pid); err != nil {
@@ -1436,24 +1434,10 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 
 				if err != nil {
 					if database.IsDuplicateError(err) {
+						templateVal.Msg = "使用されている問題番号です。"
 						ceh.ManagementProblemSettingPage.Execute(
 							rw,
-							TemplateVal{
-								pdata.Cid,
-								pdata.Contest.Name,
-								pdata.Std.UserName,
-								"使用されている問題番号です。",
-								true,
-								pidx,
-								name,
-								time,
-								mem,
-								jtype,
-								prob,
-								lid,
-								languages,
-								code,
-							},
+							templateVal,
 						)
 
 						return
@@ -1505,20 +1489,21 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			}
 
 			type TemplateVal struct {
-				Cid         int64
-				ContestName string
-				UserName    string
-				Msg         string
-				Mode        bool
-				Pidx        int64
-				Name        string
-				Time        int64
-				Mem         int64
-				Type        int64
-				Prob        string
-				Lang        int64
-				Languages   []database.Language
-				Code        string
+				Cid                   int64
+				ContestName           string
+				UserName              string
+				Msg                   string
+				Mode                  bool
+				Pidx                  int64
+				Name                  string
+				Time                  int64
+				Mem                   int64
+				Type                  int64
+				NewlineCharConversion bool
+				Prob                  string
+				Lang                  int64
+				Languages             []database.Language
+				Code                  string
 			}
 
 			wrapForm := createWrapFormInt64(req)
@@ -1576,9 +1561,10 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					Mem:         cp.Mem,
 					Pidx:        upidx,
 					Type:        int64(cp.Type),
-					Lang:        lid,
-					Code:        checker,
-					Prob:        stat,
+					NewlineCharConversion: cp.NewlineCharConversion,
+					Lang: lid,
+					Code: checker,
+					Prob: stat,
 				}
 
 				ceh.ManagementProblemSettingPage.Execute(rw, temp)
@@ -1587,6 +1573,7 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 			} else if req.Method == "POST" {
 				pidx, name, time, mem := wrapForm("pidx"), wrapFormStr("problem_name"), wrapForm("time"), wrapForm("mem")
 				jtype, prob, lid, code := wrapForm("type"), wrapFormStr("prob"), wrapForm("lang"), wrapFormStr("code")
+				newlineCharConv := wrapFormStr("newline_char_conv") == "1"
 
 				if pidx == -1 || time < 1 || time > 10 || mem < 32 || mem > 1024 || jtype < 0 || jtype > 1 || (jtype == int64(sctypes.JudgeRunningCode) && lid == -1) {
 					sctypes.ResponseTemplateWrite(http.StatusBadRequest, rw)
@@ -1594,50 +1581,43 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 					return
 				}
 
+				templateVal := TemplateVal{
+					Cid:                   pdata.Cid,
+					ContestName:           pdata.Contest.Name,
+					UserName:              pdata.Std.UserName,
+					Mode:                  false,
+					Pidx:                  pidx,
+					Name:                  name,
+					Type:                  jtype,
+					Time:                  time,
+					Mem:                   mem,
+					Prob:                  prob,
+					Lang:                  lid,
+					Code:                  code,
+					Languages:             languages,
+					NewlineCharConversion: newlineCharConv,
+				}
+
 				if len(name) == 0 || !UTF8StringLengthAndBOMCheck(name, 40) || strings.TrimSpace(name) == "" {
+
+					templateVal.Msg = "問題名が不正です。"
+
 					ceh.ManagementProblemSettingPage.Execute(
 						rw,
-						TemplateVal{
-							pdata.Cid,
-							pdata.Contest.Name,
-							pdata.Std.UserName,
-							"問題名が不正です。",
-							true,
-							pidx,
-							name,
-							time,
-							mem,
-							jtype,
-							prob,
-							lid,
-							languages,
-							code,
-						},
+						templateVal,
 					)
 
 					return
 				}
 
 				if cnt >= 50 {
+					templateVal.Msg = "コンテストの問題数の上限に達しているため新しく問題を追加することができません。"
 					ceh.ManagementProblemSettingPage.Execute(
 						rw,
-						TemplateVal{
-							pdata.Cid,
-							pdata.Contest.Name,
-							pdata.Std.UserName,
-							"コンテストの問題数の上限に達しているため新しく問題を追加することができません。",
-							true,
-							pidx,
-							name,
-							time,
-							mem,
-							jtype,
-							prob,
-							lid,
-							languages,
-							code,
-						},
+						templateVal,
 					)
+
+					return
 				}
 
 				if sctypes.JudgeType(jtype) == sctypes.JudgeRunningCode {
@@ -1660,29 +1640,16 @@ func CreateContestEachHandler() (*ContestEachHandler, error) {
 				cp.Time = time
 				cp.Mem = mem
 				cp.Type = sctypes.JudgeType(jtype)
+				cp.NewlineCharConversion = newlineCharConv
 
 				err = mainDB.ContestProblemUpdate(*cp)
 
 				if err != nil {
 					if database.IsDuplicateError(err) {
+						templateVal.Msg = "使用されている問題番号です。"
 						ceh.ManagementProblemSettingPage.Execute(
 							rw,
-							TemplateVal{
-								pdata.Cid,
-								pdata.Contest.Name,
-								pdata.Std.UserName,
-								"使用されている問題番号です。",
-								true,
-								pidx,
-								name,
-								time,
-								mem,
-								jtype,
-								prob,
-								lid,
-								languages,
-								code,
-							},
+							templateVal,
 						)
 
 						return

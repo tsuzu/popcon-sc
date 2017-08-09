@@ -11,20 +11,19 @@ import (
 )
 
 type Contest struct {
-	Cid                   int64               `gorm:"primary_key"`
-	Name                  string              `gorm:"not null;unique_index"`
-	StartTime             time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
-	FinishTime            time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
-	Admin                 int64               `gorm:"not null"`
-	Penalty               int64               `gorm:"not null"`
-	NewLineAutoConversion bool                `gorm:"not null;default:false"`
-	Type                  sctypes.ContestType `gorm:"not null"`
-	DescriptionFile       string              `gorm:"not null"`
-	dm                    *DatabaseManager    `gorm:"-"`
+	Cid             int64               `gorm:"primary_key"`
+	Name            string              `gorm:"not null;unique_index"`
+	StartTime       time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
+	FinishTime      time.Time           `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
+	Admin           int64               `gorm:"not null"`
+	Penalty         int64               `gorm:"not null"`
+	Type            sctypes.ContestType `gorm:"not null"`
+	DescriptionFile string              `gorm:"not null"`
+	dm              *DatabaseManager    `gorm:"-"`
 }
 
-func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sctypes.JudgeType) (*ContestProblem, error) {
-	pb, err := c.dm.ContestProblemAdd(c.Cid, pidx, name, time, mem, jtype)
+func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sctypes.JudgeType, newlineCharConversion bool) (*ContestProblem, error) {
+	pb, err := c.dm.ContestProblemAdd(c.Cid, pidx, name, time, mem, jtype, newlineCharConversion)
 
 	if err != nil {
 		return nil, err
@@ -83,7 +82,7 @@ func (dm *DatabaseManager) CreateContestTable() error {
 	return nil
 }
 
-func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, newLineAutoConv bool, backgroundPreparation func(cid int64) error) (*Contest, error) {
+func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, backgroundPreparation func(cid int64) error) (*Contest, error) {
 	contest := Contest{
 		Name:       name,
 		StartTime:  start,
@@ -92,7 +91,6 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 		Type:       ctype,
 		Penalty:    penalty,
 		dm:         dm,
-		NewLineAutoConversion: newLineAutoConv,
 	}
 
 	if err := dm.BeginDM(func(dm *DatabaseManager) error {
@@ -133,16 +131,15 @@ func (dm *DatabaseManager) ContestAdd(name string, start time.Time, finish time.
 	return &contest, nil
 }
 
-func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64, newLineAutoConv bool) error {
+func (dm *DatabaseManager) ContestUpdate(cid int64, name string, start time.Time, finish time.Time, admin int64, ctype sctypes.ContestType, penalty int64) error {
 	cont := Contest{
-		Cid:                   cid,
-		Name:                  name,
-		StartTime:             start,
-		FinishTime:            finish,
-		Admin:                 admin,
-		Type:                  ctype,
-		Penalty:               penalty,
-		NewLineAutoConversion: newLineAutoConv,
+		Cid:        cid,
+		Name:       name,
+		StartTime:  start,
+		FinishTime: finish,
+		Admin:      admin,
+		Type:       ctype,
+		Penalty:    penalty,
 	}
 
 	err := dm.db.Omit("description_file").Save(&cont).Error

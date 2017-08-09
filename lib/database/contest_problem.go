@@ -81,22 +81,23 @@ func (ss *ContestProblemScoreSet) AfterFind() error {
 }
 
 type ContestProblem struct {
-	Pid             int64                    `gorm:"primary_key"`
-	Cid             int64                    `gorm:"-"` //`gorm:"not null;index;unique_index:cid_and_pidx_index"`
-	Pidx            int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
-	Name            string                   `gorm:"not null;size:255"`
-	Time            int64                    `gorm:"not null"` // Second
-	Mem             int64                    `gorm:"not null"` // MB
-	LastModified    int64                    `gorm:"not null"`
-	Score           int64                    `gorm:"not null"`
-	Type            sctypes.JudgeType        `gorm:"not null"`
-	StatementFile   string                   `gorm:"not null;size:127"`
-	CheckerFile     string                   `gorm:"not null;size:127"`
-	RelatedFilesStr string                   `gorm:"not null;size:1023"`
-	RelatedFiles    []string                 `gorm:"-"`
-	Cases           []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
-	Scores          []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
-	dm              *DatabaseManager         `gorm:"-"`
+	Pid                   int64                    `gorm:"primary_key"`
+	Cid                   int64                    `gorm:"-"` //`gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Pidx                  int64                    `gorm:"not null;index;unique_index:cid_and_pidx_index"`
+	Name                  string                   `gorm:"not null;size:255"`
+	Time                  int64                    `gorm:"not null"` // Second
+	Mem                   int64                    `gorm:"not null"` // MB
+	LastModified          int64                    `gorm:"not null"`
+	Score                 int64                    `gorm:"not null"`
+	Type                  sctypes.JudgeType        `gorm:"not null"`
+	NewlineCharConversion bool                     `gorm:"not null;default: true"`
+	StatementFile         string                   `gorm:"not null;size:127"`
+	CheckerFile           string                   `gorm:"not null;size:127"`
+	RelatedFilesStr       string                   `gorm:"not null;size:1023"`
+	RelatedFiles          []string                 `gorm:"-"`
+	Cases                 []ContestProblemTestCase `gorm:"ForeignKey:Pid"`
+	Scores                []ContestProblemScoreSet `gorm:"ForeignKey:Pid"`
+	dm                    *DatabaseManager         `gorm:"-"`
 }
 
 func (cp *ContestProblem) AfterFind() {
@@ -469,7 +470,7 @@ func (cp *ContestProblem) LoadTestCaseNames() ([]string, []ContestProblemScoreSe
 	return caseNames, scores, nil
 }
 
-func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeLimit, mem int64, jtype sctypes.JudgeType) (int64, error) {
+func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeLimit, mem int64, jtype sctypes.JudgeType, newlineCharConversion bool) (int64, error) {
 	cp := &ContestProblem{
 		Cid:  cid,
 		Pidx: pidx,
@@ -477,6 +478,7 @@ func (dm *DatabaseManager) ContestProblemAdd(cid, pidx int64, name string, timeL
 		Time: timeLimit,
 		Mem:  mem,
 		Type: jtype,
+		NewlineCharConversion: newlineCharConversion,
 	}
 
 	err := dm.db.Create(cp).Error

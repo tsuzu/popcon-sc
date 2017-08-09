@@ -1,13 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"io/ioutil"
-	"fmt"
 	"strings"
-	"github.com/cs3238-tsuzu/popcon-sc/lib/types"
 )
 
 type JudgeRunCode struct {
@@ -17,7 +17,7 @@ type JudgeRunCode struct {
 	CheckerExec    ExecRequest
 }
 
-func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
+func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase, replaceNewlineChar bool) {
 	defer close(ch)
 
 	// Identification
@@ -254,99 +254,112 @@ func (j *JudgeRunCode) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 		ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusJudging}
 
 		r := sctypes.SubmissionStatusAccepted
-		res := exe.Run(tc.Input)
+		var inputStr string
+		if b, err := ioutil.ReadFile(tc.Input); err != nil {
+			ch <- CreateInternalError(name, "Failed to open a file(input testcase)")
 
-		if res.Status != ExecFinished {
-			switch res.Status {
-			case ExecError:
-				ch <- CreateInternalError(name, "Failed to execute your code. "+res.Stderr)
-				r = sctypes.SubmissionStatusInternalError
-				maxMem = -1
-				maxTime = -1
-			case ExecMemoryLimitExceeded:
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusMemoryLimitExceeded}
-				r = sctypes.SubmissionStatusMemoryLimitExceeded
-				maxMem = -1
-				maxTime = -1
-			case ExecTimeLimitExceeded:
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusTimeLimitExceeded}
-				r = sctypes.SubmissionStatusTimeLimitExceeded
-				maxMem = -1
-				maxTime = -1
-			}
+			maxMem = -1
+			maxTime = -1
+			r = sctypes.SubmissionStatusInternalError
 		} else {
-			if res.ExitCode != 0 {
-				ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusRuntimeError}
-				r = sctypes.SubmissionStatusRuntimeError
-				maxMem = -1
-				maxTime = -1
+			if replaceNewlineChar {
+				inputStr = NewlineReplacer.Replace(string(b))
 			} else {
-				if err := ioutil.WriteFile(filepath.Join(jpath, "stdin.txt"), []byte(tc.Input), 0444); err != nil {
-					ch <- CreateInternalError(name, "Failed to write stdin in stdin.txt.:"+err.Error())
+				inputStr = string(b)
+			}
+			b = nil
+			if res := exe.Run(inputStr); res.Status != ExecFinished {
+				switch res.Status {
+				case ExecError:
+					ch <- CreateInternalError(name, "Failed to execute your code. "+res.Stderr)
 					r = sctypes.SubmissionStatusInternalError
 					maxMem = -1
 					maxTime = -1
-				} else if err := ioutil.WriteFile(filepath.Join(jpath, "stdout.txt"), []byte(res.Stdout), 0444); err != nil {
-					ch <- CreateInternalError(name, "Failed to write stdout in stdout.txt.:"+err.Error())
-					r = sctypes.SubmissionStatusInternalError
+				case ExecMemoryLimitExceeded:
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusMemoryLimitExceeded}
+					r = sctypes.SubmissionStatusMemoryLimitExceeded
+					maxMem = -1
+					maxTime = -1
+				case ExecTimeLimitExceeded:
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusTimeLimitExceeded}
+					r = sctypes.SubmissionStatusTimeLimitExceeded
+					maxMem = -1
+					maxTime = -1
+				}
+			} else {
+				if res.ExitCode != 0 {
+					ch <- JudgeStatus{Case: name, Status: sctypes.SubmissionStatusRuntimeError}
+					r = sctypes.SubmissionStatusRuntimeError
 					maxMem = -1
 					maxTime = -1
 				} else {
-					// Release memory
-					tc.Input = ""
-
-					cres := cexe.Run(fmt.Sprintf("%d\n%s\n%s\n%s", name, "/data/stdin.txt", "/data/stdout.txt", filepath.Join("/judged", j.Exec.SourceFileName)))
-
-					if cres.Status != ExecFinished {
-						switch cres.Status {
-						case ExecError:
-							ch <- CreateInternalError(name, "Failed to execute checker code.")
-							r = sctypes.SubmissionStatusInternalError
-							maxMem = -1
-							maxTime = -1
-						case ExecMemoryLimitExceeded:
-							ch <- CreateInternalError(name, "Memory limit of the checker exceeded.")
-							r = sctypes.SubmissionStatusInternalError
-							maxMem = -1
-							maxTime = -1
-						case ExecTimeLimitExceeded:
-							ch <- CreateInternalError(name, "Time limit of the checker exceeded.")
-							r = sctypes.SubmissionStatusInternalError
-							maxMem = -1
-							maxTime = -1
-						}
+					if err := ioutil.WriteFile(filepath.Join(jpath, "stdin.txt"), []byte(tc.Input), 0444); err != nil {
+						ch <- CreateInternalError(name, "Failed to write stdin in stdin.txt.:"+err.Error())
+						r = sctypes.SubmissionStatusInternalError
+						maxMem = -1
+						maxTime = -1
+					} else if err := ioutil.WriteFile(filepath.Join(jpath, "stdout.txt"), []byte(res.Stdout), 0444); err != nil {
+						ch <- CreateInternalError(name, "Failed to write stdout in stdout.txt.:"+err.Error())
+						r = sctypes.SubmissionStatusInternalError
+						maxMem = -1
+						maxTime = -1
 					} else {
-						if cres.ExitCode != 0 {
-							ch <- CreateInternalError(name, "Runtime of the checker error")
-							r = sctypes.SubmissionStatusInternalError
-							maxMem = -1
-							maxTime = -1
-						} else {
-							// TODO: Support flexible score
-							// s := strings.SplitN(res.Stdout, "\n", 2)
-							// s = strings.SplitN(s[0], "\r", 2)
+						// Release memory
+						tc.Input = ""
 
-							if strings.SplitN(strings.SplitN(cres.Stdout, "\n", 2)[0], "\r", 2)[0] == "WA" {
-								r = sctypes.SubmissionStatusWrongAnswer
+						cres := cexe.Run(fmt.Sprintf("%d\n%s\n%s\n%s", name, "/data/stdin.txt", "/data/stdout.txt", filepath.Join("/judged", j.Exec.SourceFileName)))
+
+						if cres.Status != ExecFinished {
+							switch cres.Status {
+							case ExecError:
+								ch <- CreateInternalError(name, "Failed to execute checker code.")
+								r = sctypes.SubmissionStatusInternalError
+								maxMem = -1
+								maxTime = -1
+							case ExecMemoryLimitExceeded:
+								ch <- CreateInternalError(name, "Memory limit of the checker exceeded.")
+								r = sctypes.SubmissionStatusInternalError
+								maxMem = -1
+								maxTime = -1
+							case ExecTimeLimitExceeded:
+								ch <- CreateInternalError(name, "Time limit of the checker exceeded.")
+								r = sctypes.SubmissionStatusInternalError
+								maxMem = -1
+								maxTime = -1
 							}
-							// strconv.ParseInt(s[0], 10, 64)
-							ch <- JudgeStatus{
-								Case:   name,
-								Status: r,
-								Mem:    res.Mem,
-								Time:   res.Time,
-								Stdout: res.Stdout,
-								Stderr: res.Stderr,
+						} else {
+							if cres.ExitCode != 0 {
+								ch <- CreateInternalError(name, "Runtime of the checker error")
+								r = sctypes.SubmissionStatusInternalError
+								maxMem = -1
+								maxTime = -1
+							} else {
+								// TODO: Support flexible score
+								// s := strings.SplitN(res.Stdout, "\n", 2)
+								// s = strings.SplitN(s[0], "\r", 2)
+
+								if strings.SplitN(strings.SplitN(cres.Stdout, "\n", 2)[0], "\r", 2)[0] == "WA" {
+									r = sctypes.SubmissionStatusWrongAnswer
+								}
+								// strconv.ParseInt(s[0], 10, 64)
+								ch <- JudgeStatus{
+									Case:   name,
+									Status: r,
+									Mem:    res.Mem,
+									Time:   res.Time,
+									Stdout: res.Stdout,
+									Stderr: res.Stderr,
+								}
 							}
 						}
 					}
-				}
 
-				if maxMem != -1 {
-					maxMem = maxInt64(maxMem, res.Mem)
-				}
-				if maxTime != -1 {
-					maxTime = maxInt64(maxTime, res.Time)
+					if maxMem != -1 {
+						maxMem = maxInt64(maxMem, res.Mem)
+					}
+					if maxTime != -1 {
+						maxTime = maxInt64(maxTime, res.Time)
+					}
 				}
 			}
 		}

@@ -17,7 +17,7 @@ type JudgeSimple struct {
 	Mem     int64
 }
 
-func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
+func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase, replaceNewlineChar bool) {
 	defer close(ch)
 
 	// Identification
@@ -139,13 +139,19 @@ func (j *JudgeSimple) Run(ch chan<- JudgeStatus, tests <-chan TestCase) {
 
 		var inputStr string
 		if b, err := ioutil.ReadFile(tc.Input); err != nil {
-			ch <- CreateInternalError(name, "Failed to open a file(input testcase)")
+			ch <- CreateInternalError(name, "Failed to open a file(testcase input)")
 
 			maxMem = -1
 			maxTime = -1
 			r = sctypes.SubmissionStatusInternalError
 		} else {
-			inputStr = string(b)
+			if replaceNewlineChar {
+				inputStr = NewlineReplacer.Replace(string(b))
+			} else {
+				inputStr = string(b)
+			}
+			b = nil
+
 			if res := exe.Run(inputStr); res.Status != ExecFinished {
 				switch res.Status {
 				case ExecError:

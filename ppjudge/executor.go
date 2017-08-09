@@ -49,6 +49,10 @@ func (e *Executor) Run(input string) ExecResult {
 	cg := e.Cgr
 	memc := cg.getSubsys("memory")
 
+	if err := memc.setValInt(0, "memory.max_usage_in_bytes"); err != nil {
+		return ExecResult{ExecError, 0, 0, 0, "", "Failed to reset memory.max_usage_in_bytes" + err.Error()}
+	}
+
 	hijack, err := cli.ContainerAttach(context.Background(), e.Name, types.ContainerAttachOptions{Stream: true, Stdin: true, Stdout: true, Stderr: true})
 
 	if err != nil {
@@ -206,7 +210,7 @@ func (e *Executor) Run(input string) ExecResult {
 		}
 	}
 
-	if execMillisec > e.Time {
+	if execMillisec >= e.Time {
 		cli.ContainerKill(ctx, e.Name, "SIGKILL")
 
 		return ExecResult{ExecTimeLimitExceeded, 0, 0, 0, "", ""}

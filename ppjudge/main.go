@@ -34,8 +34,6 @@ import (
 	"github.com/k0kubun/pp"
 )
 
-var NewlineReplacer = strings.NewReplacer("\r\n", "\n", "\r", "\n")
-
 func main() {
 	cgroup := os.Getenv("PPJUDGE_CGROUP")             //flag.String("cgroup", "/sys/fs/cgroup", "cgroup dir")
 	docker := os.Getenv("PPJUDGE_DOCKER")             //flag.String("docker", "unix:///var/run/docker.sock", "docker host path")
@@ -565,8 +563,14 @@ func main() {
 									stat.Status = sctypes.SubmissionStatusInternalError
 
 									FSLog().WithError(err).Error("File readall error")
-								} else if NewlineReplacer.Replace(stat.Stdout) != NewlineReplacer.Replace(string(b)) {
-									stat.Status = sctypes.SubmissionStatusWrongAnswer
+								} else if req.Problem.NewlineCharConversion {
+									if NewlineReplacer.Replace(stat.Stdout) != NewlineReplacer.Replace(string(b)) {
+										stat.Status = sctypes.SubmissionStatusWrongAnswer
+									}
+								} else {
+									if stat.Stdout != string(b) {
+										stat.Status = sctypes.SubmissionStatusWrongAnswer
+									}
 								}
 
 								fp.Close()
@@ -609,7 +613,7 @@ func main() {
 				}
 			}()
 
-			judge.Run(statusChan, casesChan)
+			judge.Run(statusChan, casesChan, req.Problem.NewlineCharConversion) /*TODO: newline character replace*/
 		}()
 	}
 

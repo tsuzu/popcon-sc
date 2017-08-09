@@ -9,7 +9,7 @@ import (
 )
 
 type Judge interface {
-	Run(ch chan<- JudgeStatus, tests <-chan TestCase)
+	Run(ch chan<- JudgeStatus, tests <-chan TestCase, replaceNewlineChar bool)
 }
 
 type TestCase struct {

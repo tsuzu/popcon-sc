@@ -46,8 +46,22 @@ services:
             - -bind=0.0.0.0
             - -client=0.0.0.0
             - -server
-            - -bootstrap
+            - -bootstrap-expect=2
             - -datacenter=popcon
+            - -data-dir=/consul
+
+    consul-node:
+        restart: always
+        image: consul 
+        command: 
+            - agent
+            - -bind=0.0.0.0
+            - -client=0.0.0.0
+            - -server
+            - -bootstrap-expect=2
+            - -datacenter=popcon
+            - -join=consul-manager
+            - -data-dir=/consul
 
     mongo:
         restart: always
