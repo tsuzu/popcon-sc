@@ -47,6 +47,13 @@
 - Launch ppjudge
 - Refer to ppjudge/README.md
 
+## Supported Platforms
+- 64bit architecture
+- Ubuntu 16.04 LTS
+- macOS 10.12(with Docker for Mac)
+- Windows 10 Pro (with Docker for Windows)
+	- If you fail to install this on windows, read [FAQ](./doc/faq.md)
+
 ## License
 - Under the MIT License
 - Copyright (c) 2017 Tsuzu
