@@ -88,6 +88,8 @@ func initialize(retry int32) error {
 		if has, err := client.HasFrontend(); err != nil {
 			if retry != 0 {
 				retry--
+
+				time.Sleep(3 * time.Second)
 				continue
 			}
 			return errors.New("consul-manager.HasFrontend() error: " + err.Error())

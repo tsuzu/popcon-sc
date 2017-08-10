@@ -36,7 +36,7 @@ func Initialize(retry int32) error {
 	return err
 }
 func initialize(retry int32) error {
-	addr := os.Getenv("PP_CONSUL_ADDR")
+	addr := os.Getenv("PP_ZOOKEEPER_ADDR")
 	prefix := os.Getenv("PP_TRAEFIK_PREFIX")
 	if len(prefix) == 0 {
 		prefix = "traefik"
@@ -88,6 +88,8 @@ func initialize(retry int32) error {
 		if has, err := client.HasFrontend(); err != nil {
 			if retry != 0 {
 				retry--
+
+				time.Sleep(3 * time.Second)
 				continue
 			}
 			return errors.New("zookeeper.HasFrontend() error: " + err.Error())

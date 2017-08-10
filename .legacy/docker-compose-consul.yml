@@ -26,20 +26,42 @@ services:
         restart: always
         image: traefik
         depends_on: 
-            - zookeeper
+            - consul-manager
         ports: 
             - 80:80
             - 443:443
         command:
             - --web
-            - --zookeeper
-            - --zookeeper.endpoint=zookeeper:2181
-            - --zookeeper.watch=true
+            - --consul
+            - --consul.endpoint=http://consul-manager:8500
+            - --consul.watch=true
             - --debug
     
-    zookeeper:
-        image: zookeeper
+    # If you need slave nodes, launch them like "docker run -d --name consul-test-node --link consul-test:consul consul agent -node=consul2 -join=consul -bind=0.0.0.0 -node-id=$(cat /proc/sys/kernel/random/uuid) -datacenter=dc1 -dev"
+    consul-manager:
         restart: always
+        image: consul 
+        command: 
+            - agent
+            - -bind=0.0.0.0
+            - -client=0.0.0.0
+            - -server
+            - -bootstrap-expect=2
+            - -datacenter=popcon
+            - -data-dir=/consul
+
+    consul-node:
+        restart: always
+        image: consul 
+        command: 
+            - agent
+            - -bind=0.0.0.0
+            - -client=0.0.0.0
+            - -server
+            - -bootstrap-expect=2
+            - -datacenter=popcon
+            - -join=consul-manager
+            - -data-dir=/consul
 
     mongo:
         restart: always
@@ -72,11 +94,11 @@ services:
     ppweb:
         image: tsuzu/popcon-sc-ppweb
         depends_on: 
-            - zookeeper
+            - consul-manager
         ports:
             - 1234:80
         command: 
-            - --enable-traefik-registration=zookeeper
+            - --enable-traefik-registration=consul
             - --debug
         environment:
             PP_MYSQL_ADDR: "root:${PP_DB_PASSWORD}@tcp(mysql:3306)/popcon?charset=utf8mb4&parseTime=True"
@@ -85,7 +107,7 @@ services:
             PP_MONGO_ADDR: "mongo:27017"
             PP_JC_ADDR: "http://ppjc/"
             PP_MS_ADDR: "http://ppms:7502/"
-            PP_ZOOKEEPER_ADDR: "http://zookeeper:8500/"
+            PP_CONSUL_ADDR: "http://consul-manager:8500/"
             PP_TRAEFIK_PREFIX: traefik
             PP_TRAEFIK_BACKEND: ppweb
             PP_TOKEN: ${PP_TOKEN}
