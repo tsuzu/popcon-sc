@@ -1,4 +1,4 @@
-package traefikConsul
+package traefikZookeeper
 
 import (
 	"errors"

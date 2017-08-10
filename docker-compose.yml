@@ -98,7 +98,7 @@ services:
         ports:
             - 1234:80
         command: 
-            - --enable-traefik-registration
+            - --enable-traefik-registration=consul
             - --debug
         environment:
             PP_MYSQL_ADDR: "root:${PP_DB_PASSWORD}@tcp(mysql:3306)/popcon?charset=utf8mb4&parseTime=True"

@@ -1,43 +1,42 @@
-package traefikConsul
+package traefikZookeeper
 
 import (
-	"net/url"
 	"encoding/json"
-	"time"
-	"github.com/samuel/go-zookeeper/zk"
+	"github.com/docker/libkv/store"
+	"github.com/docker/libkv/store/zookeeper"
 )
 
 type Client struct {
 	prefix string
-	client *zk.Conn
+	client store.Store
 }
 
 func NewClient(prefix, addr string) (*Client, error) {
-	conn, _, err := zk.Connect([]string{addr}, 30 * time.Second)
+	store, err := zookeeper.New([]string{addr}, nil)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		prefix: prefix,
-		client: conn,
+		client: store,
 	}, nil
 }
 
 func (c *Client) RegisterNewBackend(backend, serverName, addr string) error {
-	_, err := c.client.Create(
-		c.prefix + "/backends/" + backend + "/servers/" + serverName + "/url",
+	err := c.client.Put(
+		c.prefix+"/backends/"+backend+"/servers/"+serverName+"/url",
 		[]byte(addr),
-		0, nil,
+		nil,
 	)
 
 	return err
 }
 
-func (c* Client) BackendGetAll(backend, serverName string) ([]string, error) {
-	
-}
-
 func (c *Client) BackupBackend(backend, serverName string) ([]byte, error) {
 	keyPrefix := c.prefix + "/backends/" + backend + "/servers/" + serverName + "/"
-	pairs, _, err := c.client.Children(keyPrefix)
+	pairs, err := c.client.List(keyPrefix)
 
 	if err != nil {
 		return nil, err
@@ -60,13 +59,11 @@ func (c *Client) RestoreBackup(backend, serverName string, backup []byte) error 
 	}
 
 	for k, v := range m {
-		_, err := c.client.Create(
-			keyPrefix + k,
+		if err := c.client.Put(
+			keyPrefix+k,
 			v,
-			0, nil,
-		)
-
-		if err != nil {
+			nil,
+		); err != nil {
 			return err
 		}
 	}
@@ -76,19 +73,15 @@ func (c *Client) RestoreBackup(backend, serverName string, backup []byte) error 
 
 // Before executing DeleteBackend, you should execute BackupBackend
 func (c *Client) DeleteBackend(backend, serverName string) error {
-	_, err := c.client.KV().DeleteTree(c.prefix+"/backends/"+backend+"/servers/"+serverName, nil)
-
-	return err
+	return c.client.DeleteTree(c.prefix + "/backends/" + backend + "/servers/" + serverName)
 }
 
 func (c *Client) NewFrontend(frontendName, backendName string) error {
-	_, err := c.client.KV().Put(&api.KVPair{Key: c.prefix + "/frontends/" + frontendName + "/backend", Value: []byte(backendName)}, nil)
-
-	return err
+	return c.client.Put(c.prefix+"/frontends/"+frontendName+"/backend", []byte(backendName), nil)
 }
 
 func (c *Client) HasFrontend() (bool, error) {
-	pairs, _, err := c.client.KV().List(c.prefix+"/frontends/", nil)
+	pairs, err := c.client.List(c.prefix + "/frontends/")
 
 	if err != nil {
 		return false, err

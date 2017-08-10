@@ -3,19 +3,16 @@ package main
 import (
 	"context"
 	"flag"
-	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"net/url"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/cs3238-thuzu/popcon-sc/lib/traefik_zookeeper"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
@@ -38,7 +35,7 @@ func main() {
 	pprof := os.Getenv("PP_PPROF") == "1"
 
 	help := flag.Bool("help", false, "Show help")
-	traefikRegistrationFlag := flag.Bool("enable-traefik-registration", false, "Register/Unregister the address of this server to consul for traefik automatically.")
+	traefikRegistrationFlag := flag.String("enable-traefik-registration", "none", "Register/Unregister the address of this server to KV Store for traefik automatically.")
 	debugFlag := flag.Bool("debug", false, "Debug logging")
 
 	flag.Parse()
@@ -177,121 +174,21 @@ func main() {
 		server.TLSConfig = config
 	}*/
 
-	var traefikShutdown func()
-	func() {
-		if !*traefikRegistrationFlag {
-			return
+	var finalizer func()
+	switch *traefikRegistrationFlag {
+	case "consul":
+		if err := traefikConsul.Initialize(300); err != nil {
+			HttpLog().WithError(err).Error("traefikConsul.Initialize() error")
 		}
-		addr := os.Getenv("PP_CONSUL_ADDR")
-		prefix := os.Getenv("PP_TRAEFIK_PREFIX")
-		if len(prefix) == 0 {
-			prefix = "traefik"
+		finalizer = traefikConsul.Finalize
+	case "zookeeper":
+		if err := traefikZookeeper.Initialize(300); err != nil {
+			HttpLog().WithError(err).Error("traefikZookeeper.Initialize() error")
 		}
-
-		client, err := traefikConsul.NewClient(prefix, addr)
-		if err != nil {
-			HttpLog().WithError(err).Error("traefikConsul.NewClient() error")
-
-			return
-		}
-
-		var advertiseAddr string
-		if addr := os.Getenv("PP_ADVERTISE_ADDR"); len(addr) != 0 {
-			u, err := url.Parse(addr)
-			if err != nil {
-				HttpLog().WithError(err).Errorf("URL format is illegal. The default one will be used.", addr)
-
-			} else {
-				if u.Scheme == "" {
-					u.Scheme = "http"
-				}
-				advertiseAddr = u.String()
-			}
-		} else if iface := os.Getenv("PP_IFACE"); len(iface) != 0 {
-			addr, err := traefikConsul.IPAddressFromIface(iface)
-
-			if err != nil {
-				HttpLog().WithError(err).Errorf("Network interface(%s) was not found. The default one will be used.", iface)
-			} else {
-				advertiseAddr = "http://" + addr
-			}
-
-		}
-
-		if len(advertiseAddr) == 0 {
-			addr, err := traefikConsul.DefaultIPAddress()
-
-			if err != nil {
-				HttpLog().WithError(err).Error("traefikConsul.DefaultIPAddress() error")
-				return
-			}
-
-			advertiseAddr = "http://" + addr
-		}
-
-		backend := os.Getenv("PP_TRAEFIK_BACKEND")
-		if len(backend) == 0 {
-			backend = "backend1"
-		}
-
-		if has, err := client.HasFrontend(); err != nil {
-			HttpLog().WithError(err).Error("consul-manager.HasFrontend() error")
-			return
-		} else {
-			if !has {
-				if err := client.NewFrontend("frontend1" /*default frontend*/, backend); err != nil {
-					HttpLog().WithError(err).Error("consul-manager.NewFrontend() error")
-				}
-			}
-		}
-
-		host, _ := os.Hostname()
-		const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-		rgen := rand.New(rand.NewSource(time.Now().UnixNano()))
-		result := make([]byte, 6)
-		for i := range result {
-			result[i] = chars[rgen.Intn(len(chars))]
-		}
-		serverName := "ppweb-" + host + "-" + string(result)
-
-		if b, err := ioutil.ReadFile("./traefik_config_backup"); err == nil {
-			if err := client.RestoreBackup(backend, serverName, b); err != nil {
-				HttpLog().WithError(err).Error("RestoreBackup() error")
-			}
-		}
-		var wg sync.WaitGroup
-		once := sync.Once{}
-		shutdown := func() {
-			wg.Wait()
-			backup, err := client.BackupBackend(backend, serverName)
-
-			if err != nil {
-				HttpLog().WithError(err).Error("BackupBackend() error")
-
-				return
-			}
-
-			ioutil.WriteFile("./traefik_config_backup", backup, 0777)
-
-			if err := client.DeleteBackend(backend, serverName); err != nil {
-				HttpLog().WithError(err).Error("BackupBackend() error")
-
-				return
-			}
-		}
-		traefikShutdown = func() {
-			once.Do(shutdown)
-		}
-
-		wg.Add(1)
-		go func() {
-			if err := client.RegisterNewBackend(backend, serverName, advertiseAddr); err != nil {
-				HttpLog().WithError(err).Error("RegisterNewBackend() error")
-			}
-
-			wg.Done()
-		}()
-	}()
+		finalizer = traefikZookeeper.Finalize
+	default:
+		finalizer = func() {}
+	}
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan,
@@ -303,9 +200,7 @@ func main() {
 	go func() {
 		<-signalChan
 
-		if traefikShutdown != nil {
-			traefikShutdown()
-		}
+		finalizer()
 		time.Sleep(1 * time.Second)
 		ctx, f := context.WithTimeout(context.Background(), 60*time.Second)
 		server.Shutdown(ctx)
@@ -316,7 +211,5 @@ func main() {
 			HttpLog().Error(err)
 		}
 	}
-	if traefikShutdown != nil {
-		traefikShutdown()
-	}
+	finalizer()
 }
