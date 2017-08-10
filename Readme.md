@@ -52,7 +52,7 @@
 - Ubuntu 16.04 LTS
 - macOS 10.12(with Docker for Mac)
 - Windows 10 Pro (with Docker for Windows)
-	- If you fail to install this on windows, read [FAQ](./doc/faq.md)
+	- If you fail to install this on windows, read [FAQ](./doc/faq.md#for-windows)
 
 ## License
 - Under the MIT License
