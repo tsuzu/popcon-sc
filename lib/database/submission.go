@@ -111,7 +111,7 @@ func (dm *DatabaseManager) SubmissionRemove(cid, sid int64) error {
 		var err error
 		result.Cid = cid
 
-		if result, err = dm.SubmissionFind(cid, sid); err != nil {
+		if result, err = dm.Clone(dm.db.Set("gorm:query_options", "FOR UPDATE")).SubmissionFind(cid, sid); err != nil {
 			if err == ErrUnknownSubmission {
 				return nil
 			}

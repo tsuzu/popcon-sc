@@ -150,7 +150,7 @@ func (dm *DatabaseManager) ContestProblemAutoMigrate(cid int64) error {
 func (cp *ContestProblem) UpdateStatement(text string) error {
 	return cp.dm.Begin(func(db *gorm.DB) error {
 		res := *cp
-		err := db.Select("statement_file").First(&res, cp.Pid).Error
+		err := db.Set("gorm:query_options", "FOR UPDATE").Select("statement_file").First(&res, cp.Pid).Error
 
 		if err != nil {
 			return err
@@ -205,7 +205,7 @@ func (cp *ContestProblem) UpdateChecker(lid int64, code string) error {
 
 	return cp.dm.Begin(func(db *gorm.DB) error {
 		res := *cp
-		err := db.Select("checker_file").First(&res, cp.Pid).Error
+		err := db.Set("gorm:query_options", "FOR UPDATE").Select("checker_file").First(&res, cp.Pid).Error
 
 		if err != nil {
 			return err
@@ -271,8 +271,7 @@ func (cp *ContestProblem) UpdateTestCaseNames(newCaseNames []string, newScores [
 		var cases []ContestProblemTestCase
 		var scores []ContestProblemScoreSet
 
-		// TODO:  Add Set for update
-		if err := dm.db.Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
+		if err := dm.db.Set("gorm:query_options", "FOR UPDATE").Model(cp).Related(&cases, "Cases").Related(&scores, "Scores").Error; err != nil {
 			return err
 		}
 
@@ -346,8 +345,8 @@ func (cp *ContestProblem) UpdateTestCase(isInput bool, caseID int64, reader io.R
 		var cpcase ContestProblemTestCase
 		cpcase.Cid = cp.Cid
 		cpcase.Pid = cp.Pid
-		// TODO: set for update
-		if err := db.Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
+
+		if err := db.Set("gorm:query_options", "FOR UPDATE").Model(cp).Offset(caseID).Limit(1).Order("id asc").Related(&cpcase, "Cases").Error; err != nil {
 			return err
 		}
 

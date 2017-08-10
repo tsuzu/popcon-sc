@@ -35,7 +35,7 @@ func (c *Contest) ProblemAdd(pidx int64, name string, time, mem int64, jtype sct
 func (c *Contest) DescriptionUpdate(desc string) error {
 	var res Contest
 	return c.dm.Begin(func(db *gorm.DB) error {
-		if err := db.Select("description_file").First(&res, c.Cid).Error; err != nil {
+		if err := db.Set("gorm:query_options", "FOR UPDATE").Select("description_file").First(&res, c.Cid).Error; err != nil {
 			return err
 		}
 
