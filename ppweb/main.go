@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/cs3238-thuzu/popcon-sc/lib/traefik_zookeeper"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/database"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/filesystem"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/redis"
 	"github.com/cs3238-tsuzu/popcon-sc/lib/traefik_consul"
+	"github.com/cs3238-tsuzu/popcon-sc/lib/traefik_zookeeper"
 	"github.com/cs3238-tsuzu/popcon-sc/ppjc/client"
 	gorilla "github.com/gorilla/handlers"
 	"github.com/sebest/xff"
