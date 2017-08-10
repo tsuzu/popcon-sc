@@ -89,6 +89,7 @@ func initialize(retry int32) error {
 			if retry != 0 {
 				retry--
 
+				logrus.WithError(err).Warn("Failed to connect zookeeper...retrying")
 				time.Sleep(3 * time.Second)
 				continue
 			}
@@ -99,6 +100,7 @@ func initialize(retry int32) error {
 					logrus.WithError(err).Error("zookeeper.NewFrontend() error")
 				}
 			}
+			break
 		}
 	}
 

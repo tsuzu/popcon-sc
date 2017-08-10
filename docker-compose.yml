@@ -34,6 +34,7 @@ services:
             - --web
             - --zookeeper
             - --zookeeper.endpoint=zookeeper:2181
+            - --zookeeper.prefix=traefik
             - --zookeeper.watch=true
             - --debug
     
@@ -85,7 +86,7 @@ services:
             PP_MONGO_ADDR: "mongo:27017"
             PP_JC_ADDR: "http://ppjc/"
             PP_MS_ADDR: "http://ppms:7502/"
-            PP_ZOOKEEPER_ADDR: "http://zookeeper:8500/"
+            PP_ZOOKEEPER_ADDR: "zookeeper:2181"
             PP_TRAEFIK_PREFIX: traefik
             PP_TRAEFIK_BACKEND: ppweb
             PP_TOKEN: ${PP_TOKEN}

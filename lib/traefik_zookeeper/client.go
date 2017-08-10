@@ -84,6 +84,9 @@ func (c *Client) HasFrontend() (bool, error) {
 	pairs, err := c.client.List(c.prefix + "/frontends/")
 
 	if err != nil {
+		if err == store.ErrKeyNotFound {
+			err = nil
+		}
 		return false, err
 	}
 

@@ -99,6 +99,7 @@ func initialize(retry int32) error {
 					logrus.WithError(err).Error("consul-manager.NewFrontend() error")
 				}
 			}
+			break
 		}
 	}
 
